@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#7f1d1d" />
+  <title>KKU HR Exp</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    html, body { -webkit-tap-highlight-color: transparent; }
+    body { font-family: "Sarabun", "Segoe UI", system-ui, -apple-system, sans-serif; }
+    .fade-in { animation: fadeIn .25s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px);} to { opacity:1; transform: none;} }
+    .spinner { border: 3px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 9999px; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg);} }
+  </style>
+</head>
+
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+  <!-- ================= CONFIG (แก้เฉพาะ 2 บรรทัดนี้) ================= -->
+  <script>
+    const CONFIG = {
+      GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
+      APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
+      ALLOWED_DOMAIN   : "kku.ac.th"
+    };
+  </script>
+
+  <!-- ================= แจ้งเตือนยังไม่ได้ตั้งค่า ================= -->
+  <div id="setupWarning" class="hidden fixed inset-x-0 top-0 z-50 bg-amber-400 text-amber-950 text-xs p-3 text-center font-semibold">
+    ยังไม่ได้ตั้งค่า Client ID / Web App URL — กรุณาแก้ไฟล์ index.html ส่วน CONFIG
+  </div>
+
+  <!-- ================= หน้า LOGIN ================= -->
+  <section id="loginView" class="min-h-screen flex flex-col items-center justify-center p-6">
+    <div class="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 text-center fade-in">
+      <div class="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+        HR
+      </div>
+      <h1 class="mt-5 text-2xl font-bold text-slate-900">KKU HR Exp</h1>
+      <p class="mt-1 text-sm text-slate-500">ระบบบันทึกงานนักวิชาการโสตทัศนศึกษา<br>มหาวิทยาลัยขอนแก่น</p>
+
+      <div class="mt-8 flex justify-center">
+        <div id="g_id_onload" data-auto_select="false"></div>
+        <div id="g_id_signin"></div>
+        <div id="googleBtnFallback" class="hidden"></div>
+      </div>
+
+      <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">
+        อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น
+      </p>
+      <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
+    </div>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 1</p>
+  </section>
+
+  <!-- ================= หน้า APP ================= -->
+  <section id="appView" class="hidden min-h-screen pb-28">
+
+    <!-- Header -->
+    <header class="sticky top-0 z-40 bg-gradient-to-r from-red-800 to-red-900 text-white shadow-md">
+      <div class="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
+        <img id="userAvatar" alt="avatar" class="w-10 h-10 rounded-full border-2 border-white/70 bg-white/20" />
+        <div class="flex-1 min-w-0">
+          <p id="userName" class="font-semibold leading-tight truncate">—</p>
+          <p id="userEmail" class="text-[11px] text-white/80 truncate">—</p>
+        </div>
+        <button id="logoutBtn" class="text-xs bg-white/15 hover:bg-white/25 active:scale-95 transition px-3 py-2 rounded-full">
+          ออกจากระบบ
+        </button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="max-w-lg mx-auto px-4 pb-2 flex gap-2">
+        <button data-tab="work" class="tab-btn flex-1 py-2 rounded-xl text-sm font-semibold bg-white text-red-800 shadow">
+          📝 บันทึกงาน
+        </button>
+        <button data-tab="issue" class="tab-btn flex-1 py-2 rounded-xl text-sm font-semibold bg-white/15 text-white">
+          ⚠️ แจ้งปัญหา
+        </button>
+      </div>
+    </header>
+
+    <main class="max-w-lg mx-auto px-4 pt-4">
+
+      <!-- ===== แท็บ บันทึกงาน ===== -->
+      <div id="tab-work" class="tab-panel fade-in">
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <label class="block text-sm font-semibold text-slate-700 mb-2">รายละเอียดงานที่ทำ</label>
+          <textarea id="workDetail" rows="5" placeholder="เช่น ตั้งระบบเสียงห้องประชุมอาคาร 2 ตรวจสอบไมค์ 4 ตัว..."
+            class="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white"></textarea>
+
+          <div class="mt-3">
+            <label class="block text-sm font-semibold text-slate-700 mb-2">แนบรูป/ไฟล์ (ไม่บังคับ)</label>
+            <div class="flex gap-2">
+              <label class="flex-1 cursor-pointer text-center text-sm py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-95 transition">
+                📷 ถ่ายรูป
+                <input type="file" accept="image/*" capture="environment" class="hidden attach-input" data-target="work" />
+              </label>
+              <label class="flex-1 cursor-pointer text-center text-sm py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-95 transition">
+                🖼️ เลือกไฟล์
+                <input type="file" multiple class="hidden attach-input" data-target="work" />
+              </label>
+            </div>
+            <div id="preview-work" class="mt-3 grid grid-cols-4 gap-2"></div>
+          </div>
+
+          <button id="submitWork"
+            class="mt-4 w-full py-3.5 rounded-xl bg-gradient-to-r from-red-700 to-red-900 text-white font-bold shadow-lg active:scale-[.98] transition flex items-center justify-center gap-2">
+            <span class="btn-label">ส่งบันทึกงาน</span>
+            <span class="btn-spin spinner w-4 h-4 hidden"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== แท็บ แจ้งปัญหา ===== -->
+      <div id="tab-issue" class="tab-panel hidden fade-in">
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <label class="block text-sm font-semibold text-slate-700 mb-2">รายละเอียดปัญหา / อุปกรณ์ชำรุด</label>
+          <textarea id="issueDetail" rows="5" placeholder="เช่น ไมค์ห้อง 3 มีเสียงซ่า สาย HDMI ห้องประชุมใหญ่ขาด..."
+            class="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white"></textarea>
+
+          <div class="mt-3">
+            <label class="block text-sm font-semibold text-slate-700 mb-2">แนบรูป/ไฟล์ (ไม่บังคับ)</label>
+            <div class="flex gap-2">
+              <label class="flex-1 cursor-pointer text-center text-sm py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-95 transition">
+                📷 ถ่ายรูป
+                <input type="file" accept="image/*" capture="environment" class="hidden attach-input" data-target="issue" />
+              </label>
+              <label class="flex-1 cursor-pointer text-center text-sm py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-95 transition">
+                🖼️ เลือกไฟล์
+                <input type="file" multiple class="hidden attach-input" data-target="issue" />
+              </label>
+            </div>
+            <div id="preview-issue" class="mt-3 grid grid-cols-4 gap-2"></div>
+          </div>
+
+          <button id="submitIssue"
+            class="mt-4 w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-700 text-white font-bold shadow-lg active:scale-[.98] transition flex items-center justify-center gap-2">
+            <span class="btn-label">แจ้งปัญหา</span>
+            <span class="btn-spin spinner w-4 h-4 hidden"></span>
+          </button>
+        </div>
+      </div>
+
+    </main>
+  </section>
+
+  <!-- ================= Toast ================= -->
+  <div id="toast" class="hidden fixed bottom-6 inset-x-0 z-50 flex justify-center px-4">
+    <div id="toastBox" class="max-w-sm w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl text-center"></div>
+  </div>
+
+  <script>
+  /* ============================================================
+     KKU HR Exp — Phase 1  (index.html)
+     Frontend: HTML + Tailwind + Google Identity Services
+     Backend : Google Apps Script (Code.gs)
+     ============================================================ */
+
+  const state = {
+    user: null,                 // { email, name, picture, sub }
+    attachments: { work: [], issue: [] }
+  };
+
+  /* ---------- utilities ---------- */
+  const $ = (id) => document.getElementById(id);
+
+  function showToast(msg, type = "success") {
+    const box = $("toastBox");
+    box.textContent = msg;
+    box.className = "max-w-sm w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl text-center " +
+      (type === "error" ? "bg-red-600" : type === "warn" ? "bg-amber-600" : "bg-emerald-600");
+    $("toast").classList.remove("hidden");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => $("toast").classList.add("hidden"), 3200);
+  }
+
+  function parseJwt(token) {
+    try {
+      const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const json = decodeURIComponent(
+        atob(base64).split("").map(c =>
+          "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join("")
+      );
+      return JSON.parse(json);
+    } catch (e) { return null; }
+  }
+
+  function domainOf(email) { return (email || "").split("@")[1] || ""; }
+
+  function configReady() {
+    return CONFIG.APPS_SCRIPT_URL.startsWith("https://") &&
+           CONFIG.GOOGLE_CLIENT_ID.includes(".apps.googleusercontent.com") &&
+           !CONFIG.GOOGLE_CLIENT_ID.startsWith("PASTE");
+  }
+
+  /* ---------- Google Sign-In ---------- */
+  function initGoogle() {
+    if (!window.google || !google.accounts) { setTimeout(initGoogle, 400); return; }
+    google.accounts.id.initialize({
+      client_id: CONFIG.GOOGLE_CLIENT_ID,
+      callback: onCredential,
+      auto_select: false
+    });
+    google.accounts.id.renderButton($("g_id_signin"), {
+      type: "standard", theme: "filled_blue", size: "large",
+      text: "signin_with", shape: "pill", logo_alignment: "left", width: 260
+    });
+  }
+
+  function onCredential(response) {
+    const payload = parseJwt(response.credential);
+    if (!payload) { loginError("ไม่สามารถอ่านข้อมูลบัญชีได้ กรุณาลองใหม่"); return; }
+
+    if (domainOf(payload.email) !== CONFIG.ALLOWED_DOMAIN) {
+      loginError("อนุญาตเฉพาะอีเมล @kku.ac.th เท่านั้น (บัญชีของคุณ: " + payload.email + ")");
+      try { google.accounts.id.disableAutoSelect(); } catch (e) {}
+      return;
+    }
+
+    state.user = {
+      email: payload.email,
+      name: payload.name || payload.email,
+      picture: payload.picture || "",
+      sub: payload.sub
+    };
+    localStorage.setItem("hrx_user", JSON.stringify(state.user));
+
+    // ลงทะเบียน/อัปเดตผู้ใช้ใน Sheet (fire-and-forget)
+    sendToServer({ action: "login", email: state.user.email, name: state.user.name, idToken: response.credential });
+
+    enterApp();
+  }
+
+  function loginError(msg) { const e = $("loginError"); e.textContent = msg; e.classList.remove("hidden"); }
+
+  function enterApp() {
+    $("userName").textContent = state.user.name;
+    $("userEmail").textContent = state.user.email;
+    $("userAvatar").src = state.user.picture || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>";
+    $("loginView").classList.add("hidden");
+    $("appView").classList.remove("hidden");
+  }
+
+  function logout() {
+    localStorage.removeItem("hrx_user");
+    state.user = null;
+    try { google.accounts.id.disableAutoSelect(); } catch (e) {}
+    $("appView").classList.add("hidden");
+    $("loginView").classList.remove("hidden");
+    $("loginError").classList.add("hidden");
+  }
+
+  /* ---------- ส่งข้อมูลไป Apps Script (fire-and-forget) ---------- */
+  function sendToServer(payload) {
+    return fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: "POST",
+      mode: "no-cors",                                  // เลี่ยง CORS preflight ที่ Apps Script ไม่ตอบ
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+  }
+
+  /* ---------- จัดการไฟล์แนบ ---------- */
+  async function compressImage(file) {
+    const maxSide = 1600, quality = 0.8;
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
+    });
+    const img = await new Promise((res, rej) => {
+      const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl;
+    });
+    let { width, height } = img;
+    const scale = Math.min(1, maxSide / Math.max(width, height));
+    width = Math.round(width * scale); height = Math.round(height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = width; canvas.height = height;
+    canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+    const out = canvas.toDataURL("image/jpeg", quality);
+    return { name: (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg", mimeType: "image/jpeg", base64: out.split(",")[1] };
+  }
+
+  function readAsBase64(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res({ name: file.name, mimeType: file.type || "application/octet-stream", base64: r.result.split(",")[1] });
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function prepareFile(file) {
+    if (file.size > 8 * 1024 * 1024) throw new Error("ไฟล์ใหญ่เกิน 8MB");
+    if (file.type.startsWith("image/")) return await compressImage(file);
+    return await readAsBase64(file);
+  }
+
+  function renderPreviews(target) {
+    const wrap = $("preview-" + target);
+    wrap.innerHTML = "";
+    state.attachments[target].forEach((f, idx) => {
+      const div = document.createElement("div");
+      div.className = "relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center";
+      if (f.mimeType.startsWith("image/")) {
+        div.innerHTML = `<img src="data:${f.mimeType};base64,${f.base64}" class="w-full h-full object-cover">`;
+      } else {
+        div.innerHTML = `<span class="text-[10px] text-center px-1 break-all">${f.name}</span>`;
+      }
+      const x = document.createElement("button");
+      x.textContent = "×";
+      x.className = "absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white text-xs leading-5";
+      x.onclick = () => { state.attachments[target].splice(idx, 1); renderPreviews(target); };
+      div.appendChild(x);
+      wrap.appendChild(div);
+    });
+  }
+
+  function bindAttachInputs() {
+    document.querySelectorAll(".attach-input").forEach(inp => {
+      inp.addEventListener("change", async (e) => {
+        const target = e.target.dataset.target;
+        for (const file of Array.from(e.target.files)) {
+          try {
+            const payload = await prepareFile(file);
+            state.attachments[target].push(payload);
+          } catch (err) { showToast(err.message, "error"); }
+        }
+        e.target.value = "";
+        renderPreviews(target);
+      });
+    });
+  }
+
+  /* ---------- Tabs ---------- */
+  function switchTab(tab) {
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+    $("tab-" + tab).classList.remove("hidden");
+    document.querySelectorAll(".tab-btn").forEach(b => {
+      const active = b.dataset.tab === tab;
+      b.className = "tab-btn flex-1 py-2 rounded-xl text-sm font-semibold " +
+        (active ? "bg-white text-red-800 shadow" : "bg-white/15 text-white");
+    });
+  }
+
+  /* ---------- Submit ---------- */
+  async function submit(type) {
+    if (!state.user) return;
+    const detail = (type === "work" ? $("workDetail").value : $("issueDetail").value).trim();
+    if (!detail) { showToast("กรุณากรอกรายละเอียดก่อนส่ง", "warn"); return; }
+
+    const btn = $(type === "work" ? "submitWork" : "submitIssue");
+    btn.disabled = true;
+    btn.querySelector(".btn-label").textContent = "กำลังส่ง...";
+    btn.querySelector(".btn-spin").classList.remove("hidden");
+
+    try {
+      await sendToServer({
+        action: type === "work" ? "workLog" : "issue",
+        email: state.user.email,
+        name: state.user.name,
+        detail: detail,
+        files: state.attachments[type]
+      });
+
+      if (type === "work") { $("workDetail").value = ""; }
+      else { $("issueDetail").value = ""; }
+      state.attachments[type] = [];
+      renderPreviews(type);
+      showToast("✅ ส่งข้อมูลเรียบร้อย ขอบคุณครับ");
+    } catch (err) {
+      showToast("❌ ส่งไม่สำเร็จ กรุณาลองใหม่", "error");
+    } finally {
+      btn.disabled = false;
+      btn.querySelector(".btn-label").textContent = type === "work" ? "ส่งบันทึกงาน" : "แจ้งปัญหา";
+      btn.querySelector(".btn-spin").classList.add("hidden");
+    }
+  }
+
+  /* ---------- Boot ---------- */
+  window.addEventListener("load", () => {
+    if (!configReady()) $("setupWarning").classList.remove("hidden");
+
+    bindAttachInputs();
+    document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+    $("submitWork").addEventListener("click", () => submit("work"));
+    $("submitIssue").addEventListener("click", () => submit("issue"));
+    $("logoutBtn").addEventListener("click", logout);
+
+    const saved = localStorage.getItem("hrx_user");
+    if (saved) {
+      try {
+        const u = JSON.parse(saved);
+        if (domainOf(u.email) === CONFIG.ALLOWED_DOMAIN) {
+          state.user = u; enterApp();
+        } else { localStorage.removeItem("hrx_user"); }
+      } catch (e) { localStorage.removeItem("hrx_user"); }
+    }
+
+    initGoogle();
+  });
+  </script>
+</body>
+</html>
