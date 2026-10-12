@@ -7,6 +7,7 @@
   <title>KKU HR Exp</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <style>
@@ -39,6 +40,10 @@
     ยังไม่ได้ตั้งค่า Client ID / Web App URL — กรุณาแก้ไฟล์ index.html ส่วน CONFIG
   </div>
 
+  <div id="offlineBar" class="hidden fixed inset-x-0 top-0 z-[90] bg-slate-900 text-white text-xs p-2 text-center font-semibold">
+    📴 ไม่มีการเชื่อมต่ออินเทอร์เน็ต — ข้อมูลอาจไม่ถูกบันทึก
+  </div>
+
   <!-- ================= LOGIN ================= -->
   <section id="loginView" class="min-h-screen flex flex-col items-center justify-center p-6">
     <div class="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 text-center fade-in">
@@ -49,7 +54,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 3</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 4</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -75,6 +80,7 @@
         <button data-tab="kb"      class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📚 ความรู้</button>
         <button data-tab="history" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🗂️ ประวัติ</button>
         <button data-tab="profile" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">👤 โปรไฟล์</button>
+        <button data-tab="admin" id="tabBtnAdmin" class="hidden tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🛡️ แอดมิน</button>
       </div>
     </header>
 
@@ -144,6 +150,58 @@
         <div id="profileBody"></div>
       </div>
 
+      <!-- ===== แอดมิน (Admin Panel) ===== -->
+      <div id="tab-admin" class="tab-panel hidden fade-in">
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-2">📢 ส่งประกาศแจ้งเตือน</h3>
+          <p class="text-[11px] text-slate-400 mb-2">ข้อความจะเด้งบังหน้าจอผู้ใช้ทุกคน จนกว่าจะกดรับทราบ</p>
+          <textarea id="adminNotifMsg" rows="3" placeholder="พิมพ์ข้อความประกาศ..."
+            class="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
+          <button id="adminNotifSend" class="mt-2 w-full py-2.5 rounded-xl bg-red-700 text-white text-sm font-bold active:scale-95 transition">ส่งประกาศ</button>
+          <div id="adminNotifRecent" class="mt-3 space-y-1"></div>
+        </div>
+
+        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-2">✅ รออนุมัติขึ้นคลังองค์ความรู้</h3>
+          <div id="adminPendingList" class="space-y-2"></div>
+        </div>
+
+        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-2">⭐ มอบ XP พิเศษ (Bonus)</h3>
+          <select id="adminUserSelect" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2"></select>
+          <div class="flex gap-2 mb-2">
+            <input id="bonusAmount" type="number" placeholder="จำนวน XP" class="w-28 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm" />
+            <input id="bonusReason" placeholder="เหตุผล" class="flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm" />
+          </div>
+          <button id="adminBonusSend" class="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold active:scale-95 transition">มอบ XP</button>
+
+          <hr class="my-4 border-slate-100" />
+
+          <h3 class="text-sm font-bold text-slate-700 mb-2">🔑 จัดการสิทธิ์ผู้ใช้ (Role)</h3>
+          <div class="flex gap-2">
+            <select id="roleUserSelect" class="flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm"></select>
+            <select id="roleValue" class="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm">
+              <option value="User">User</option>
+              <option value="Admin">Admin</option>
+            </select>
+          </div>
+          <button id="adminRoleSend" class="mt-2 w-full py-2.5 rounded-xl bg-slate-800 text-white text-sm font-bold active:scale-95 transition">บันทึกสิทธิ์</button>
+        </div>
+
+        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-2">📥 Export ข้อมูล</h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button data-export="worklogs" data-format="xlsx" class="export-btn py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold active:scale-95 transition">บันทึกงาน (Excel)</button>
+            <button data-export="worklogs" data-format="csv" class="export-btn py-2.5 rounded-xl bg-emerald-700 text-white text-xs font-bold active:scale-95 transition">บันทึกงาน (CSV)</button>
+            <button data-export="issues" data-format="xlsx" class="export-btn py-2.5 rounded-xl bg-red-600 text-white text-xs font-bold active:scale-95 transition">ปัญหา (Excel)</button>
+            <button data-export="issues" data-format="csv" class="export-btn py-2.5 rounded-xl bg-red-700 text-white text-xs font-bold active:scale-95 transition">ปัญหา (CSV)</button>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2">ไฟล์เรียงวันที่-เวลา ใหม่→เก่า พร้อมชื่อผู้บันทึก หมวดหมู่ (AI) สถานะ และลิงก์ไฟล์แนบ</p>
+        </div>
+
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 4</p>
+      </div>
+
     </main>
   </section>
 
@@ -178,10 +236,10 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 3 (index.html)
+     KKU HR Exp — Phase 4 (index.html)
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"work", pendingNotifs:[] };
-  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like" };
+  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน" };
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -197,6 +255,10 @@
     $("toast").classList.remove("hidden");
     clearTimeout(showToast._t);
     showToast._t = setTimeout(() => $("toast").classList.add("hidden"), 3400);
+  }
+
+  function updateOnline() {
+    $("offlineBar").classList.toggle("hidden", navigator.onLine !== false);
   }
 
   function parseJwt(token) {
@@ -254,11 +316,25 @@
 
   /* ---------- ส่งข้อมูล (fire-and-forget) ---------- */
   function sendToServer(payload) {
+    if (navigator.onLine === false) return Promise.reject(new Error("offline"));
     return fetch(CONFIG.APPS_SCRIPT_URL, {
       method:"POST", mode:"no-cors",
       headers:{ "Content-Type":"text/plain;charset=utf-8" },
       body: JSON.stringify(payload)
     });
+  }
+
+  /* ---------- ส่งพร้อมจัดการ error แบบเข้าใจง่าย ---------- */
+  async function postAction(payload, okMsg) {
+    if (navigator.onLine === false) { showToast("📴 ออฟไลน์อยู่ กรุณาเชื่อมต่ออินเทอร์เน็ตก่อน", "error"); return false; }
+    try {
+      await sendToServer(payload);
+      if (okMsg) showToast(okMsg);
+      return true;
+    } catch (e) {
+      showToast("❌ ส่งข้อมูลไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่", "error");
+      return false;
+    }
   }
 
   /* ---------- อ่านข้อมูล (JSONP) ---------- */
@@ -324,6 +400,7 @@
 
   /* ---------- Tabs ---------- */
   function switchTab(tab) {
+    if (tab === "admin" && !state.isAdmin) { showToast("เฉพาะแอดมินเท่านั้น", "warn"); return; }
     state.currentTab = tab;
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
     $("tab-" + tab).classList.remove("hidden");
@@ -335,6 +412,7 @@
     if (tab === "kb") loadKb();
     if (tab === "history") loadHistory();
     if (tab === "profile") loadProfile();
+    if (tab === "admin") loadAdmin();
   }
 
   function renderModeButtons() {
@@ -362,7 +440,9 @@
       showSaveModal(detail, result);
       loadProfile();
     } catch (err) {
-      showToast("❌ ส่งไม่สำเร็จ กรุณาลองใหม่", "error");
+      showToast(err && err.message === "offline"
+        ? "📴 ออฟไลน์อยู่ กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนส่ง"
+        : "❌ ส่งไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่", "error");
     } finally {
       btn.disabled = false; btn.querySelector(".btn-label").textContent = "ส่งข้อมูล"; btn.querySelector(".btn-spin").classList.add("hidden");
     }
@@ -450,15 +530,13 @@
     const ta = $("sol-" + issueId);
     const text = (ta && ta.value || "").trim();
     if (!text) { showToast("กรุณาพิมพ์แนวทางแก้ไข", "warn"); return; }
-    await sendToServer({ action:"addSolution", issueId, solution:text, email:state.user.email, name:state.user.name, idToken:state.idToken });
-    showToast("✅ ส่งแนวทางแก้ไขแล้ว (+25 XP)");
-    setTimeout(loadBoard, 1400); loadProfile();
+    const ok = await postAction({ action:"addSolution", issueId, solution:text, email:state.user.email, name:state.user.name, idToken:state.idToken }, "✅ ส่งแนวทางแก้ไขแล้ว (+25 XP)");
+    if (ok) { setTimeout(loadBoard, 1400); loadProfile(); }
   }
 
   async function resolveIssue(issueId) {
-    await sendToServer({ action:"resolveIssue", issueId, email:state.user.email, idToken:state.idToken });
-    showToast("✅ ยืนยันแก้ไขสำเร็จ (+50 XP)");
-    setTimeout(() => { loadBoard(); loadKb(); }, 1500); loadProfile();
+    const ok = await postAction({ action:"resolveIssue", issueId, email:state.user.email, idToken:state.idToken }, "✅ ยืนยันแก้ไขสำเร็จ (+50 XP) — รอแอดมินอนุมัติขึ้นคลังองค์ความรู้");
+    if (ok) { setTimeout(() => { loadBoard(); loadKb(); }, 1500); loadProfile(); }
   }
 
   /* ---------- คลังองค์ความรู้ ---------- */
@@ -497,9 +575,8 @@
   }
 
   async function likeArticle(issueId) {
-    await sendToServer({ action:"likeArticle", issueId, email:state.user.email, idToken:state.idToken });
-    showToast("❤️ ไลก์แล้ว ผู้เขียนวิธีแก้ได้ +5 XP");
-    setTimeout(loadKb, 1400); loadProfile();
+    const ok = await postAction({ action:"likeArticle", issueId, email:state.user.email, idToken:state.idToken }, "❤️ ไลก์แล้ว ผู้เขียนวิธีแก้ได้ +5 XP");
+    if (ok) { setTimeout(loadKb, 1400); loadProfile(); }
   }
 
   /* ---------- ประวัติของฉัน ---------- */
@@ -548,9 +625,8 @@
       for (const f of Array.from(input.files)) { try { files.push(await prepareFile(f)); } catch (e) { showToast(e.message, "error"); } }
       if (!files.length) return;
       showToast("กำลังอัปโหลด...", "warn");
-      await sendToServer({ action:"addFiles", recordType:type, recordId:id, files, email:state.user.email, idToken:state.idToken });
-      showToast("✅ แนบไฟล์เรียบร้อย");
-      setTimeout(loadHistory, 1500);
+      const ok = await postAction({ action:"addFiles", recordType:type, recordId:id, files, email:state.user.email, idToken:state.idToken }, "✅ แนบไฟล์เรียบร้อย");
+      if (ok) setTimeout(loadHistory, 1500);
     };
     input.click();
   }
@@ -563,6 +639,8 @@
       const data = await jsonp({ action:"myProfile", idToken:state.idToken, email:state.user.email });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       state.isAdmin = !!data.isAdmin;
+      $("tabBtnAdmin").classList.toggle("hidden", !state.isAdmin);
+      if (!state.isAdmin && state.currentTab === "admin") switchTab("work");
       $("headerLevelNum").textContent = "Lv " + data.level;
 
       let pct = 100, nextLabel = "ระดับสูงสุดแล้ว 🏆";
@@ -617,9 +695,104 @@
 
   function ackNotifications() {
     const ids = state.pendingNotifs.map(n => n.id);
-    sendToServer({ action:"ackNotification", notifIds:ids, email:state.user.email, idToken:state.idToken });
+    postAction({ action:"ackNotification", notifIds:ids, email:state.user.email, idToken:state.idToken });
     state.pendingNotifs = [];
     $("notifModal").classList.add("hidden");
+  }
+
+  /* ---------- Admin Panel (Phase 4) ---------- */
+  async function loadAdmin() {
+    if (!state.isAdmin) return;
+    $("adminPendingList").innerHTML = `<p class="text-sm text-slate-400 text-center py-4">กำลังโหลด...</p>`;
+    try {
+      const data = await jsonp({ action:"adminOverview", idToken:state.idToken });
+      if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
+
+      const pl = data.pendingApprovals;
+      $("adminPendingList").innerHTML = pl.length ? pl.map(a => `
+        <div class="rounded-xl border border-slate-100 p-3">
+          <div class="flex justify-between"><span class="text-[11px] font-mono text-slate-400">#${esc(a.id)}</span><span class="text-[11px] text-slate-400">🕒 ${esc(a.time)}</span></div>
+          <p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(a.detail)}</p>
+          ${a.solver ? `<p class="text-[11px] text-amber-700 font-semibold mt-1">🏅 ${esc(a.solver)}</p>` : ""}
+          <button data-approve="${esc(a.id)}" class="mt-2 w-full py-2 rounded-lg bg-blue-600 text-white text-xs font-bold active:scale-95 transition">อนุมัติขึ้นคลังองค์ความรู้</button>
+        </div>`).join("") : `<p class="text-sm text-slate-400 text-center py-4">ไม่มีรายการรออนุมัติ 🎉</p>`;
+      $("adminPendingList").querySelectorAll("[data-approve]").forEach(b => b.addEventListener("click", () => approveIssue(b.dataset.approve)));
+
+      const opts = data.users.map(u => `<option value="${esc(u.email)}">${esc(u.name || u.email)} (${u.totalXp} XP · ${esc(u.role)})</option>`).join("");
+      $("adminUserSelect").innerHTML = opts || `<option value="">— ไม่มีผู้ใช้ —</option>`;
+      $("roleUserSelect").innerHTML = opts || `<option value="">— ไม่มีผู้ใช้ —</option>`;
+
+      $("adminNotifRecent").innerHTML = data.notifications.slice(0, 5)
+        .map(n => `<p class="text-[11px] text-slate-400 truncate">📌 ${esc(n.message)} · ${esc(n.time)}</p>`).join("");
+    } catch (err) {
+      $("adminPendingList").innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+    }
+  }
+
+  async function approveIssue(issueId) {
+    const ok = await postAction({ action:"approveIssue", issueId, email:state.user.email, idToken:state.idToken }, "✅ อนุมัติขึ้นคลังองค์ความรู้แล้ว");
+    if (ok) { loadAdmin(); loadKb(); }
+  }
+
+  async function adminSendNotif() {
+    const msg = $("adminNotifMsg").value.trim();
+    if (!msg) { showToast("กรุณาพิมพ์ข้อความประกาศ", "warn"); return; }
+    const ok = await postAction({ action:"createNotification", message:msg, email:state.user.email, idToken:state.idToken }, "✅ ส่งประกาศแล้ว");
+    if (ok) { $("adminNotifMsg").value = ""; setTimeout(loadAdmin, 1200); }
+  }
+
+  async function adminGrantBonus() {
+    const email = $("adminUserSelect").value;
+    const amount = Number($("bonusAmount").value);
+    const reason = $("bonusReason").value.trim();
+    if (!email) { showToast("กรุณาเลือกผู้ใช้", "warn"); return; }
+    if (!amount || isNaN(amount)) { showToast("กรุณากรอกจำนวน XP", "warn"); return; }
+    const ok = await postAction({ action:"grantBonusXp", targetEmail:email, amount, reason, email:state.user.email, idToken:state.idToken }, `✅ มอบ ${amount} XP แล้ว`);
+    if (ok) { $("bonusAmount").value = ""; $("bonusReason").value = ""; setTimeout(loadAdmin, 1200); }
+  }
+
+  async function adminSetRole() {
+    const email = $("roleUserSelect").value;
+    const role = $("roleValue").value;
+    if (!email) { showToast("กรุณาเลือกผู้ใช้", "warn"); return; }
+    const ok = await postAction({ action:"setUserRole", targetEmail:email, role, email:state.user.email, idToken:state.idToken }, `✅ ตั้งสิทธิ์เป็น ${role} แล้ว`);
+    if (ok) setTimeout(loadAdmin, 1200);
+  }
+
+  async function doExport(type, format) {
+    showToast("กำลังเตรียมไฟล์...", "warn");
+    try {
+      const data = await jsonp({ action:"exportData", type, idToken:state.idToken });
+      if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
+      if (!data.rows.length) { showToast("ไม่มีข้อมูลให้ Export", "warn"); return; }
+      const label = type === "issues" ? "Issues" : "Work_Logs";
+      const stamp = new Date().toISOString().slice(0, 10);
+      if (format === "csv") exportCsv(data.rows, `${label}_${stamp}.csv`);
+      else exportXlsx(data.rows, `${label}_${stamp}.xlsx`);
+      showToast(`✅ Export ${data.count} รายการแล้ว`);
+    } catch (err) {
+      showToast("❌ Export ไม่สำเร็จ: " + err.message, "error");
+    }
+  }
+
+  function exportXlsx(rows, filename) {
+    if (typeof XLSX === "undefined") { showToast("❌ โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ", "error"); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Data");
+    XLSX.writeFile(wb, filename);
+  }
+
+  function exportCsv(rows, filename) {
+    if (typeof XLSX === "undefined") { showToast("❌ โหลดตัวสร้างไฟล์ไม่สำเร็จ", "error"); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const csv = "\ufeff" + XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csv], { type:"text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
   }
 
   /* ---------- Boot ---------- */
@@ -635,7 +808,15 @@
     $("logoutBtn").addEventListener("click", logout);
     $("saveModalClose").addEventListener("click", () => $("saveModal").classList.add("hidden"));
     $("notifAck").addEventListener("click", ackNotifications);
+    $("adminNotifSend").addEventListener("click", adminSendNotif);
+    $("adminBonusSend").addEventListener("click", adminGrantBonus);
+    $("adminRoleSend").addEventListener("click", adminSetRole);
+    document.querySelectorAll(".export-btn").forEach(b => b.addEventListener("click", () => doExport(b.dataset.export, b.dataset.format)));
     renderModeButtons();
+
+    updateOnline();
+    window.addEventListener("online", () => { updateOnline(); showToast("✅ กลับมาเชื่อมต่ออินเทอร์เน็ตแล้ว"); });
+    window.addEventListener("offline", updateOnline);
 
     document.querySelectorAll(".attach-input").forEach(inp => inp.addEventListener("change", async (e) => {
       for (const file of Array.from(e.target.files)) { try { state.attachments.push(await prepareFile(file)); } catch (err) { showToast(err.message, "error"); } }

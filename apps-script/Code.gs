@@ -36,9 +36,9 @@ var SHEETS = {
 };
 
 var HEADERS = {
-  USERS:         ["Email", "Full_Name", "Total_XP", "Level", "Last_Login"],
+  USERS:         ["Email", "Full_Name", "Total_XP", "Level", "Last_Login", "Role"],
   WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "Category", "Client_Ref"],
-  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "Category", "Solved_By_Email", "Client_Ref"],
+  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved"],
   SOLUTIONS:     ["Solution_ID", "Issue_ID", "Timestamp", "Solution_Text", "Proposed_By", "Proposer_Name"],
   XP_HISTORY:    ["XP_ID", "Timestamp", "User_Email", "Amount", "Reason", "Ref_ID", "Client_Ref"],
   XP_RULES:      ["Level", "Title", "Min_XP"],
@@ -77,6 +77,10 @@ function doGet(e) {
         return output_(activeNotifications_(p.idToken), cb);
       case "submitResult":
         return output_(submitResult_(p.clientRef, p.idToken), cb);
+      case "adminOverview":
+        return output_(adminOverview_(p.idToken), cb);
+      case "exportData":
+        return output_(exportData_(p.idToken, p.type), cb);
       case "export":
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
@@ -118,6 +122,10 @@ function doPost(e) {
       case "resolveIssue":   return handleResolveIssue_(email, data.issueId);
       case "likeArticle":    return handleLikeArticle_(email, data.issueId);
       case "ackNotification":return handleAckNotification_(email, data.notifIds || []);
+      case "approveIssue":   return handleApproveIssue_(email, data.issueId);
+      case "grantBonusXp":   return handleGrantBonusXp_(email, data.targetEmail, data.amount, data.reason);
+      case "createNotification": return handleCreateNotification_(email, data.message || "");
+      case "setUserRole":    return handleSetUserRole_(email, data.targetEmail, data.role);
       default:               return json_({ status: "error", message: "unknown action: " + data.action });
     }
   } catch (err) {
@@ -135,7 +143,7 @@ function handleLogin_(email, name) {
   var row = findRowByHeader_(sh, "Email", email);
   var ts = nowStr_();
   if (row === -1) {
-    appendByHeaders_(sh, HEADERS.USERS, { Email: email, Full_Name: name, Total_XP: 0, Level: 1, Last_Login: ts });
+    appendByHeaders_(sh, HEADERS.USERS, { Email: email, Full_Name: name, Total_XP: 0, Level: 1, Last_Login: ts, Role: "User" });
   } else if (AUTO_UPDATE_USER) {
     var map = headerMap_(sh);
     if (name) sh.getRange(row, map["Full_Name"]).setValue(name);
@@ -236,6 +244,7 @@ function handleResolveIssue_(email, issueId) {
   if (!solverEmail) { solverEmail = email; solverName = ""; }
 
   sh.getRange(row, map["Status"]).setValue("Solved");
+  if (map["KB_Approved"]) sh.getRange(row, map["KB_Approved"]).setValue(false);
   if (map["Solved_By"]) sh.getRange(row, map["Solved_By"]).setValue(solverName || solverEmail);
   if (map["Solved_By_Email"]) sh.getRange(row, map["Solved_By_Email"]).setValue(solverEmail);
 
@@ -276,6 +285,50 @@ function handleAckNotification_(email, notifIds) {
     });
   });
   return json_({ status: "ok", acked: (notifIds || []).length });
+}
+
+/* ======================================================================
+ * [4b] Admin-only handlers (Phase 4)
+ * ==================================================================== */
+function handleApproveIssue_(adminEmail, issueId) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  var sh = getSheet_(SHEETS.ISSUES, HEADERS.ISSUES);
+  var row = findRowByHeader_(sh, "Issue_ID", issueId);
+  if (row === -1) throw new Error("issue not found");
+  var map = headerMap_(sh);
+  if (String(sh.getRange(row, map["Status"]).getValue()) !== "Solved") throw new Error("ต้องเป็นเคสที่แก้ไขสำเร็จก่อน");
+  sh.getRange(row, map["KB_Approved"]).setValue(true);
+  return json_({ status: "ok", id: issueId });
+}
+
+function handleGrantBonusXp_(adminEmail, targetEmail, amount, reason) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!targetEmail || String(targetEmail).split("@")[1] !== ALLOWED_DOMAIN) throw new Error("อีเมลเป้าหมายไม่ถูกต้อง");
+  var amt = Number(amount);
+  if (!amt || isNaN(amt)) throw new Error("จำนวน XP ไม่ถูกต้อง");
+  var lv = awardXp_(targetEmail, amt, "bonus:" + (reason || "admin"), "BONUS", "");
+  return json_({ status: "ok", email: targetEmail, amount: amt, totalXp: lv.totalXp, level: lv.level });
+}
+
+function handleCreateNotification_(adminEmail, message) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!message) throw new Error("ข้อความว่าง");
+  var sh = getSheet_(SHEETS.NOTIFICATIONS, HEADERS.NOTIFICATIONS);
+  var id = "NOTI-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_();
+  appendByHeaders_(sh, HEADERS.NOTIFICATIONS, { Notif_ID: id, Message: message, Created_At: nowStr_(), Active: true });
+  return json_({ status: "ok", id: id });
+}
+
+function handleSetUserRole_(adminEmail, targetEmail, role) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!targetEmail || String(targetEmail).split("@")[1] !== ALLOWED_DOMAIN) throw new Error("อีเมลเป้าหมายไม่ถูกต้อง");
+  var r = (String(role).toLowerCase() === "admin") ? "Admin" : "User";
+  var ush = getSheet_(SHEETS.USERS, HEADERS.USERS);
+  var row = findRowByHeader_(ush, "Email", targetEmail);
+  var map = headerMap_(ush);
+  if (row === -1) appendByHeaders_(ush, HEADERS.USERS, { Email: targetEmail, Full_Name: "", Total_XP: 0, Level: 1, Last_Login: "", Role: r });
+  else ush.getRange(row, map["Role"]).setValue(r);
+  return json_({ status: "ok", email: targetEmail, role: r });
 }
 
 /* ======================================================================
@@ -348,6 +401,7 @@ function knowledgeBase_(idToken, emailParam) {
   var list = [];
   iss.forEach(function (r) {
     if (String(r.Status) !== "Solved") return;
+    if (!isTruthy_(r.KB_Approved)) return;   // ต้องผ่านการอนุมัติจากแอดมินก่อน
     var id = String(r.Issue_ID);
     var likeList = likes.filter(function (l) { return String(l.Issue_ID) === id; });
     list.push({
@@ -440,6 +494,80 @@ function submitResult_(clientRef, idToken) {
     totalXp: totalXp, level: lv.level, title: lv.title, nextXp: lv.nextMinXp
   };
 }
+
+/* ======================================================================
+ * [5b] Admin data: overview + export (Phase 4)
+ * ==================================================================== */
+function adminOverview_(idToken) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var email = verifyIdToken_(idToken).email;
+  if (!isAdmin_(email)) throw new Error("เฉพาะแอดมินเท่านั้น");
+
+  var iss = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES);
+  var pending = iss.filter(function (r) { return String(r.Status) === "Solved" && !isTruthy_(r.KB_Approved); })
+    .map(function (r) {
+      return { id: String(r.Issue_ID), time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
+               solver: String(r.Solved_By || ""), files: splitUrls_(r.File_URLs) };
+    })
+    .sort(function (a, b) { return a.time < b.time ? 1 : -1; });
+
+  var users = readObjects_(getSheet_(SHEETS.USERS, HEADERS.USERS), HEADERS.USERS)
+    .map(function (u) {
+      return { email: String(u.Email || ""), name: String(u.Full_Name || ""),
+               totalXp: Number(u.Total_XP || 0), level: Number(u.Level || 1), role: String(u.Role || "User") };
+    });
+
+  var notifs = readObjects_(getSheet_(SHEETS.NOTIFICATIONS, HEADERS.NOTIFICATIONS), HEADERS.NOTIFICATIONS)
+    .filter(function (n) { return isTruthy_(n.Active); })
+    .map(function (n) { return { id: String(n.Notif_ID), message: String(n.Message || ""), time: String(n.Created_At || "") }; })
+    .sort(function (a, b) { return a.time < b.time ? 1 : -1; });
+
+  return { status: "ok", pendingApprovals: pending, users: users, notifications: notifs };
+}
+
+function exportData_(idToken, type) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var email = verifyIdToken_(idToken).email;
+  if (!isAdmin_(email)) throw new Error("เฉพาะแอดมินเท่านั้น");
+
+  var names = {};
+  readObjects_(getSheet_(SHEETS.USERS, HEADERS.USERS), HEADERS.USERS)
+    .forEach(function (u) { names[String(u.Email)] = String(u.Full_Name || ""); });
+
+  if (type === "issues") {
+    var rows = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES).map(function (r) {
+      return {
+        "วันที่-เวลา": String(r.Timestamp || ""),
+        "ชื่อผู้แจ้ง": names[String(r.User_Email)] || "",
+        "อีเมล": String(r.User_Email || ""),
+        "รายละเอียด": String(r.Detail || ""),
+        "หมวดหมู่ (AI)": String(r.Category || ""),
+        "สถานะ": String(r.Status || ""),
+        "อนุมัติขึ้น KB": isTruthy_(r.KB_Approved) ? "Yes" : "No",
+        "ผู้แก้ไข/ผู้เสนอ": String(r.Solved_By || ""),
+        "วิธีแก้ไข": String(r.Solution || ""),
+        "ไฟล์แนบ": splitUrls_(r.File_URLs).join("\n")
+      };
+    });
+    rows.sort(function (a, b) { return a["วันที่-เวลา"] < b["วันที่-เวลา"] ? 1 : -1; });
+    return { status: "ok", type: "issues", count: rows.length, rows: rows };
+  }
+
+  var rows2 = readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS).map(function (r) {
+    return {
+      "วันที่-เวลา": String(r.Timestamp || ""),
+      "ชื่อผู้บันทึก": names[String(r.User_Email)] || "",
+      "อีเมล": String(r.User_Email || ""),
+      "รายละเอียด": String(r.Detail || ""),
+      "หมวดหมู่ (AI)": String(r.Category || ""),
+      "ไฟล์แนบ": splitUrls_(r.File_URLs).join("\n")
+    };
+  });
+  rows2.sort(function (a, b) { return a["วันที่-เวลา"] < b["วันที่-เวลา"] ? 1 : -1; });
+  return { status: "ok", type: "worklogs", count: rows2.length, rows: rows2 };
+}
+
+function isTruthy_(v) { return v === true || String(v).toUpperCase() === "TRUE"; }
 
 /* ======================================================================
  * [6] XP / Level
@@ -547,6 +675,15 @@ function verifyIdToken_(idToken) {
 }
 
 function isAdmin_(email) {
+  if (!email) return false;
+  try {
+    var ush = getSheet_(SHEETS.USERS, HEADERS.USERS);
+    var row = findRowByHeader_(ush, "Email", email);
+    if (row !== -1) {
+      var map = headerMap_(ush);
+      if (map["Role"] && String(ush.getRange(row, map["Role"]).getValue()).toLowerCase() === "admin") return true;
+    }
+  } catch (e) {}
   var list = PropertiesService.getScriptProperties().getProperty(ADMIN_PROP) || "";
   return list.split(",").map(function (s) { return s.trim().toLowerCase(); }).indexOf(String(email).toLowerCase()) !== -1;
 }
@@ -675,7 +812,7 @@ function output_(obj, callback) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("⚙️ HR Exp Admin")
-    .addItem("1) ตั้งค่า/อัปเกรดชีต (Phase 3)", "setupSheets")
+    .addItem("1) ตั้งค่า/อัปเกรดชีต (Phase 4)", "setupSheets")
     .addItem("2) ตั้งค่า Gemini API Key", "setGeminiKey")
     .addItem("3) ตั้งค่าแอดมิน (ADMIN_EMAILS)", "setAdminEmails")
     .addItem("4) สร้างประกาศแจ้งเตือนใหม่", "createNotification")
@@ -695,9 +832,9 @@ function setupSheets() {
   Object.keys(SHEETS).forEach(function (k) { getSheet_(SHEETS[k], HEADERS[k]); });
   getXpRules_(); // seed ค่าเริ่มต้นถ้ายังว่าง
   SpreadsheetApp.getUi().alert(
-    "อัปเกรดชีต Phase 3 เรียบร้อย:\n" +
-    "• Users, Work_Logs, Issues, Solutions\n" +
-    "• XP_History, XP_Rules, Likes\n" +
+    "อัปเกรดชีต Phase 4 เรียบร้อย:\n" +
+    "• Users (+ คอลัมน์ Role), Work_Logs, Issues (+ KB_Approved)\n" +
+    "• Solutions, XP_History, XP_Rules, Likes\n" +
     "• Notifications, Notif_Acks"
   );
 }
