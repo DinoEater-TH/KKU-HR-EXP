@@ -37,8 +37,8 @@ var SHEETS = {
 
 var HEADERS = {
   USERS:         ["Email", "Full_Name", "Total_XP", "Level", "Last_Login", "Role"],
-  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "Category", "Client_Ref"],
-  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved"],
+  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "Category", "Client_Ref", "Links"],
+  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links"],
   SOLUTIONS:     ["Solution_ID", "Issue_ID", "Timestamp", "Solution_Text", "Proposed_By", "Proposer_Name"],
   XP_HISTORY:    ["XP_ID", "Timestamp", "User_Email", "Amount", "Reason", "Ref_ID", "Client_Ref"],
   XP_RULES:      ["Level", "Title", "Min_XP"],
@@ -119,6 +119,7 @@ function doPost(e) {
       case "autoSubmit":     return handleAutoSubmit_(email, data.detail || "", data.files || [], data.clientRef);
       case "addSolution":    return handleAddSolution_(email, data.name || "", data.issueId, data.solution || "");
       case "addFiles":       return handleAddFiles_(email, data.recordType, data.recordId, data.files || []);
+      case "addLinks":       return handleAddLinks_(email, data.recordType, data.recordId, data.links || []);
       case "resolveIssue":   return handleResolveIssue_(email, data.issueId);
       case "likeArticle":    return handleLikeArticle_(email, data.issueId);
       case "ackNotification":return handleAckNotification_(email, data.notifIds || []);
@@ -225,6 +226,33 @@ function handleAddFiles_(email, recordType, recordId, files) {
     appendFileUrls_(sh2, row2, uploadFiles_(files));
   }
   return json_({ status: "ok", id: recordId, files: files.length });
+}
+
+/* อัปเดตลิงก์ข้อมูลเพิ่มเติม (วาง/แก้ไข) — ส่งรายการลิงก์ทั้งชุดมาระบุผลลัพธ์สุดท้าย */
+function handleAddLinks_(email, recordType, recordId, links) {
+  if (!recordId) throw new Error("missing recordId");
+  var sh, idHeader;
+  if (recordType === "issue") { sh = getSheet_(SHEETS.ISSUES, HEADERS.ISSUES); idHeader = "Issue_ID"; }
+  else { sh = getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS); idHeader = "Log_ID"; }
+
+  var row = findRowByHeader_(sh, idHeader, recordId);
+  if (row === -1) throw new Error("record not found");
+  assertOwner_(sh, row, "User_Email", email);
+
+  var map = headerMap_(sh);
+  var col = map["Links"];
+  if (!col) throw new Error("ยังไม่มีคอลัมน์ Links — ให้แอดมินอัปเกรดชีตก่อน");
+
+  var clean = [];
+  (links || []).forEach(function (x) {
+    var u = normalUrl_(x && x.u);
+    if (!u) return;
+    if (/\s/.test(u) || u.indexOf(".") === -1) throw new Error("ลิงก์ไม่ถูกต้อง: " + u);
+    clean.push({ t: String((x && x.t) || "").slice(0, 80), u: u });
+  });
+
+  sh.getRange(row, col).setValue(serializeLinks_(clean));
+  return json_({ status: "ok", id: recordId, count: clean.length, links: clean });
 }
 
 function handleResolveIssue_(email, issueId) {
@@ -357,7 +385,7 @@ function pendingIssues_(idToken) {
     var canResolve = !!me && (admin || String(r.User_Email) === me);
     list.push({
       id: String(r.Issue_ID || ""), time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
-      status: status, files: splitUrls_(r.File_URLs), solutions: byIssue[String(r.Issue_ID)] || [],
+      status: status, files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links), solutions: byIssue[String(r.Issue_ID)] || [],
       canResolve: canResolve
     }); // ไม่ส่ง User_Email
   }
@@ -372,13 +400,13 @@ function myHistory_(idToken, emailParam) {
   var works = readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
     .filter(function (r) { return String(r.User_Email) === email; })
     .map(function (r) {
-      return { type: "work", id: String(r.Log_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "work"), files: splitUrls_(r.File_URLs) };
+      return { type: "work", id: String(r.Log_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "work"), files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links) };
     });
 
   var issues = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
     .filter(function (r) { return String(r.User_Email) === email; })
     .map(function (r) {
-      return { type: "issue", id: String(r.Issue_ID), time: String(r.Timestamp), detail: String(r.Detail), status: String(r.Status || "Pending"), category: String(r.Category || "issue"), files: splitUrls_(r.File_URLs) };
+      return { type: "issue", id: String(r.Issue_ID), time: String(r.Timestamp), detail: String(r.Detail), status: String(r.Status || "Pending"), category: String(r.Category || "issue"), files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links) };
     });
 
   var all = works.concat(issues).sort(function (a, b) { return a.time < b.time ? 1 : -1; });
@@ -406,7 +434,7 @@ function knowledgeBase_(idToken, emailParam) {
     var likeList = likes.filter(function (l) { return String(l.Issue_ID) === id; });
     list.push({
       id: id, time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
-      files: splitUrls_(r.File_URLs), solutions: byIssue[id] || [],
+      files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links), solutions: byIssue[id] || [],
       solver: String(r.Solved_By || ""), likeCount: likeList.length,
       likedByMe: !!me && likeList.some(function (l) { return String(l.User_Email) === me; })
     });
@@ -546,7 +574,8 @@ function exportData_(idToken, type) {
         "อนุมัติขึ้น KB": isTruthy_(r.KB_Approved) ? "Yes" : "No",
         "ผู้แก้ไข/ผู้เสนอ": String(r.Solved_By || ""),
         "วิธีแก้ไข": String(r.Solution || ""),
-        "ไฟล์แนบ": splitUrls_(r.File_URLs).join("\n")
+        "ไฟล์แนบ": splitUrls_(r.File_URLs).join("\n"),
+        "ลิงก์เพิ่มเติม": formatLinks_(r.Links)
       };
     });
     rows.sort(function (a, b) { return a["วันที่-เวลา"] < b["วันที่-เวลา"] ? 1 : -1; });
@@ -560,7 +589,8 @@ function exportData_(idToken, type) {
       "อีเมล": String(r.User_Email || ""),
       "รายละเอียด": String(r.Detail || ""),
       "หมวดหมู่ (AI)": String(r.Category || ""),
-      "ไฟล์แนบ": splitUrls_(r.File_URLs).join("\n")
+      "ไฟล์แนบ": splitUrls_(r.File_URLs).join("\n"),
+      "ลิงก์เพิ่มเติม": formatLinks_(r.Links)
     };
   });
   rows2.sort(function (a, b) { return a["วันที่-เวลา"] < b["วันที่-เวลา"] ? 1 : -1; });
@@ -796,6 +826,38 @@ function splitUrls_(v) {
   return s ? s.split(/\s*\n\s*/).filter(function (x) { return x; }) : [];
 }
 
+/* ---------- ลิงก์ข้อมูลเพิ่มเติม (เก็บเป็น JSON ในคอลัมน์ Links) ---------- */
+function parseLinks_(v) {
+  var s = String(v || "").trim();
+  if (!s) return [];
+  try {
+    var a = JSON.parse(s);
+    if (Array.isArray(a)) {
+      return a.map(function (x) {
+        return { t: String((x && x.t) || ""), u: String((x && x.u) || "") };
+      }).filter(function (x) { return x.u; });
+    }
+  } catch (e) {}
+  // รองรับข้อมูลเก่า: บรรทัดละ 1 ลิงก์ (ไม่มีชื่อกำกับ)
+  return splitUrls_(s).map(function (u) { return { t: "", u: u }; });
+}
+function serializeLinks_(links) {
+  var clean = (links || []).map(function (x) {
+    return { t: String((x && x.t) || "").slice(0, 80), u: String((x && x.u) || "") };
+  }).filter(function (x) { return x.u; });
+  return JSON.stringify(clean);
+}
+function normalUrl_(u) {
+  u = String(u || "").trim();
+  if (!u) return "";
+  if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+  return u.slice(0, 1000);
+}
+function formatLinks_(v) {
+  var links = parseLinks_(v);
+  return links.map(function (l) { return (l.t ? l.t + ": " : "") + l.u; }).join("\n");
+}
+
 function nowStr_() { return Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd HH:mm:ss"); }
 function rand3_() { return Math.floor(Math.random() * 900 + 100); }
 
@@ -832,8 +894,8 @@ function setupSheets() {
   Object.keys(SHEETS).forEach(function (k) { getSheet_(SHEETS[k], HEADERS[k]); });
   getXpRules_(); // seed ค่าเริ่มต้นถ้ายังว่าง
   SpreadsheetApp.getUi().alert(
-    "อัปเกรดชีต Phase 4 เรียบร้อย:\n" +
-    "• Users (+ คอลัมน์ Role), Work_Logs, Issues (+ KB_Approved)\n" +
+    "อัปเกรดชีต เรียบร้อย:\n" +
+    "• Users (+Role), Work_Logs (+Links), Issues (+KB_Approved, +Links)\n" +
     "• Solutions, XP_History, XP_Rules, Likes\n" +
     "• Notifications, Notif_Acks"
   );
