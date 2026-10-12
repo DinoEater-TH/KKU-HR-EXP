@@ -167,6 +167,14 @@
         </div>
 
         <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-1">🎚️ ตั้งค่าระดับขั้น & XP (Level Setup)</h3>
+          <p class="text-[11px] text-slate-400 mb-2">แก้ชื่อยศและเกณฑ์ XP • เพิ่ม/ลบระดับได้ (ระบบเรียงตาม XP ให้อัตโนมัติ และอัปเดต Level ผู้ใช้ทุกคนเมื่อบันทึก)</p>
+          <div id="adminRules" class="space-y-2"></div>
+          <button id="adminRuleAdd" class="mt-2 w-full py-2 rounded-xl border border-dashed border-indigo-300 text-indigo-700 text-sm font-semibold active:scale-95 transition">＋ เพิ่มระดับ</button>
+          <button id="adminRuleSave" class="mt-2 w-full py-2.5 rounded-xl bg-indigo-700 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกการตั้งค่า Level & XP</button>
+        </div>
+
+        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
           <h3 class="text-sm font-bold text-slate-700 mb-2">⭐ มอบ XP พิเศษ (Bonus)</h3>
           <select id="adminUserSelect" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2"></select>
           <div class="flex gap-2 mb-2">
@@ -805,6 +813,8 @@
 
       $("adminNotifRecent").innerHTML = data.notifications.slice(0, 5)
         .map(n => `<p class="text-[11px] text-slate-400 truncate">📌 ${esc(n.message)} · ${esc(n.time)}</p>`).join("");
+
+      renderRules(data.rules || []);
     } catch (err) {
       $("adminPendingList").innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }
@@ -838,6 +848,39 @@
     if (!email) { showToast("กรุณาเลือกผู้ใช้", "warn"); return; }
     const ok = await postAction({ action:"setUserRole", targetEmail:email, role, email:state.user.email, idToken:state.idToken }, `✅ ตั้งสิทธิ์เป็น ${role} แล้ว`);
     if (ok) setTimeout(loadAdmin, 1200);
+  }
+
+  /* ---------- ตั้งค่าระดับขั้น & XP ---------- */
+  function ruleRowHtml(level, title, min) {
+    return `<div class="rule-row flex gap-2 items-center">
+      <span class="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-bold flex items-center justify-center shrink-0">Lv ${level || ""}</span>
+      <input class="rule-title flex-1 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="ชื่อยศ เช่น AV Specialist" value="${esc(title)}" />
+      <input class="rule-min w-24 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" type="number" min="0" placeholder="XP ขั้นต่ำ" value="${esc(min)}" />
+      <button type="button" class="rule-remove w-9 h-9 rounded-lg bg-red-50 text-red-600 font-bold shrink-0 active:scale-95 transition">×</button>
+    </div>`;
+  }
+
+  function renderRules(rules) {
+    const wrap = $("adminRules");
+    wrap.innerHTML = "";
+    const arr = (rules && rules.length) ? rules : [{ level: 1, title: "", min: 0 }];
+    arr.forEach(r => wrap.insertAdjacentHTML("beforeend", ruleRowHtml(r.level, r.title, r.min)));
+  }
+
+  function addRuleRow() {
+    const n = $("adminRules").querySelectorAll(".rule-row").length + 1;
+    $("adminRules").insertAdjacentHTML("beforeend", ruleRowHtml(n, "", ""));
+  }
+
+  async function saveRules() {
+    const rows = Array.from($("adminRules").querySelectorAll(".rule-row"));
+    const rules = rows.map(r => ({
+      title: r.querySelector(".rule-title").value.trim(),
+      min: Number(r.querySelector(".rule-min").value)
+    })).filter(r => !isNaN(r.min) && r.min >= 0);
+    if (!rules.length) { showToast("กรุณากรอกเกณฑ์ XP อย่างน้อย 1 ระดับ", "warn"); return; }
+    const ok = await postAction({ action:"saveXpRules", rules, email:state.user.email, idToken:state.idToken }, "✅ บันทึกการตั้งค่า Level & XP แล้ว");
+    if (ok) { loadProfile(); setTimeout(loadAdmin, 1200); }
   }
 
   async function doExport(type, format) {
@@ -892,6 +935,12 @@
     $("adminNotifSend").addEventListener("click", adminSendNotif);
     $("adminBonusSend").addEventListener("click", adminGrantBonus);
     $("adminRoleSend").addEventListener("click", adminSetRole);
+    $("adminRuleAdd").addEventListener("click", addRuleRow);
+    $("adminRuleSave").addEventListener("click", saveRules);
+    $("adminRules").addEventListener("click", (e) => {
+      const btn = e.target.closest(".rule-remove");
+      if (btn) { const r = btn.closest(".rule-row"); if (r) r.remove(); }
+    });
     document.querySelectorAll(".export-btn").forEach(b => b.addEventListener("click", () => doExport(b.dataset.export, b.dataset.format)));
     $("linkAddRow").addEventListener("click", addLinkRow);
     $("linkCancel").addEventListener("click", () => { $("linkModal").classList.add("hidden"); state.linkCtx = null; });

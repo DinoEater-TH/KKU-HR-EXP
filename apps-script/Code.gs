@@ -127,6 +127,7 @@ function doPost(e) {
       case "grantBonusXp":   return handleGrantBonusXp_(email, data.targetEmail, data.amount, data.reason);
       case "createNotification": return handleCreateNotification_(email, data.message || "");
       case "setUserRole":    return handleSetUserRole_(email, data.targetEmail, data.role);
+      case "saveXpRules":    return handleSaveXpRules_(email, data.rules || []);
       default:               return json_({ status: "error", message: "unknown action: " + data.action });
     }
   } catch (err) {
@@ -359,6 +360,53 @@ function handleSetUserRole_(adminEmail, targetEmail, role) {
   return json_({ status: "ok", email: targetEmail, role: r });
 }
 
+/* บันทึกเกณฑ์ Level & XP ใหม่ทั้งชุด แล้วคำนวณ Level ผู้ใช้ทุกคนใหม่ */
+function handleSaveXpRules_(adminEmail, rules) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+
+  var clean = [];
+  (rules || []).forEach(function (r) {
+    var min = Number(r && r.min);
+    if (isNaN(min) || min < 0) return;
+    var title = String((r && r.title) || "").trim().slice(0, 60);
+    clean.push({ level: 0, title: title || ("Level " + (clean.length + 1)), min: Math.round(min) });
+  });
+  if (!clean.length) throw new Error("ต้องมีอย่างน้อย 1 ระดับ");
+
+  // เรียงตาม XP ขั้นต่ำ แล้วกำหนดเลข Level 1,2,3,... ใหม่
+  clean.sort(function (a, b) { return a.min - b.min; });
+  clean.forEach(function (r, i) { r.level = i + 1; });
+
+  var sh = getSheet_(SHEETS.XP_RULES, HEADERS.XP_RULES);
+  var last = sh.getLastRow();
+  if (last > 1) sh.getRange(2, 1, last - 1, sh.getLastColumn()).clearContent();
+  var values = clean.map(function (r) { return [r.level, r.title, r.min]; });
+  sh.getRange(2, 1, values.length, 3).setValues(values);
+
+  var usersUpdated = recomputeUserLevels_();
+  return json_({ status: "ok", count: clean.length, usersUpdated: usersUpdated, rules: clean });
+}
+
+/* คำนวณ Level ของผู้ใช้ทุกคนใหม่ตามเกณฑ์ล่าสุด */
+function recomputeUserLevels_() {
+  var ush = getSheet_(SHEETS.USERS, HEADERS.USERS);
+  var last = ush.getLastRow();
+  if (last < 2) return 0;
+  var rules = getXpRules_();
+  var map = headerMap_(ush);
+  var expCol = map["Total_XP"], lvlCol = map["Level"];
+  var xpVals = ush.getRange(2, expCol, last - 1, 1).getValues();
+  var lvVals = ush.getRange(2, lvlCol, last - 1, 1).getValues();
+  var changed = 0;
+  for (var i = 0; i < xpVals.length; i++) {
+    var lv = computeLevel_(rules, Number(xpVals[i][0] || 0)).level;
+    if (Number(lvVals[i][0] || 1) !== lv) changed++;
+    lvVals[i][0] = lv;
+  }
+  ush.getRange(2, lvlCol, lvVals.length, 1).setValues(lvVals);
+  return changed;
+}
+
 /* ======================================================================
  * [5] อ่านข้อมูล (JSONP)
  * ==================================================================== */
@@ -550,7 +598,9 @@ function adminOverview_(idToken) {
     .map(function (n) { return { id: String(n.Notif_ID), message: String(n.Message || ""), time: String(n.Created_At || "") }; })
     .sort(function (a, b) { return a.time < b.time ? 1 : -1; });
 
-  return { status: "ok", pendingApprovals: pending, users: users, notifications: notifs };
+  var rules = getXpRules_().map(function (r) { return { level: r.level, title: r.title, min: r.min }; });
+
+  return { status: "ok", pendingApprovals: pending, users: users, notifications: notifs, rules: rules };
 }
 
 function exportData_(idToken, type) {
@@ -615,7 +665,12 @@ function getXpRules_() {
 }
 
 function levelFor_(totalXp) {
-  var rules = getXpRules_();
+  return computeLevel_(getXpRules_(), totalXp);
+}
+
+/* คำนวณ Level จากชุดเกณฑ์ที่ส่งเข้ามา (ใช้ซ้ำได้ ไม่ต้องอ่านชีตทุกครั้ง) */
+function computeLevel_(rules, totalXp) {
+  if (!rules || !rules.length) return { level: 1, title: "Level 1", minXp: 0, nextMinXp: null, nextTitle: null };
   var cur = rules[0], next = null;
   for (var i = 0; i < rules.length; i++) {
     if (totalXp >= rules[i].min) cur = rules[i];
