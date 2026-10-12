@@ -13,7 +13,7 @@
 /* ======================================================================
  * [1] CONFIG — แก้เฉพาะค่าที่จำเป็น (อ่านวิธีใน DEPLOY.md)
  * ==================================================================== */
-var CLIENT_ID        = "PASTE_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com"; // OAuth Client ID จาก Google Cloud
+var CLIENT_ID        = "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com"; // OAuth Client ID จาก Google Cloud
 var ALLOWED_DOMAIN   = "kku.ac.th";          // อนุญาตเฉพาะโดเมนนี้
 var DRIVE_FOLDER     = "KKU HR Exp - Uploads"; // ชื่อโฟลเดอร์เก็บไฟล์แนบใน Google Drive
 var TIMEZONE         = "Asia/Bangkok";       // เวลาไทย
