@@ -54,7 +54,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 5</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 5.1</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -167,6 +167,21 @@
         </div>
 
         <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-1">🧾 รายการส่งข้อมูล (ตรวจสอบ / ยกเลิก)</h3>
+          <p class="text-[11px] text-slate-400 mb-2">ดูล่าสุด 200 รายการ • กดยกเลิกเพื่อตัด XP คืน (บันทึกเหตุผลไว้ตรวจสอบ)</p>
+          <div class="flex gap-2 mb-2 items-center">
+            <select id="subFilterType" class="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs">
+              <option value="all">ทั้งหมด</option>
+              <option value="work">📋 บันทึกงาน</option>
+              <option value="issue">🛠️ ปัญหา</option>
+            </select>
+            <label class="flex items-center gap-1 text-[11px] text-slate-500"><input id="subIncludeVoided" type="checkbox" class="w-3.5 h-3.5" /> แสดงที่ยกเลิกแล้ว</label>
+          </div>
+          <input id="subSearch" placeholder="🔍 ค้นหา รายละเอียด / ชื่อ / อีเมล..." class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-red-500" />
+          <div id="adminSubmissionsList" class="space-y-2"></div>
+        </div>
+
+        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
           <h3 class="text-sm font-bold text-slate-700 mb-1">🎚️ ตั้งค่าระดับขั้น & XP (Level Setup)</h3>
           <p class="text-[11px] text-slate-400 mb-2">แก้ชื่อยศและเกณฑ์ XP • เพิ่ม/ลบระดับได้ (ระบบเรียงตาม XP ให้อัตโนมัติ และอัปเดต Level ผู้ใช้ทุกคนเมื่อบันทึก)</p>
           <div id="adminRules" class="space-y-2"></div>
@@ -207,7 +222,7 @@
           <p class="text-[11px] text-slate-400 mt-2">ไฟล์เรียงวันที่-เวลา ใหม่→เก่า พร้อมชื่อผู้บันทึก หมวดหมู่ (AI) สถานะ และลิงก์ไฟล์แนบ</p>
         </div>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 4</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 5.1</p>
       </div>
 
     </main>
@@ -256,16 +271,37 @@
     </div>
   </div>
 
+  <!-- ================= Modal: ยกเลิกรายการ (admin) ================= -->
+  <div id="voidModal" class="hidden fixed inset-0 z-[75] bg-black/50 flex items-center justify-center p-5">
+    <div class="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden pop">
+      <div class="p-5 text-center text-white bg-gradient-to-r from-red-600 to-red-800">
+        <div class="text-4xl">🗑️</div>
+        <h2 class="text-lg font-bold mt-1">ยกเลิกรายการ</h2>
+        <p class="text-[11px] text-white/80 mt-1">XP ของรายการนี้จะถูกหักคืน และผู้ใช้จะเห็นว่าโดนยกเลิก</p>
+      </div>
+      <div id="voidPreview" class="p-5 pb-0 text-sm text-slate-700 whitespace-pre-wrap max-h-[30vh] overflow-y-auto"></div>
+      <div class="p-5">
+        <label class="text-xs font-semibold text-slate-600">เหตุผลที่ยกเลิก (บังคับ)</label>
+        <textarea id="voidReason" rows="3" placeholder="เช่น ข้อมูลไม่ครบ / ยกเลิกจริง / ทุจริต..." class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
+      </div>
+      <div class="p-4 pt-0 flex gap-2">
+        <button id="voidCancel" class="flex-1 py-3 rounded-xl bg-slate-200 text-slate-700 font-bold active:scale-[.98] transition">ปิด</button>
+        <button id="voidConfirm" class="flex-[2] py-3 rounded-xl bg-red-700 text-white font-bold active:scale-[.98] transition">⛔ ยืนยันยกเลิก</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= Toast ================= -->
   <div id="toast" class="hidden fixed bottom-6 inset-x-0 z-[80] flex justify-center px-4">    <div id="toastBox" class="max-w-sm w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl text-center"></div>
   </div>
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 4 (index.html)
+     KKU HR Exp — Phase 5.1 (index.html)
      ============================================================ */
-  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"work", pendingNotifs:[], linkCtx:null, boardItems:{}, kbItems:{}, historyItems:{} };
-  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน" };
+  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"work", pendingNotifs:[], linkCtx:null, voidCtx:null, adminSubs:[], boardItems:{}, kbItems:{}, historyItems:{} };
+  let subSearchTimer = null;
+  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน" };
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -764,7 +800,7 @@
         <div class="flex items-center gap-3">
           <div class="w-2 h-2 rounded-full bg-red-500 mt-1.5 shrink-0"></div>
           <div class="flex-1 border-b border-slate-100 pb-2">
-            <div class="flex justify-between"><span class="text-sm text-slate-700">${esc(REASON_LABEL[h.reason] || h.reason)}</span><span class="text-sm font-bold text-emerald-600">+${h.amount} XP</span></div>
+            <div class="flex justify-between"><span class="text-sm text-slate-700">${esc(REASON_LABEL[h.reason] || h.reason)}</span><span class="text-sm font-bold ${Number(h.amount) < 0 ? "text-red-500" : "text-emerald-600"}">${Number(h.amount) >= 0 ? "+" : ""}${h.amount} XP</span></div>
             <p class="text-[11px] text-slate-400">${esc(h.time)}</p>
           </div>
         </div>`).join("") : `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีประวัติการรับ XP</p>`;
@@ -838,6 +874,7 @@
         .map(n => `<p class="text-[11px] text-slate-400 truncate">📌 ${esc(n.message)} · ${esc(n.time)}</p>`).join("");
 
       renderRules(data.rules || []);
+      loadAdminSubmissions();
     } catch (err) {
       $("adminPendingList").innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }
@@ -846,6 +883,77 @@
   async function approveIssue(issueId) {
     const ok = await postAction({ action:"approveIssue", issueId, email:state.user.email, idToken:state.idToken }, "✅ อนุมัติขึ้นคลังองค์ความรู้แล้ว");
     if (ok) { loadAdmin(); loadKb(); }
+  }
+
+  /* ---------- รายการส่งข้อมูล (ตรวจสอบ / ยกเลิก) ---------- */
+  async function loadAdminSubmissions() {
+    const wrap = $("adminSubmissionsList");
+    wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">กำลังโหลด...</p>`;
+    try {
+      const data = await apiGet({
+        action:"adminSubmissions",
+        type: $("subFilterType").value,
+        q: $("subSearch").value.trim(),
+        includeVoided: $("subIncludeVoided").checked ? "true" : "",
+        idToken: state.idToken
+      });
+      if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
+
+      const items = data.items || [];
+      state.adminSubs = items;
+      if (!items.length) {
+        wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">ไม่พบรายการ</p>`;
+        return;
+      }
+      wrap.innerHTML = items.map(it => `
+        <div class="rounded-xl border ${it.voided ? "border-red-100 bg-red-50/50" : "border-slate-100"} p-3">
+          <div class="flex justify-between items-start gap-2">
+            <div class="min-w-0">
+              <span class="text-[10px] font-mono text-slate-400">#${esc(it.id)}</span>
+              <span class="text-[10px] ${it.type === "work" ? "text-emerald-600" : "text-amber-700"} font-bold ml-1">${it.type === "work" ? "📋 งาน" : "🛠️ ปัญหา"}</span>
+              ${it.voided ? '<span class="text-[10px] bg-red-600 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกยกเลิก</span>' : ""}
+              <p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(it.detail)}</p>
+              <p class="text-[11px] text-slate-400 mt-1">👤 ${esc(it.name || it.user)} · <span class="font-mono">${esc(it.user)}</span> · 🕒 ${esc(it.time)}</p>
+              ${it.voided ? `<p class="text-[11px] text-red-600 mt-1">เหตุผล: ${esc(it.voidReason)} · โดย ${esc(it.voidedBy)} · ${esc(it.voidedAt)}</p>` : ""}
+            </div>
+            ${it.voided ? "" : `<button data-void="${esc(it.type)}:${esc(it.id)}" class="shrink-0 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold border border-red-200 active:scale-95 transition">ยกเลิก</button>`}
+          </div>
+        </div>`).join("") +
+        (data.count > data.shown ? `<p class="text-center text-[11px] text-slate-400 pt-2">แสดง ${data.shown}/${data.count} รายการล่าสุด</p>` : "");
+
+      wrap.querySelectorAll("[data-void]").forEach(b => {
+        const [t, id] = b.dataset.void.split(":");
+        b.addEventListener("click", () => openVoidModal(t, id));
+      });
+    } catch (err) {
+      wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+    }
+  }
+
+  function openVoidModal(type, id) {
+    const items = (state.adminSubs || []).filter(i => i.type === type && i.id === id);
+    const it = items[0] || {};
+    $("voidPreview").textContent = `#${id}\n${it.detail || ""}`;
+    $("voidReason").value = "";
+    state.voidCtx = { type, id };
+    $("voidModal").classList.remove("hidden");
+    setTimeout(() => $("voidReason").focus(), 50);
+  }
+
+  async function confirmVoid() {
+    const ctx = state.voidCtx;
+    if (!ctx) return;
+    const reason = $("voidReason").value.trim();
+    if (!reason) { showToast("กรุณากรอกเหตุผลที่ยกเลิก", "warn"); return; }
+    $("voidConfirm").disabled = true;
+    const ok = await postAction({ action:"voidRecord", recordType:ctx.type, recordId:ctx.id, reason, email:state.user.email, idToken:state.idToken }, "⛔ ยกเลิกรายการแล้ว (หัก XP คืน)");
+    $("voidConfirm").disabled = false;
+    if (ok) {
+      $("voidModal").classList.add("hidden");
+      state.voidCtx = null;
+      loadAdminSubmissions();
+      loadAdmin();
+    }
   }
 
   async function adminSendNotif() {
@@ -972,6 +1080,11 @@
       const btn = e.target.closest(".link-remove");
       if (btn) { const r = btn.closest(".link-row"); if (r) r.remove(); }
     });
+    $("subFilterType").addEventListener("change", loadAdminSubmissions);
+    $("subIncludeVoided").addEventListener("change", loadAdminSubmissions);
+    $("subSearch").addEventListener("input", () => { clearTimeout(subSearchTimer); subSearchTimer = setTimeout(loadAdminSubmissions, 400); });
+    $("voidConfirm").addEventListener("click", confirmVoid);
+    $("voidCancel").addEventListener("click", () => { $("voidModal").classList.add("hidden"); state.voidCtx = null; });
     renderModeButtons();
 
     updateOnline();

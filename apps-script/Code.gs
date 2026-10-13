@@ -1,5 +1,5 @@
 /************************************************************************
- * KKU HR Exp — Phase 5 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 5.1 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
  * โครงสร้างทั้งหมด (Phase 1-5)
@@ -11,6 +11,7 @@
  *   KB    : คลังองค์ความรู้จากเคสที่แก้สำเร็จ + Like (+5 XP)
  *   Notify: ประกาศจาก Admin (บังหน้าจอจนกว่าจะรับทราบ)
  *   Guard : กันสแปม / เนื้อหาซ้ำ / เนื้อหาไม่เกี่ยวกับงาน (Phase 5)
+ *   Audit : แอดมินยกเลิกรายการ (Soft-void) หัก XP คืน + audit trail (Phase 5.1)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -49,8 +50,8 @@ var SHEETS = {
 
 var HEADERS = {
   USERS:         ["Email", "Full_Name", "Total_XP", "Level", "Last_Login", "Role"],
-  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "Category", "Client_Ref", "Links"],
-  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links"],
+  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "Category", "Client_Ref", "Links", "Status", "Void_Reason", "Voided_By", "Voided_At"],
+  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links", "Void_Reason", "Voided_By", "Voided_At"],
   SOLUTIONS:     ["Solution_ID", "Issue_ID", "Timestamp", "Solution_Text", "Proposed_By", "Proposer_Name"],
   XP_HISTORY:    ["XP_ID", "Timestamp", "User_Email", "Amount", "Reason", "Ref_ID", "Client_Ref"],
   XP_RULES:      ["Level", "Title", "Min_XP"],
@@ -76,7 +77,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 5", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 5.1", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -91,13 +92,15 @@ function doGet(e) {
         return output_(submitResult_(p.clientRef, p.idToken), cb);
       case "adminOverview":
         return output_(adminOverview_(p.idToken), cb);
+      case "adminSubmissions":
+        return output_(adminSubmissions_(p.idToken, p.type, p.q, p.includeVoided), cb);
       case "exportData":
         return output_(exportData_(p.idToken, p.type), cb);
       case "export":
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 5" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 5.1" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -139,7 +142,10 @@ function doPost(e) {
       case "grantBonusXp":   return handleGrantBonusXp_(email, data.targetEmail, data.amount, data.reason);
       case "createNotification": return handleCreateNotification_(email, data.message || "");
       case "setUserRole":    return handleSetUserRole_(email, data.targetEmail, data.role);
-      case "saveXpRules":    return handleSaveXpRules_(email, data.rules || []);
+case "saveXpRules":
+        return handleSaveXpRules_(email, data.rules || []);
+      case "voidRecord":
+        return handleVoidRecord_(email, data.recordType, data.recordId, data.reason || "");
       default:               return json_({ status: "error", message: "unknown action: " + data.action });
     }
   } catch (err) {
@@ -451,7 +457,7 @@ function pendingIssues_(idToken) {
   for (var i = iss.length - 1; i >= 0; i--) {
     var r = iss[i];
     var status = String(r.Status || "Pending");
-    if (status === "Solved" || status === "Closed") continue;
+    if (status === "Solved" || status === "Closed" || status === "Void") continue;
     var canResolve = !!me && (admin || String(r.User_Email) === me);
     list.push({
       id: String(r.Issue_ID || ""), time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
@@ -468,13 +474,13 @@ function myHistory_(idToken, emailParam) {
   if (emailParam && emailParam !== email) throw new Error("email mismatch");
 
   var works = readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
-    .filter(function (r) { return String(r.User_Email) === email; })
+    .filter(function (r) { return String(r.User_Email) === email && !isVoided_(r); })
     .map(function (r) {
       return { type: "work", id: String(r.Log_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "work"), files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links) };
     });
 
   var issues = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
-    .filter(function (r) { return String(r.User_Email) === email; })
+    .filter(function (r) { return String(r.User_Email) === email && !isVoided_(r); })
     .map(function (r) {
       return { type: "issue", id: String(r.Issue_ID), time: String(r.Timestamp), detail: String(r.Detail), status: String(r.Status || "Pending"), category: String(r.Category || "issue"), files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links) };
     });
@@ -498,6 +504,7 @@ function knowledgeBase_(idToken, emailParam) {
 
   var list = [];
   iss.forEach(function (r) {
+    if (String(r.Status) === "Void") return;
     if (String(r.Status) !== "Solved") return;
     if (!isTruthy_(r.KB_Approved)) return;   // ต้องผ่านการอนุมัติจากแอดมินก่อน
     var id = String(r.Issue_ID);
@@ -629,6 +636,59 @@ function adminOverview_(idToken) {
   return { status: "ok", pendingApprovals: pending, users: users, notifications: notifs, rules: rules };
 }
 
+/* รายการส่งข้อมูลทั้งหมด (งาน/ปัญหา) สำหรับแอดมิน ตรวจสอบ + ยกเลิก */
+function adminSubmissions_(idToken, type, q, includeVoided) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var email = verifyIdToken_(idToken).email;
+  if (!isAdmin_(email)) throw new Error("เฉพาะแอดมินเท่านั้น");
+
+  var names = {};
+  readObjects_(getSheet_(SHEETS.USERS, HEADERS.USERS), HEADERS.USERS)
+    .forEach(function (u) { names[String(u.Email)] = String(u.Full_Name || ""); });
+
+  var wantVoided = isTruthy_(includeVoided);
+  var ql = String(q || "").trim().toLowerCase();
+  var matches = function (o) {
+    if (!ql) return true;
+    return String(o.Detail || "").toLowerCase().indexOf(ql) !== -1
+        || String(o.User_Email || "").toLowerCase().indexOf(ql) !== -1
+        || String(names[String(o.User_Email)] || "").toLowerCase().indexOf(ql) !== -1;
+  };
+
+  var list = [];
+  if (type !== "issue") {
+    readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
+      .filter(matches).forEach(function (r) {
+        var v = isVoided_(r);
+        if (v && !wantVoided) return;
+        list.push({
+          type: "work", id: String(r.Log_ID || ""), time: String(r.Timestamp || ""),
+          user: String(r.User_Email || ""), name: names[String(r.User_Email)] || "",
+          detail: String(r.Detail || ""), category: String(r.Category || "work"), voided: v,
+          voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || "")
+        });
+      });
+  }
+  if (type !== "work") {
+    readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
+      .filter(matches).forEach(function (r) {
+        var v = isVoided_(r);
+        if (v && !wantVoided) return;
+        list.push({
+          type: "issue", id: String(r.Issue_ID || ""), time: String(r.Timestamp || ""),
+          user: String(r.User_Email || ""), name: names[String(r.User_Email)] || "",
+          detail: String(r.Detail || ""), category: String(r.Category || "issue"),
+          status: String(r.Status || "Pending"), voided: v,
+          voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || "")
+        });
+      });
+  }
+
+  list.sort(function (a, b) { return a.time < b.time ? 1 : -1; });
+  var capped = list.slice(0, 200);
+  return { status: "ok", count: list.length, shown: capped.length, items: capped, canVoid: true };
+}
+
 function exportData_(idToken, type) {
   if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
   var email = verifyIdToken_(idToken).email;
@@ -665,6 +725,7 @@ function exportData_(idToken, type) {
       "อีเมล": String(r.User_Email || ""),
       "รายละเอียด": String(r.Detail || ""),
       "หมวดหมู่ (AI)": String(r.Category || ""),
+      "สถานะ": isVoided_(r) ? "Void (ถูกยกเลิก)" : "Active",
       "ไฟล์แนบ": splitUrls_(r.File_URLs).join("\n"),
       "ลิงก์เพิ่มเติม": formatLinks_(r.Links)
     };
@@ -852,7 +913,7 @@ function checkDuplicate_(email, detail) {
   var lookback = Date.now() - DUP_LOOKBACK_HOURS * 3600000;
   var rows = readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
     .concat(readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES))
-    .filter(function (r) { return String(r.User_Email) === email; });
+    .filter(function (r) { return String(r.User_Email) === email && !isVoided_(r); });
   for (var i = 0; i < rows.length; i++) {
     var t = parseBkkTs_(String(rows[i].Timestamp));
     if (t && t.getTime() < lookback) continue;
@@ -898,6 +959,76 @@ function parseBkkTs_(s) {
   var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(String(s));
   if (!m) return null;
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) - 7 * 3600000);
+}
+
+/* ======================================================================
+ * [7c] แอดมินยกเลิกรายการ (Soft-void) + audit + คืน XP
+ * ==================================================================== */
+/* เช็กว่ารายการถูกยกเลิกแล้วหรือยัง (Status = "Void") */
+function isVoided_(r) { return String(r && r.Status || "").trim() === "Void"; }
+
+/* ยกเลิก record ของผู้ใช้ (งาน/ปัญหา) โดยแอดมิน: ติดธง Void + เก็บ audit + หัก XP คืน */
+function handleVoidRecord_(adminEmail, recordType, recordId, reason) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!recordId) throw new Error("ไม่พบรหัสรายการ");
+  reason = String(reason || "").trim();
+  if (!reason) throw new Error("กรุณาระบุเหตุผลในการยกเลิก");
+
+  var type = (String(recordType) === "issue") ? "issue" : "work";
+  var sh = type === "issue"
+    ? getSheet_(SHEETS.ISSUES, HEADERS.ISSUES)
+    : getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS);
+  var idHeader = type === "issue" ? "Issue_ID" : "Log_ID";
+
+  var row = findRowByHeader_(sh, idHeader, recordId);
+  if (row === -1) throw new Error("ไม่พบรายการนี้ (อาจถูกลบจากชีตไปแล้ว)");
+  var map = headerMap_(sh);
+  var cur = String(sh.getRange(row, map["Status"]).getValue() || "");
+  if (cur === "Void") throw new Error("รายการนี้ถูกยกเลิกไปแล้ว");
+
+  var owner = String(sh.getRange(row, map["User_Email"]).getValue() || "");
+  var ts = nowStr_();
+  sh.getRange(row, map["Status"]).setValue("Void");
+  if (map["Void_Reason"]) sh.getRange(row, map["Void_Reason"]).setValue(reason.slice(0, 200));
+  if (map["Voided_By"])   sh.getRange(row, map["Voided_By"]).setValue(adminEmail);
+  if (map["Voided_At"])   sh.getRange(row, map["Voided_At"]).setValue(ts);
+
+  var reversed = reverseXpForRecord_(owner, recordId, reason);
+  return json_({ status: "ok", type: type, id: recordId, reversedXp: reversed, message: "ยกเลิกรายการเรียบร้อย" });
+}
+
+/* หัก XP คืนสำหรับ record: เพิ่มแถว XP_History (Amount ติดลบ) + ลด Total_XP + recompute Level
+   กันซ้ำ: ถ้ามีแถว Reason="void" สำหรับ Ref_ID เดิมแล้ว จะไม่หักซ้ำ */
+function reverseXpForRecord_(email, recordId, reason) {
+  var xsh = getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY);
+  var rows = readObjects_(xsh, HEADERS.XP_HISTORY)
+    .filter(function (h) { return String(h.Ref_ID) === String(recordId); });
+  if (rows.some(function (h) { return String(h.Reason) === "void"; })) return 0;
+  var base = 0;
+  rows.forEach(function (h) {
+    var r = String(h.Reason);
+    if (r === "work_log" || r === "issue") base += Number(h.Amount || 0);
+  });
+  if (!base) return 0;
+
+  appendByHeaders_(xsh, HEADERS.XP_HISTORY, {
+    XP_ID: "XP-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_(),
+    Timestamp: nowStr_(), User_Email: email, Amount: -base, Reason: "void",
+    Ref_ID: recordId, Client_Ref: ("void: " + reason).slice(0, 100)
+  });
+
+  if (email) {
+    var ush = getSheet_(SHEETS.USERS, HEADERS.USERS);
+    var map = headerMap_(ush);
+    var urow = findRowByHeader_(ush, "Email", email);
+    if (urow !== -1) {
+      var total = Number(ush.getRange(urow, map["Total_XP"]).getValue() || 0) - base;
+      if (total < 0) total = 0;
+      ush.getRange(urow, map["Total_XP"]).setValue(total);
+      ush.getRange(urow, map["Level"]).setValue(levelFor_(total).level);
+    }
+  }
+  return base;
 }
 
 /* ======================================================================
