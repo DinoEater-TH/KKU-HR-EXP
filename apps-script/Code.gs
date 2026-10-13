@@ -1,5 +1,5 @@
 /************************************************************************
- * KKU HR Exp — Phase 6.0 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 6.1 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
  * โครงสร้างทั้งหมด (Phase 1-5)
@@ -12,8 +12,9 @@
  *   Notify: ประกาศจาก Admin (บังหน้าจอจนกว่าจะรับทราบ)
  *   Guard : กันสแปม / เนื้อหาซ้ำ / เนื้อหาไม่เกี่ยวกับงาน (Phase 5)
  *   Audit : แอดมินยกเลิกรายการ (Soft-void) หัก XP คืน + audit trail (Phase 5.1)
- *   Dash  : แดชบอร์ดผู้ใช้ + จัดอันดับ + ดูข้อมูลรายบุคคล (admin) (Phase 6.0)
+ *   Dash  : แดชบอร์ดผู้ใช้ + จัดอันดับ + ดูข้อมูลรายบุคคล (admin) (Phase 5.2)
  *   RPG   : โบนัส Streak (บันทึกต่อเนื่องรายวัน + milestone) (Phase 6.0)
+ *   RPG   : Achievements / เหรียญตรา ปลดล็อก + XP (Phase 6.1)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -37,6 +38,34 @@ var XP = { WORK_LOG: 10, ISSUE: 15, SOLUTION: 25, RESOLVE: 50, LIKE_RECEIVED: 5 
 var STREAK_BONUS_DAILY = 5;                                  // โบนัสเมื่อบันทึกครั้งแรกของวัน
 var STREAK_MILESTONES  = { 3: 15, 7: 40, 14: 100, 30: 300 }; // โบนัสพิเศษเมื่อติดต่อกันครบ N วัน
 
+/* ---- RPG: Achievements / เหรียญตรา (Phase 6.1) ----
+ * type อ้างอิงค่าจาก achievementStats_() : work_count | issue_count | solution_count |
+ * solved_count | like_count | level | total_xp | streak | night_owl | early_bird
+ * rarity : bronze | silver | gold | platinum (ใช้กำหนดสีกรอบ) */
+var ACHIEVEMENTS = [
+  { id: "first_log",      name: "ก้าวแรก",         desc: "บันทึกงานครั้งแรก",                icon: "🚀", type: "work_count",     goal: 1,    xp: 10,  rarity: "bronze" },
+  { id: "first_issue",    name: "ผู้สังเกตการณ์",   desc: "แจ้งปัญหาครั้งแรก",                icon: "🐞", type: "issue_count",    goal: 1,    xp: 10,  rarity: "bronze" },
+  { id: "first_solution", name: "ผู้ช่วยคนแรก",    desc: "เสนอวิธีแก้ปัญหาครั้งแรก",          icon: "💡", type: "solution_count", goal: 1,    xp: 15,  rarity: "bronze" },
+  { id: "work_10",        name: "ขยันขันแข็ง",      desc: "บันทึกงานครบ 10 ครั้ง",            icon: "🛠️", type: "work_count",    goal: 10,   xp: 30,  rarity: "silver" },
+  { id: "work_50",        name: "มือฉมัง",         desc: "บันทึกงานครบ 50 ครั้ง",            icon: "⚙️", type: "work_count",    goal: 50,   xp: 100, rarity: "gold" },
+  { id: "work_100",       name: "ตำนานช่าง",        desc: "บันทึกงานครบ 100 ครั้ง",           icon: "🏗️", type: "work_count",    goal: 100,  xp: 250, rarity: "platinum" },
+  { id: "issue_10",       name: "ตาสับปะรด",        desc: "แจ้งปัญหาครบ 10 ครั้ง",            icon: "👀", type: "issue_count",    goal: 10,   xp: 40,  rarity: "silver" },
+  { id: "solution_10",    name: "นักแก้ปัญหา",      desc: "เสนอวิธีแก้ครบ 10 ครั้ง",           icon: "🧠", type: "solution_count", goal: 10,   xp: 80,  rarity: "silver" },
+  { id: "solution_25",    name: "ที่ปรึกษา",        desc: "เสนอวิธีแก้ครบ 25 ครั้ง",           icon: "🎓", type: "solution_count", goal: 25,   xp: 200, rarity: "gold" },
+  { id: "solved_5",       name: "ตัวจริง",          desc: "วิธีแก้ได้รับการยืนยัน 5 ครั้ง",    icon: "✅", type: "solved_count",   goal: 5,    xp: 60,  rarity: "silver" },
+  { id: "solved_15",      name: "ฮีโร่",            desc: "วิธีแก้ได้รับการยืนยัน 15 ครั้ง",   icon: "🦸", type: "solved_count",   goal: 15,   xp: 150, rarity: "gold" },
+  { id: "likes_10",       name: "ขวัญใจทีม",        desc: "ได้รับ Like ครบ 10 ครั้ง",          icon: "❤️", type: "like_count",     goal: 10,   xp: 50,  rarity: "silver" },
+  { id: "likes_50",       name: "ซุปเปอร์สตาร์",    desc: "ได้รับ Like ครบ 50 ครั้ง",          icon: "⭐", type: "like_count",     goal: 50,   xp: 150, rarity: "gold" },
+  { id: "level_3",        name: "ยกระดับ",          desc: "ไต่ถึงเลเวล 3",                    icon: "📈", type: "level",          goal: 3,    xp: 40,  rarity: "bronze" },
+  { id: "level_5",        name: "ระดับสูง",         desc: "ไต่ถึงเลเวล 5",                    icon: "🏆", type: "level",          goal: 5,    xp: 120, rarity: "gold" },
+  { id: "streak_3",       name: "ต่อเนื่อง 3 วัน",  desc: "มาบันทึก 3 วันติดกัน",             icon: "🔥", type: "streak",         goal: 3,    xp: 30,  rarity: "bronze" },
+  { id: "streak_7",       name: "สัปดาห์ไฟลุก",     desc: "มาบันทึก 7 วันติดกัน",             icon: "🔥", type: "streak",         goal: 7,    xp: 80,  rarity: "gold" },
+  { id: "streak_30",      name: "เดือนแห่งไฟ",      desc: "มาบันทึก 30 วันติดกัน",            icon: "🌋", type: "streak",         goal: 30,   xp: 300, rarity: "platinum" },
+  { id: "xp_1000",        name: "พันแต้ม",          desc: "สะสมครบ 1,000 XP",                 icon: "💎", type: "total_xp",       goal: 1000, xp: 100, rarity: "gold" },
+  { id: "night_owl",      name: "นกฮูก",            desc: "บันทึกงานหลัง 20:00 น.",           icon: "🦉", type: "night_owl",      goal: 1,    xp: 20,  rarity: "bronze" },
+  { id: "early_bird",     name: "นกน้อยตื่นเช้า",   desc: "บันทึกงานก่อน 08:00 น.",           icon: "🐦", type: "early_bird",     goal: 1,    xp: 20,  rarity: "bronze" }
+];
+
 /* ---- ป้องกันการใช้งานผิด: สแปม / เนื้อหาซ้ำ / เนื้อหาไม่เกี่ยวกับงาน ---- */
 var SPAM_MIN_INTERVAL_SEC = 10;    // ระยะห่างขั้นต่ำระหว่างการส่ง (วินาที)
 var SPAM_MAX_PER_WINDOW   = 5;     // ส่งได้สูงสุดกี่ครั้งต่อช่วงเวลา
@@ -51,7 +80,7 @@ var OFF_TOPIC_WORDS = ["ประท้วง", "ทวงหนี้", "ร้
 var SHEETS = {
   USERS: "Users", WORK_LOGS: "Work_Logs", ISSUES: "Issues", SOLUTIONS: "Solutions",
   XP_HISTORY: "XP_History", XP_RULES: "XP_Rules", LIKES: "Likes",
-  NOTIFICATIONS: "Notifications", NOTIF_ACKS: "Notif_Acks"
+  NOTIFICATIONS: "Notifications", NOTIF_ACKS: "Notif_Acks", USER_ACHIEVEMENTS: "User_Achievements"
 };
 
 var HEADERS = {
@@ -63,7 +92,8 @@ var HEADERS = {
   XP_RULES:      ["Level", "Title", "Min_XP"],
   LIKES:         ["Like_ID", "Issue_ID", "User_Email", "Timestamp"],
   NOTIFICATIONS: ["Notif_ID", "Message", "Created_At", "Active"],
-  NOTIF_ACKS:    ["Ack_ID", "Notif_ID", "User_Email", "Ack_At"]
+  NOTIF_ACKS:    ["Ack_ID", "Notif_ID", "User_Email", "Ack_At"],
+  USER_ACHIEVEMENTS: ["UA_ID", "Email", "Ach_ID", "Unlocked_At"]
 };
 
 var SEED_XP_RULES = [
@@ -83,7 +113,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.0", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.1", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -94,6 +124,8 @@ function doGet(e) {
         return output_(myProfile_(p.idToken, p.email), cb);
       case "dashboard":
         return output_(dashboard_(p.idToken, p.email), cb);
+      case "achievements":
+        return output_(achievementsList_(p.idToken, p.email), cb);
       case "adminUserDetail":
         return output_(adminUserDetail_(p.idToken, p.email), cb);
       case "activeNotifications":
@@ -110,7 +142,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.0" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.1" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -179,6 +211,7 @@ function handleLogin_(email, name) {
     if (name) sh.getRange(row, map["Full_Name"]).setValue(name);
     sh.getRange(row, map["Last_Login"]).setValue(ts);
   }
+  evaluateAchievements_(email);
   return json_({ status: "ok", email: email, time: ts, isAdmin: isAdmin_(email) });
 }
 
@@ -209,6 +242,7 @@ function recordWork_(email, detail, files, category, clientRef) {
   });
   var lv = awardXp_(email, XP.WORK_LOG, "work_log", id, clientRef);
   var st = applyStreakBonus_(email, clientRef);
+  evaluateAchievements_(email);
   return json_({ status: "ok", type: "work", id: id, time: ts, files: urls.length, xp: XP.WORK_LOG, totalXp: lv.totalXp + st.awarded, streakBonus: st.awarded, streakDays: st.streak });
 }
 
@@ -223,6 +257,7 @@ function recordIssue_(email, detail, files, category, clientRef) {
   });
   var lv = awardXp_(email, XP.ISSUE, "issue", id, clientRef);
   var st = applyStreakBonus_(email, clientRef);
+  evaluateAchievements_(email);
   return json_({ status: "ok", type: "issue", id: id, time: ts, files: urls.length, xp: XP.ISSUE, totalXp: lv.totalXp + st.awarded, streakBonus: st.awarded, streakDays: st.streak });
 }
 
@@ -246,6 +281,7 @@ function handleAddSolution_(email, name, issueId, solution) {
   if (curStatus === "Pending" || curStatus === "") issSheet.getRange(row, imap["Status"]).setValue("In-Progress");
 
   var lv = awardXp_(email, XP.SOLUTION, "solution", sid, "");
+  evaluateAchievements_(email);
   return json_({ status: "ok", solutionId: sid, time: ts, xp: XP.SOLUTION, totalXp: lv.totalXp });
 }
 
@@ -318,6 +354,8 @@ function handleResolveIssue_(email, issueId) {
   if (map["Solved_By_Email"]) sh.getRange(row, map["Solved_By_Email"]).setValue(solverEmail);
 
   var lv = awardXp_(email, XP.RESOLVE, "resolve_issue", issueId, "");
+  evaluateAchievements_(email);
+  if (solverEmail && solverEmail !== email) evaluateAchievements_(solverEmail);
   return json_({ status: "ok", xp: XP.RESOLVE, totalXp: lv.totalXp, level: lv.level, title: lv.title, solver: solverName || solverEmail });
 }
 
@@ -338,7 +376,7 @@ function handleLikeArticle_(email, issueId) {
   if (row === -1) throw new Error("issue not found");
   var map = headerMap_(sh);
   var solverEmail = map["Solved_By_Email"] ? String(sh.getRange(row, map["Solved_By_Email"]).getValue() || "") : "";
-  if (solverEmail) awardXp_(solverEmail, XP.LIKE_RECEIVED, "like_received", issueId, "");
+  if (solverEmail) { awardXp_(solverEmail, XP.LIKE_RECEIVED, "like_received", issueId, ""); evaluateAchievements_(solverEmail); }
 
   var count = likes.filter(function (l) { return String(l.Issue_ID) === String(issueId); }).length + 1;
   return json_({ status: "ok", count: count });
@@ -667,6 +705,93 @@ function applyStreakBonus_(email, clientRef) {
   var bonus = STREAK_BONUS_DAILY + (STREAK_MILESTONES[st.current] || 0);
   awardXp_(email, bonus, "streak", today, clientRef || "");
   return { awarded: bonus, streak: st.current, milestone: STREAK_MILESTONES[st.current] || 0 };
+}
+
+/* ======================================================================
+ * [5d] Achievements / เหรียญตรา (Phase 6.1)
+ * ==================================================================== */
+function achievementStats_(email) {
+  var hist = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
+    .filter(function (h) { return String(h.User_Email) === email && String(h.Reason || "").indexOf("rejected:") !== 0; });
+  var c = { work_log: 0, issue: 0, solution: 0, like_received: 0 };
+  var nightOwl = false, earlyBird = false;
+  hist.forEach(function (h) {
+    var r = String(h.Reason || "");
+    if (c[r] != null) c[r]++;
+    if (r === "work_log" || r === "issue") {
+      var hh = Number(String(h.Timestamp || "").substring(11, 13));
+      if (hh >= 20) nightOwl = true;
+      if (hh > 0 && hh < 8) earlyBird = true;
+    }
+  });
+
+  var issues = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
+    .filter(function (r) { return !isVoided_(r); });
+  var solvedCount = issues.filter(function (r) {
+    return String(r.Status) === "Solved" && String(r.Solved_By_Email) === email;
+  }).length;
+
+  var ush = getSheet_(SHEETS.USERS, HEADERS.USERS);
+  var row = findRowByHeader_(ush, "Email", email);
+  var map = headerMap_(ush);
+  var totalXp = row === -1 ? 0 : Number(ush.getRange(row, map["Total_XP"]).getValue() || 0);
+
+  return {
+    work_count: c.work_log, issue_count: c.issue, solution_count: c.solution,
+    like_count: c.like_received, solved_count: solvedCount,
+    level: levelFor_(totalXp).level, total_xp: totalXp,
+    streak: streakStats_(email).current,
+    night_owl: nightOwl ? 1 : 0, early_bird: earlyBird ? 1 : 0
+  };
+}
+
+function unlockedAchMap_(email) {
+  var map = {};
+  readObjects_(getSheet_(SHEETS.USER_ACHIEVEMENTS, HEADERS.USER_ACHIEVEMENTS), HEADERS.USER_ACHIEVEMENTS)
+    .forEach(function (r) { if (String(r.Email) === email) map[String(r.Ach_ID)] = String(r.Unlocked_At || ""); });
+  return map;
+}
+
+/* ตรวจและปลดล็อกความสำเร็จใหม่ → คืนรายการที่เพิ่งปลดล็อก (พร้อมให้ XP) */
+function evaluateAchievements_(email) {
+  var stats = achievementStats_(email);
+  var have = unlockedAchMap_(email);
+  var sh = getSheet_(SHEETS.USER_ACHIEVEMENTS, HEADERS.USER_ACHIEVEMENTS);
+  var newly = [];
+  ACHIEVEMENTS.forEach(function (a) {
+    if (have[a.id]) return;
+    if ((Number(stats[a.type]) || 0) >= a.goal) {
+      appendByHeaders_(sh, HEADERS.USER_ACHIEVEMENTS, {
+        UA_ID: "UA-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_(),
+        Email: email, Ach_ID: a.id, Unlocked_At: nowStr_()
+      });
+      if (a.xp) awardXp_(email, a.xp, "achievement", a.id, "");
+      newly.push({ id: a.id, name: a.name, desc: a.desc, icon: a.icon, xp: a.xp, rarity: a.rarity });
+    }
+  });
+  return newly;
+}
+
+function achievementsList_(idToken, emailParam) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var email = verifyIdToken_(idToken).email;
+  if (emailParam && emailParam !== email) throw new Error("email mismatch");
+
+  var stats = achievementStats_(email);
+  var have = unlockedAchMap_(email);
+  var items = ACHIEVEMENTS.map(function (a) {
+    var cur = Number(stats[a.type]) || 0;
+    return {
+      id: a.id, name: a.name, desc: a.desc, icon: a.icon, rarity: a.rarity, xp: a.xp,
+      goal: a.goal, progress: Math.min(cur, a.goal),
+      unlocked: !!have[a.id], unlockedAt: have[a.id] || ""
+    };
+  });
+  return {
+    status: "ok", items: items,
+    unlockedCount: items.filter(function (i) { return i.unlocked; }).length,
+    total: ACHIEVEMENTS.length
+  };
 }
 
 function dashboard_(idToken, emailParam) {
@@ -1490,7 +1615,7 @@ function setupSheets() {
     "อัปเกรดชีต เรียบร้อย:\n" +
     "• Users (+Role), Work_Logs (+Links), Issues (+KB_Approved, +Links)\n" +
     "• Solutions, XP_History, XP_Rules, Likes\n" +
-    "• Notifications, Notif_Acks"
+    "• Notifications, Notif_Acks, User_Achievements"
   );
 }
 

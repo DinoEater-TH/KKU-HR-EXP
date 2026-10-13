@@ -145,6 +145,7 @@
           <div id="dashHero"></div>
           <div id="dashStreak"></div>
           <div id="dashStats"></div>
+          <div id="dashAchCard"></div>
           <div id="dashMonthlyCard"></div>
           <div id="dashMixCard"></div>
           <div id="dashRecentCard"></div>
@@ -387,7 +388,7 @@
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, adminSubs:[], dashData:null, profileData:null, boardItems:{}, kbItems:{}, historyItems:{}, sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
-  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", streak:"โบนัสสตรีค 🔥" };
+  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -491,11 +492,98 @@
   }
   function hideLevelUp() { $("levelUp").classList.add("hidden"); }
 
+  let _celebBusy = false;
+  const _celebQueue = [];
+  function queueCeleb(fn) {
+    if (_celebBusy) { _celebQueue.push(fn); return; }
+    _celebBusy = true;
+    fn();
+    setTimeout(() => { _celebBusy = false; const n = _celebQueue.shift(); if (n) queueCeleb(n); }, 3600);
+  }
+
   function checkLevelUp(level, title) {
     const key = "hrx_lastLevel_" + (state.user && state.user.email || "anon");
     const prev = Number(localStorage.getItem(key) || 0);
-    if (prev > 0 && Number(level) > prev) showLevelUp(Number(level), title);
+    if (prev > 0 && Number(level) > prev) queueCeleb(() => showLevelUp(Number(level), title));
     localStorage.setItem(key, String(level));
+  }
+
+  /* ---------- RPG: Achievements / เหรียญตรา (Phase 6.1) ---------- */
+  const RARITY = {
+    bronze:   { ring: "rgba(217,119,6,.75)",  glow: "rgba(217,119,6,.45)" },
+    silver:   { ring: "rgba(203,213,225,.85)", glow: "rgba(203,213,225,.45)" },
+    gold:     { ring: "rgba(251,191,36,.95)", glow: "rgba(251,191,36,.5)" },
+    platinum: { ring: "rgba(0,229,255,.95)",  glow: "rgba(0,229,255,.55)" }
+  };
+
+  function achBadge(a) {
+    const r = RARITY[a.rarity] || RARITY.bronze;
+    if (a.unlocked) {
+      return `<div title="${esc(a.name)} — ${esc(a.desc)} (+${a.xp} XP)" class="rounded-xl p-2 text-center cyber-chip" style="border-color:${r.ring};box-shadow:0 0 10px ${r.glow}">
+        <div class="text-2xl leading-none">${a.icon}</div>
+        <div class="mt-1 text-[9px] font-tech text-slate-200 leading-tight truncate">${esc(a.name)}</div>
+      </div>`;
+    }
+    return `<div title="🔒 ${esc(a.name)} — ${esc(a.desc)} (${a.progress}/${a.goal})" class="rounded-xl p-2 text-center border border-white/10 bg-white/[.04] opacity-60">
+      <div class="text-2xl leading-none" style="filter:grayscale(1)">${a.icon}</div>
+      <div class="mt-1 text-[9px] font-tech text-slate-500 leading-tight truncate">${a.goal > 1 ? a.progress + "/" + a.goal : "🔒"}</div>
+    </div>`;
+  }
+
+  function renderAchCard(data) {
+    const el = $("dashAchCard");
+    if (!el) return;
+    el.innerHTML = `
+      <div class="cyber-panel rounded-2xl p-4">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="font-cyber text-sm font-bold text-cyan-200">🏅 เหรียญตรา / ความสำเร็จ</h3>
+          <span class="text-[11px] font-tech text-slate-400"><span class="neon-cyan font-bold">${data.unlockedCount}</span> / ${data.total}</span>
+        </div>
+        <div class="grid grid-cols-4 gap-2">${data.items.map(achBadge).join("")}</div>
+      </div>`;
+  }
+
+  function showAchUnlock(items) {
+    const card = $("levelUpCard");
+    if (!card) return;
+    card.innerHTML = `
+      <p class="font-cyber text-xl font-black sheen lv-pop">ACHIEVEMENT UNLOCKED!</p>
+      <div class="mt-4 space-y-2 max-w-xs mx-auto">
+        ${items.map(a => `<div class="cyber-chip rounded-xl px-4 py-3 flex items-center gap-3 lv-pop" style="border-color:${(RARITY[a.rarity]||RARITY.bronze).ring}">
+          <span class="text-3xl">${a.icon}</span>
+          <span class="text-left min-w-0"><span class="block font-cyber font-bold text-white truncate">${esc(a.name)}</span><span class="block text-[11px] text-cyan-200/80 font-tech truncate">${esc(a.desc)}</span></span>
+          <span class="ml-auto font-cyber text-sm neon-mag shrink-0">+${a.xp}</span>
+        </div>`).join("")}
+      </div>`;
+    $("levelUp").classList.remove("hidden");
+    spawnConfetti();
+    playChime("level");
+    if (navigator.vibrate) { try { navigator.vibrate([40, 60, 40]); } catch (e) {} }
+    clearTimeout(showLevelUp._t);
+    showLevelUp._t = setTimeout(hideLevelUp, 3400);
+    $("levelUp").onclick = hideLevelUp;
+  }
+
+  async function loadAchievements() {
+    if (!state.idToken || state._achLoading) return;
+    state._achLoading = true;
+    try {
+      const d = await apiGet({ action:"achievements", idToken:state.idToken, email:state.user.email });
+      if (!d || d.status !== "ok") return;
+      renderAchCard(d);
+      const key = "hrx_ach_" + (state.user && state.user.email || "anon");
+      const unlocked = d.items.filter(i => i.unlocked).map(i => i.id);
+      const prevRaw = localStorage.getItem(key);
+      if (prevRaw === null) {
+        localStorage.setItem(key, JSON.stringify(unlocked));
+      } else {
+        let prev = [];
+        try { prev = JSON.parse(prevRaw) || []; } catch (e) {}
+        const newly = d.items.filter(i => i.unlocked && prev.indexOf(i.id) === -1);
+        if (newly.length) queueCeleb(() => showAchUnlock(newly));
+        localStorage.setItem(key, JSON.stringify(unlocked));
+      }
+    } catch (e) {} finally { state._achLoading = false; }
   }
 
   function parseJwt(token) {
@@ -690,6 +778,7 @@
       $("detail").value = ""; state.attachments = []; renderPreviews();
       showSaveModal(detail, result);
       loadProfile();
+      loadAchievements();
       if (state.currentTab === "dashboard") loadDashboard();
       if (state.currentTab === "admin" && state.isAdmin) loadAdmin();
       if (result) {
@@ -1238,8 +1327,9 @@
   }
 
   async function loadDashboard() {
-    ["dashHero","dashStreak","dashStats","dashMonthlyCard","dashMixCard","dashRecentCard","dashRankCard","dashAdminRankCard"]
+    ["dashHero","dashStreak","dashStats","dashAchCard","dashMonthlyCard","dashMixCard","dashRecentCard","dashRankCard","dashAdminRankCard"]
       .forEach(id => $(id).innerHTML = "");
+    loadAchievements();
     try {
       const d = await apiGet({ action:"dashboard", idToken:state.idToken, email:state.user.email });
       if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
