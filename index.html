@@ -9,6 +9,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
 
   <style>
     html, body { -webkit-tap-highlight-color: transparent; }
@@ -22,6 +25,55 @@
     .card { animation: fadeIn .2s ease-in; }
     .pop { animation: pop .28s cubic-bezier(.2,1.3,.5,1); }
     @keyframes pop { from { opacity:0; transform: scale(.85);} to { opacity:1; transform: scale(1);} }
+
+    /* ===== RPG Cyber theme (Phase 6.0) ===== */
+    :root { --cy:#00e5ff; --mg:#ff2e97; --vi:#a855f7; }
+    .font-cyber { font-family: "Orbitron", "Rajdhani", "Sarabun", system-ui, sans-serif; letter-spacing: .04em; }
+    .font-tech  { font-family: "Rajdhani", "Sarabun", sans-serif; }
+    .cyber-wrap {
+      background:
+        radial-gradient(900px 320px at 50% -120px, rgba(0,229,255,.12), transparent 60%),
+        radial-gradient(700px 340px at 110% 110%, rgba(255,46,151,.12), transparent 60%),
+        #070712;
+      border: 1px solid rgba(0,229,255,.22);
+      box-shadow: 0 0 24px rgba(0,229,255,.08), inset 0 0 40px rgba(0,229,255,.04);
+    }
+    .cyber-panel {
+      position: relative;
+      background: linear-gradient(150deg, rgba(24,27,50,.94), rgba(9,10,20,.94));
+      border: 1px solid rgba(0,229,255,.22);
+      box-shadow: 0 0 16px rgba(0,229,255,.08), inset 0 0 26px rgba(0,229,255,.04);
+      overflow: hidden;
+    }
+    .cyber-panel::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(0deg, rgba(255,255,255,.022) 0 1px, transparent 1px 3px);
+    }
+    .cyber-grid {
+      background-image: linear-gradient(rgba(0,229,255,.07) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(0,229,255,.07) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    .neon-cyan { color: var(--cy); text-shadow: 0 0 8px rgba(0,229,255,.75); }
+    .neon-mag  { color: var(--mg); text-shadow: 0 0 8px rgba(255,46,151,.75); }
+    .neon-vi   { color: var(--vi); text-shadow: 0 0 8px rgba(168,85,247,.75); }
+    .cyber-bar { background: linear-gradient(90deg, var(--cy), var(--vi), var(--mg)); box-shadow: 0 0 12px rgba(0,229,255,.55); }
+    .cyber-chip { background: rgba(0,229,255,.08); border: 1px solid rgba(0,229,255,.25); }
+    .cyber-btn { background: linear-gradient(90deg, rgba(0,229,255,.18), rgba(255,46,151,.18)); border: 1px solid rgba(0,229,255,.4); }
+    .cyber-btn:active { transform: scale(.96); }
+
+    @keyframes xpFloat { 0% { opacity:0; transform: translateY(14px) scale(.7);} 18% { opacity:1;} 100% { opacity:0; transform: translateY(-80px) scale(1.2);} }
+    .xp-float { animation: xpFloat 1.6s ease-out forwards; }
+    @keyframes lvPop { 0% { transform: scale(.3); opacity:0;} 55% { transform: scale(1.12); opacity:1;} 100% { transform: scale(1);} }
+    .lv-pop { animation: lvPop .55s cubic-bezier(.2,1.4,.4,1) both; }
+    @keyframes ringPulse { 0% { box-shadow: 0 0 0 0 rgba(0,229,255,.65);} 100% { box-shadow: 0 0 0 46px rgba(0,229,255,0);} }
+    .ring-pulse { animation: ringPulse 1.3s ease-out infinite; }
+    @keyframes sheen { 0% { background-position: -200% 0;} 100% { background-position: 200% 0;} }
+    .sheen { background: linear-gradient(90deg, #fff, var(--cy), var(--mg), #fff); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: sheen 2.4s linear infinite; }
+    @keyframes conf { to { transform: translate(var(--dx), var(--dy)) rotate(720deg); opacity:0; } }
+    .confetti-piece { position:absolute; width:8px; height:14px; border-radius:2px; animation: conf 1.3s ease-out forwards; }
+    @keyframes streakFlame { 0%,100% { transform: scale(1);} 50% { transform: scale(1.18);} }
+    .flame { display:inline-block; animation: streakFlame 1s ease-in-out infinite; }
   </style>
 </head>
 
@@ -88,14 +140,17 @@
     <main class="max-w-lg mx-auto px-4 pt-4">
 
       <!-- ===== แดชบอร์ด ===== -->
-      <div id="tab-dashboard" class="tab-panel hidden fade-in space-y-3">
-        <div id="dashHero"></div>
-        <div id="dashStats"></div>
-        <div id="dashMonthlyCard"></div>
-        <div id="dashMixCard"></div>
-        <div id="dashRecentCard"></div>
-        <div id="dashRankCard"></div>
-        <div id="dashAdminRankCard" class="hidden"></div>
+      <div id="tab-dashboard" class="tab-panel hidden fade-in">
+        <div class="cyber-wrap rounded-3xl p-3 sm:p-4 space-y-3">
+          <div id="dashHero"></div>
+          <div id="dashStreak"></div>
+          <div id="dashStats"></div>
+          <div id="dashMonthlyCard"></div>
+          <div id="dashMixCard"></div>
+          <div id="dashRecentCard"></div>
+          <div id="dashRankCard"></div>
+          <div id="dashAdminRankCard" class="hidden"></div>
+        </div>
       </div>
 
       <!-- ===== บันทึก ===== -->
@@ -318,13 +373,21 @@
   <div id="toast" class="hidden fixed bottom-6 inset-x-0 z-[80] flex justify-center px-4">    <div id="toastBox" class="max-w-sm w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl text-center"></div>
   </div>
 
+  <!-- ================= RPG: Level-Up overlay ================= -->
+  <div id="levelUp" class="hidden fixed inset-0 z-[95] bg-black/85 backdrop-blur-sm flex items-center justify-center p-6">
+    <div id="levelUpCard" class="relative text-center"></div>
+  </div>
+
+  <!-- ================= RPG: XP float layer ================= -->
+  <div id="xpFloatLayer" class="pointer-events-none fixed inset-x-0 bottom-24 z-[85] flex justify-center"></div>
+
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 5.2 (index.html)
+     KKU HR Exp — Phase 6.0 (index.html) · RPG: Juice + Streak + Character Card
      ============================================================ */
-  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, adminSubs:[], dashData:null, boardItems:{}, kbItems:{}, historyItems:{} };
+  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, adminSubs:[], dashData:null, profileData:null, boardItems:{}, kbItems:{}, historyItems:{}, sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
-  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน" };
+  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", streak:"โบนัสสตรีค 🔥" };
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -344,6 +407,95 @@
 
   function updateOnline() {
     $("offlineBar").classList.toggle("hidden", navigator.onLine !== false);
+  }
+
+  /* ---------- RPG: Juice (เสียง / XP ลอย / เลเวลอัพ) ---------- */
+  let _audioCtx = null;
+  function playChime(kind) {
+    if (!state.sound) return;
+    try {
+      _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = _audioCtx;
+      if (ctx.state === "suspended") ctx.resume();
+      const notes = kind === "level" ? [523.25, 659.25, 783.99, 1046.5] : [880, 1174.66];
+      const t0 = ctx.currentTime;
+      notes.forEach((f, i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = "triangle"; o.frequency.value = f;
+        o.connect(g); g.connect(ctx.destination);
+        const t = t0 + i * (kind === "level" ? 0.1 : 0.07);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.14, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+        o.start(t); o.stop(t + 0.4);
+      });
+    } catch (e) {}
+  }
+
+  function toggleSound() {
+    state.sound = !state.sound;
+    localStorage.setItem("hrx_sound", state.sound ? "1" : "0");
+    document.querySelectorAll(".sound-toggle").forEach(b => b.textContent = state.sound ? "🔊" : "🔇");
+    if (state.sound) playChime("gain");
+    showToast(state.sound ? "เปิดเสียงแล้ว 🔊" : "ปิดเสียงแล้ว 🔇", "warn");
+  }
+
+  function showXpFloat(text, color) {
+    const layer = $("xpFloatLayer");
+    if (!layer) return;
+    const el = document.createElement("div");
+    el.className = "xp-float font-cyber text-2xl font-black";
+    el.style.color = color || "#00e5ff";
+    el.style.textShadow = "0 0 12px " + (color || "#00e5ff");
+    el.textContent = text;
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 1700);
+  }
+
+  function spawnConfetti() {
+    const card = $("levelUpCard");
+    if (!card) return;
+    const colors = ["#00e5ff", "#ff2e97", "#a855f7", "#facc15", "#34d399"];
+    for (let i = 0; i < 26; i++) {
+      const p = document.createElement("div");
+      p.className = "confetti-piece";
+      p.style.background = colors[i % colors.length];
+      p.style.left = "50%"; p.style.top = "50%";
+      const ang = Math.random() * Math.PI * 2, dist = 90 + Math.random() * 170;
+      p.style.setProperty("--dx", Math.cos(ang) * dist + "px");
+      p.style.setProperty("--dy", Math.sin(ang) * dist + "px");
+      p.style.animationDelay = (Math.random() * 0.15) + "s";
+      card.appendChild(p);
+      setTimeout(() => p.remove(), 1600);
+    }
+  }
+
+  function showLevelUp(level, title) {
+    const card = $("levelUpCard");
+    if (!card) return;
+    card.innerHTML = `
+      <div class="mx-auto w-32 h-32 rounded-full flex items-center justify-center ring-pulse"
+           style="background:radial-gradient(circle,rgba(0,229,255,.28),transparent 70%);border:2px solid rgba(0,229,255,.6)">
+        <div lv-pop class="font-cyber text-5xl font-black neon-cyan">${level}</div>
+      </div>
+      <p class="mt-5 font-cyber text-3xl font-black sheen lv-pop">LEVEL UP</p>
+      <p class="mt-1 font-tech text-lg font-bold neon-mag lv-pop">${esc(title || "")}</p>
+      <p class="mt-4 text-xs text-cyan-200/70 font-tech">ยศใหม่ของคุณพร้อมแล้ว — สู้ต่อไป!</p>`;
+    $("levelUp").classList.remove("hidden");
+    spawnConfetti();
+    playChime("level");
+    if (navigator.vibrate) { try { navigator.vibrate([40, 60, 40, 60, 120]); } catch (e) {} }
+    clearTimeout(showLevelUp._t);
+    showLevelUp._t = setTimeout(hideLevelUp, 3000);
+    $("levelUp").onclick = hideLevelUp;
+  }
+  function hideLevelUp() { $("levelUp").classList.add("hidden"); }
+
+  function checkLevelUp(level, title) {
+    const key = "hrx_lastLevel_" + (state.user && state.user.email || "anon");
+    const prev = Number(localStorage.getItem(key) || 0);
+    if (prev > 0 && Number(level) > prev) showLevelUp(Number(level), title);
+    localStorage.setItem(key, String(level));
   }
 
   function parseJwt(token) {
@@ -540,6 +692,13 @@
       loadProfile();
       if (state.currentTab === "dashboard") loadDashboard();
       if (state.currentTab === "admin" && state.isAdmin) loadAdmin();
+      if (result) {
+        showXpFloat("+" + result.amount + " XP", "#00e5ff");
+        playChime("gain");
+        if (result.streakBonus > 0) {
+          setTimeout(() => showXpFloat("🔥 +" + result.streakBonus + " XP (" + result.streakDays + " วันติด)", "#ff2e97"), 320);
+        }
+      }
     } catch (err) {
       showToast(err && err.message === "offline"
         ? "📴 ออฟไลน์อยู่ กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนส่ง"
@@ -585,6 +744,7 @@
         <div class="mt-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-center">
           <p class="text-amber-700 font-bold text-lg">⭐ +${r.amount} XP</p>
           <p class="text-[11px] text-amber-600 mt-0.5">รวม ${r.totalXp} XP · Level ${r.level} (${esc(r.title)})</p>
+          ${r.streakBonus > 0 ? `<p class="mt-2 inline-block rounded-lg bg-pink-100 border border-pink-300 text-pink-700 font-bold text-sm px-3 py-1">🔥 โบนัสสตรีค +${r.streakBonus} XP · ${r.streakDays} วันติด</p>` : ""}
         </div>`;
     } else {
       head.className = "p-5 text-center text-white bg-gradient-to-r from-slate-600 to-slate-700";
@@ -805,45 +965,102 @@
     }
   }
 
-  /* ---------- โปรไฟล์ ---------- */
+  /* ---------- โปรไฟล์ (RPG Character Card) ---------- */
   async function loadProfile() {
     if (!state.idToken) return;
     const wrap = $("profileBody");
     try {
       const data = await apiGet({ action:"myProfile", idToken:state.idToken, email:state.user.email });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
+      state.profileData = data;
       state.isAdmin = !!data.isAdmin;
       $("tabBtnAdmin").classList.toggle("hidden", !state.isAdmin);
       if (!state.isAdmin && state.currentTab === "admin") switchTab("dashboard");
       $("headerLevelNum").textContent = "Lv " + data.level;
+      checkLevelUp(data.level, data.title);
 
       let pct = 100, nextLabel = "ระดับสูงสุดแล้ว 🏆";
       if (data.nextXp != null) {
         pct = Math.min(100, Math.max(0, Math.round((data.totalXp - data.minXp) / (data.nextXp - data.minXp) * 100)));
-        nextLabel = `อีก ${data.nextXp - data.totalXp} XP ไป ${data.nextTitle}`;
+        nextLabel = `อีก ${data.nextXp - data.totalXp} XP → ${esc(data.nextTitle)}`;
       }
-      const timeline = data.history.length ? data.history.map(h => `
-        <div class="flex items-center gap-3">
-          <div class="w-2 h-2 rounded-full bg-red-500 mt-1.5 shrink-0"></div>
-          <div class="flex-1 border-b border-slate-100 pb-2">
-            <div class="flex justify-between"><span class="text-sm text-slate-700">${esc(REASON_LABEL[h.reason] || h.reason)}</span><span class="text-sm font-bold ${Number(h.amount) < 0 ? "text-red-500" : "text-emerald-600"}">${Number(h.amount) >= 0 ? "+" : ""}${h.amount} XP</span></div>
-            <p class="text-[11px] text-slate-400">${esc(h.time)}</p>
+      const st = data.streak || {};
+      const c = data.counts || {};
+      const rankMedal = (r) => r === 1 ? "🥇" : r === 2 ? "🥈" : r === 3 ? "🥉" : "#" + r;
+      const timeline = data.history.length ? data.history.map(h => {
+        const neg = Number(h.amount) < 0;
+        return `
+        <div class="flex items-center gap-3 py-1">
+          <div class="w-1.5 h-8 rounded-full ${neg ? "bg-red-500" : "bg-cyan-400"} shrink-0" style="box-shadow:0 0 8px ${neg ? "#ef4444" : "#00e5ff"}"></div>
+          <div class="flex-1 border-b border-white/5 pb-2">
+            <div class="flex justify-between"><span class="text-sm text-slate-200 font-tech">${esc(REASON_LABEL[h.reason] || h.reason)}</span><span class="text-sm font-cyber font-bold ${neg ? "text-red-400" : "neon-cyan"}">${Number(h.amount) >= 0 ? "+" : ""}${h.amount} XP</span></div>
+            <p class="text-[11px] text-slate-500 font-mono">${esc(h.time)}</p>
           </div>
-        </div>`).join("") : `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีประวัติการรับ XP</p>`;
+        </div>`; }).join("") : `<p class="text-sm text-slate-500 text-center py-4">ยังไม่มีประวัติการรับ XP</p>`;
+
+      const statChip = (icon, val, lbl, color) => `
+        <div class="cyber-chip rounded-xl p-3 text-center">
+          <div class="text-lg">${icon}</div>
+          <div class="font-cyber text-xl font-black text-white">${val}</div>
+          <div class="text-[10px] text-slate-400 font-tech">${lbl}</div>
+        </div>`;
 
       wrap.innerHTML = `
-        <div class="card bg-white rounded-2xl shadow-sm p-5 text-center">
-          <div class="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-red-600 text-white flex items-center justify-center text-2xl font-extrabold shadow-lg">Lv ${data.level}</div>
-          <h2 class="mt-3 text-xl font-bold text-slate-900">${esc(data.title)}</h2>
-          <p class="text-[12px] text-slate-400">${esc(data.name)} · ${esc(data.email)}</p>
-          <div class="mt-4">
-            <div class="flex justify-between text-[11px] text-slate-500 mb-1"><span>⭐ ${data.totalXp} XP</span><span>${esc(nextLabel)}</span></div>
-            <div class="h-3 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-gradient-to-r from-amber-400 to-red-600 transition-all" style="width:${pct}%"></div></div>
+        <div class="cyber-wrap rounded-3xl p-3 sm:p-4 fade-in">
+          <div class="cyber-grid rounded-2xl p-4 sm:p-5">
+            <div class="flex items-center gap-4">
+              <div class="relative shrink-0">
+                <div class="w-20 h-20 rounded-2xl flex items-center justify-center font-cyber text-2xl font-black neon-cyan"
+                     style="background:radial-gradient(circle,rgba(0,229,255,.18),rgba(168,85,247,.10));border:2px solid rgba(0,229,255,.5);box-shadow:0 0 18px rgba(0,229,255,.35)">
+                  Lv<br>${data.level}
+                </div>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="font-tech text-[11px] uppercase tracking-widest text-cyan-300/80">${esc(data.name)}</p>
+                  <button class="sound-toggle text-sm px-2 py-0.5 rounded-lg cyber-chip text-cyan-200 active:scale-95" onclick="toggleSound()" title="เปิด/ปิดเสียง">${state.sound ? "🔊" : "🔇"}</button>
+                </div>
+                <h2 class="font-cyber text-lg sm:text-xl font-black text-white neon-mag truncate">${esc(data.title)}</h2>
+                <p class="text-[11px] text-slate-400 font-mono truncate">${esc(data.email)}</p>
+                <div class="mt-1 flex flex-wrap gap-1.5 text-[10px] font-tech">
+                  <span class="cyber-chip rounded-md px-2 py-0.5 text-amber-200">⭐ ${data.totalXp} XP</span>
+                  <span class="cyber-chip rounded-md px-2 py-0.5 text-cyan-200">${rankMedal(data.rank || 0)} อันดับ ${data.rank || "-"}${data.totalUsers ? " / " + data.totalUsers : ""}</span>
+                </div>
+              </div>
+            </div>
+            <div class="mt-4">
+              <div class="flex justify-between text-[11px] text-slate-400 mb-1 font-tech"><span>${esc(nextLabel)}</span><span>${pct}%</span></div>
+              <div class="h-3 rounded-full overflow-hidden bg-white/5 border border-white/10"><div class="h-full cyber-bar transition-all" style="width:${pct}%"></div></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-4 gap-2 mt-3">
+            ${statChip("🛠️", c.work_log || 0, "บันทึกงาน", "")}
+            ${statChip("🐞", c.issue || 0, "แจ้งปัญหา", "")}
+            ${statChip("💡", c.solution || 0, "เสนอวิธีแก้", "")}
+            ${statChip("👍", c.like_received || 0, "ได้ Like", "")}
+          </div>
+
+          <div class="cyber-panel rounded-2xl p-4 mt-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl ${st.activeToday ? "flame" : ""}">🔥</span>
+                <div>
+                  <p class="font-cyber text-2xl font-black ${st.current > 0 ? "neon-mag" : "text-slate-500"}">${st.current || 0}</p>
+                  <p class="text-[10px] text-slate-400 font-tech">วันติดต่อกัน${st.activeToday ? " · วันนี้มาแล้ว ✅" : " · วันนี้ยังไม่บันทึก"}</p>
+                </div>
+              </div>
+              <div class="text-right text-[10px] text-slate-400 font-tech space-y-0.5">
+                <p>🏅 สูงสุด <span class="text-cyan-200 font-bold">${st.longest || 0}</span> วัน</p>
+                <p>📅 เดือนนี้ <span class="text-cyan-200 font-bold">${st.daysThisMonth || 0}</span> วัน</p>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-3">🧾 ประวัติการรับ XP</h3>
-          <div class="space-y-2">${timeline}</div>
+
+        <div class="cyber-panel rounded-2xl p-4 mt-3">
+          <h3 class="font-cyber text-sm font-bold text-cyan-200 mb-2">🧾 ประวัติการรับ XP</h3>
+          <div class="space-y-1 max-h-[46vh] overflow-y-auto no-scrollbar">${timeline}</div>
         </div>`;
     } catch (err) {
       wrap.innerHTML = `<p class="text-center text-sm text-red-500 py-8">โหลดโปรไฟล์ไม่สำเร็จ: ${esc(err.message)}</p>`;
@@ -989,9 +1206,9 @@
       ${months.map(m => {
         const pct = m.xp > 0 ? Math.max(6, Math.round(m.xp / (max || 1) * 100)) : 2;
         return `<div class="flex-1 flex flex-col items-center gap-1 min-w-0">
-          <span class="text-[9px] font-bold ${m.xp > 0 ? "text-red-700" : "text-slate-300"}">${m.xp > 0 ? m.xp : ""}</span>
-          <div class="w-full rounded-t-md bg-gradient-to-t from-red-800 to-red-400 transition-all" style="height:${m.xp > 0 ? pct : 3}%"></div>
-          <span class="text-[9px] text-slate-400">${esc(m.label)}</span>
+          <span class="font-cyber text-[9px] font-bold ${m.xp > 0 ? "neon-cyan" : "text-slate-600"}">${m.xp > 0 ? m.xp : ""}</span>
+          <div class="w-full rounded-t-md cyber-bar transition-all" style="height:${m.xp > 0 ? pct : 3}%;opacity:${m.xp > 0 ? 1 : 0.25}"></div>
+          <span class="text-[9px] text-slate-400 font-tech">${esc(m.label)}</span>
         </div>`;
       }).join("")}
     </div>`;
@@ -1010,18 +1227,18 @@
   }
 
   function statCard(icon, label, value, sub, color) {
-    return `<div class="bg-white rounded-2xl shadow-sm p-3.5 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl ${color || "bg-red-50 text-red-700"} flex items-center justify-center text-lg shrink-0">${icon}</div>
+    return `<div class="cyber-panel rounded-2xl p-3.5 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl cyber-chip flex items-center justify-center text-lg shrink-0">${icon}</div>
       <div class="min-w-0">
-        <p class="text-lg font-black text-slate-800 leading-none">${value}</p>
-        <p class="text-[11px] text-slate-400 mt-0.5 truncate">${esc(label)}</p>
-        ${sub ? `<p class="text-[10px] text-emerald-600 font-semibold">${sub}</p>` : ""}
+        <p class="font-cyber text-lg font-black text-white leading-none">${value}</p>
+        <p class="text-[11px] text-slate-400 mt-0.5 truncate font-tech">${esc(label)}</p>
+        ${sub ? `<p class="text-[10px] text-cyan-300 font-semibold font-tech">${sub}</p>` : ""}
       </div>
     </div>`;
   }
 
   async function loadDashboard() {
-    ["dashHero","dashStats","dashMonthlyCard","dashMixCard","dashRecentCard","dashRankCard","dashAdminRankCard"]
+    ["dashHero","dashStreak","dashStats","dashMonthlyCard","dashMixCard","dashRecentCard","dashRankCard","dashAdminRankCard"]
       .forEach(id => $(id).innerHTML = "");
     try {
       const d = await apiGet({ action:"dashboard", idToken:state.idToken, email:state.user.email });
@@ -1030,43 +1247,66 @@
 
       const nextNote = d.nextTitle ? `· เติมอีก ${Math.max(0, d.nextXp - d.totalXp)} XP ถึง ${esc(d.nextTitle)}` : "· ระดับสูงสุดแล้ว";
       $("dashHero").innerHTML = `
-        <div class="bg-gradient-to-br from-red-800 via-red-700 to-rose-600 rounded-3xl p-5 text-white shadow-xl relative overflow-hidden">
-          <div class="absolute -top-8 -right-8 w-36 h-36 rounded-full bg-white/10"></div>
-          <div class="absolute top-12 right-12 w-16 h-16 rounded-full bg-white/10"></div>
-          <p class="text-white/70 text-xs">สวัสดี 👋 ${state.user.name || ""}</p>
-          <h2 class="text-xl font-black mt-1">${esc(d.title)} <span class="text-sm font-bold text-white/70">Lv.${d.level}</span></h2>
-          <p class="text-[11px] text-white/60 mt-0.5">${esc(d.name || d.email)} · อันดับ #${d.rank} จาก ${d.totalUsers} คน ${nextNote}</p>
+        <div class="cyber-grid cyber-panel rounded-3xl p-5 text-white relative overflow-hidden">
+          <div class="absolute -top-10 -right-10 w-40 h-40 rounded-full" style="background:radial-gradient(circle,rgba(0,229,255,.22),transparent 70%)"></div>
+          <div class="flex items-start justify-between">
+            <div class="min-w-0">
+              <p class="text-cyan-300/80 text-[11px] font-tech tracking-widest uppercase">สวัสดี 👋 ${esc(state.user.name || "")}</p>
+              <h2 class="font-cyber text-xl font-black mt-1 neon-mag">${esc(d.title)} <span class="text-sm font-bold neon-cyan">Lv.${d.level}</span></h2>
+              <p class="text-[11px] text-slate-400 mt-0.5">${esc(d.name || d.email)} · อันดับ <span class="neon-cyan font-bold">#${d.rank}</span> จาก ${d.totalUsers} คน ${nextNote}</p>
+            </div>
+            <button class="sound-toggle text-sm px-2 py-0.5 rounded-lg cyber-chip text-cyan-200 active:scale-95 shrink-0" onclick="toggleSound()" title="เปิด/ปิดเสียง">${state.sound ? "🔊" : "🔇"}</button>
+          </div>
           <div class="mt-4 grid grid-cols-3 gap-3">
-            <div class="bg-white/15 rounded-2xl p-3 backdrop-blur"><p class="text-2xl font-black">${d.totalXp}</p><p class="text-[10px] text-white/70">Total XP</p></div>
-            <div class="bg-white/15 rounded-2xl p-3 backdrop-blur"><p class="text-2xl font-black">${d.workCount + d.issueCount}</p><p class="text-[10px] text-white/70">ทั้งหมดส่งข้อมูล</p></div>
-            <div class="bg-white/15 rounded-2xl p-3 backdrop-blur"><p class="text-2xl font-black">#${d.rank}</p><p class="text-[10px] text-white/70">จัดอันดับ</p></div>
+            <div class="cyber-chip rounded-2xl p-3 text-center"><p class="font-cyber text-2xl font-black neon-cyan">${d.totalXp}</p><p class="text-[10px] text-slate-400 font-tech">Total XP</p></div>
+            <div class="cyber-chip rounded-2xl p-3 text-center"><p class="font-cyber text-2xl font-black text-white">${d.workCount + d.issueCount}</p><p class="text-[10px] text-slate-400 font-tech">ส่งข้อมูลทั้งหมด</p></div>
+            <div class="cyber-chip rounded-2xl p-3 text-center"><p class="font-cyber text-2xl font-black neon-mag">#${d.rank}</p><p class="text-[10px] text-slate-400 font-tech">จัดอันดับ</p></div>
           </div>
           <div class="mt-4">${progressHtml(d.minXp, d.nextXp, d.totalXp, "from-amber-300", "to-amber-500")}</div>
         </div>`;
 
+      const st = d.streak || {};
+      const nextMilestone = [3, 7, 14, 30].find(m => m > (st.current || 0)) || 30;
+      $("dashStreak").innerHTML = `
+        <div class="cyber-panel rounded-2xl p-4 flex items-center gap-4">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl ${st.activeToday ? "flame" : ""}">🔥</span>
+            <div>
+              <p class="font-cyber text-2xl font-black ${st.current > 0 ? "neon-mag" : "text-slate-500"}">${st.current || 0} <span class="text-sm font-tech text-slate-400">วันติด</span></p>
+              <p class="text-[10px] text-slate-400 font-tech">${st.activeToday ? "วันนี้มาแล้ว ✅" : "วันนี้ยังไม่บันทึก — รักษาสตรีคไว้!"}</p>
+            </div>
+          </div>
+          <div class="ml-auto text-right text-[10px] text-slate-400 font-tech space-y-1">
+            <p>🏅 สูงสุด <span class="text-cyan-200 font-bold">${st.longest || 0}</span></p>
+            <p>📅 เดือนนี้ <span class="text-cyan-200 font-bold">${st.daysThisMonth || 0}</span></p>
+            <p>🎯 อีก <span class="neon-mag font-bold">${Math.max(0, nextMilestone - (st.current || 0))}</span> วันถึงโบนัส ${nextMilestone}</p>
+          </div>
+        </div>`;
+
       const solvedTxt = d.solvedCount ? `แก้สำเร็จ ${d.solvedCount}` : "";
       $("dashStats").innerHTML = `<div class="grid grid-cols-2 gap-2.5">
-        ${statCard("📋", "บันทึกงาน", d.workCount, "", "bg-emerald-50 text-emerald-600")}
-        ${statCard("🛠️", "แจ้งปัญหา", d.issueCount, solvedTxt, "bg-amber-50 text-amber-600")}
-        ${statCard("💡", "เสนอวิธีแก้", d.counts.solution, "", "bg-sky-50 text-sky-600")}
-        ${statCard("⭐", "โบนัส XP", d.counts.bonus, "", "bg-violet-50 text-violet-600")}
+        ${statCard("📋", "บันทึกงาน", d.workCount, "", "")}
+        ${statCard("🛠️", "แจ้งปัญหา", d.issueCount, solvedTxt, "")}
+        ${statCard("💡", "เสนอวิธีแก้", d.counts.solution, "", "")}
+        ${statCard("⭐", "โบนัส XP", d.counts.bonus, "", "")}
       </div>`;
 
       $("dashMonthlyCard").innerHTML = `
-        <div class="bg-white rounded-2xl shadow-sm p-4">
-          <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold text-slate-700">📈 XP ย้อนหลัง 6 เดือน</h3><span class="text-[11px] text-slate-400">เฉพาะรับ (ไม่รวมหักคืน)</span></div>
+        <div class="cyber-panel rounded-2xl p-4">
+          <div class="flex justify-between items-center mb-3"><h3 class="font-cyber text-sm font-bold text-cyan-200">📈 XP ย้อนหลัง 6 เดือน</h3><span class="text-[10px] text-slate-500 font-tech">เฉพาะรับ (ไม่รวมหักคืน)</span></div>
           ${monthBarsHtml(d.months || [])}
         </div>`;
 
       const mixMax = Math.max.apply(null, (d.mix || []).map(m => m.value).concat([1]));
+      const mixColor = { "งาน": "#34d399", "ปัญหา": "#fbbf24", "วิธีแก้": "#38bdf8", "โบนัส": "#a855f7" };
       $("dashMixCard").innerHTML = `
-        <div class="bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-3">🧩 สัดส่วนกิจกรรม</h3>
+        <div class="cyber-panel rounded-2xl p-4">
+          <h3 class="font-cyber text-sm font-bold text-cyan-200 mb-3">🧩 สัดส่วนกิจกรรม</h3>
           <div class="space-y-2.5">
             ${(d.mix || []).filter(m => { const x = m.value || 0; return x > 0 || (m.key === "งาน" || m.key === "ปัญหา"); }).map(m => `
               <div>
-                <div class="flex justify-between text-[11px] mb-1"><span class="text-slate-600">${esc(m.key)}</span><span class="font-bold text-slate-700">${m.value}</span></div>
-                <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full ${m.color || "bg-red-500"}" style="width:${Math.max(2, Math.round((m.value || 0) / mixMax * 100))}%"></div></div>
+                <div class="flex justify-between text-[11px] mb-1 font-tech"><span class="text-slate-300">${esc(m.key)}</span><span class="font-bold text-white">${m.value}</span></div>
+                <div class="h-2.5 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full" style="width:${Math.max(2, Math.round((m.value || 0) / mixMax * 100))}%;background:${mixColor[m.key] || "#00e5ff"};box-shadow:0 0 8px ${mixColor[m.key] || "#00e5ff"}"></div></div>
               </div>`).join("")}
           </div>
         </div>`;
@@ -1074,43 +1314,43 @@
       const rc = (d.recent || []).map(it => `
         <div class="flex items-start gap-3">
           <span class="text-xl shrink-0">${it.type === "work" ? "📋" : "🛠️"}</span>
-          <div class="flex-1 min-w-0 border-b border-slate-100 pb-2">
-            <p class="text-sm text-slate-700 whitespace-pre-wrap truncate">${esc(it.detail)}</p>
-            <p class="text-[11px] text-slate-400 mt-0.5">🕒 ${esc(it.time)}${it.status ? " · " + esc(it.status) : ""}</p>
+          <div class="flex-1 min-w-0 border-b border-white/5 pb-2">
+            <p class="text-sm text-slate-200 whitespace-pre-wrap truncate font-tech">${esc(it.detail)}</p>
+            <p class="text-[11px] text-slate-500 mt-0.5 font-mono">🕒 ${esc(it.time)}${it.status ? " · " + esc(it.status) : ""}</p>
           </div>
-        </div>`).join("") || `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีรายการ</p>`;
-      $("dashRecentCard").innerHTML = `<div class="bg-white rounded-2xl shadow-sm p-4"><h3 class="text-sm font-bold text-slate-700 mb-3">🕒 กิจกรรมล่าสุด</h3><div class="space-y-2">${rc}</div></div>`;
+        </div>`).join("") || `<p class="text-sm text-slate-500 text-center py-4">ยังไม่มีรายการ</p>`;
+      $("dashRecentCard").innerHTML = `<div class="cyber-panel rounded-2xl p-4"><h3 class="font-cyber text-sm font-bold text-cyan-200 mb-3">🕒 กิจกรรมล่าสุด</h3><div class="space-y-2">${rc}</div></div>`;
 
-      const topRows = (d.top || []).map(u => rankRowHtml(u, false)).join("") || `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีผู้ใช้</p>`;
-      $("dashRankCard").innerHTML = `<div class="bg-white rounded-2xl shadow-sm p-4"><div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold text-slate-700">🏆 ผู้ทำคะแนนสูงสุด</h3><span class="text-[11px] text-slate-400">อันดับของคุณ #${d.rank}</span></div><div class="space-y-2">${topRows}</div></div>`;
+      const topRows = (d.top || []).map(u => rankRowHtml(u, false)).join("") || `<p class="text-sm text-slate-500 text-center py-4">ยังไม่มีผู้ใช้</p>`;
+      $("dashRankCard").innerHTML = `<div class="cyber-panel rounded-2xl p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-cyber text-sm font-bold text-cyan-200">🏆 ผู้ทำคะแนนสูงสุด</h3><span class="text-[11px] text-slate-400 font-tech">อันดับของคุณ #${d.rank}</span></div><div class="space-y-2">${topRows}</div></div>`;
 
       if (d.isAdmin) {
         $("dashAdminRankCard").classList.remove("hidden");
         $("dashAdminRankCard").innerHTML = `
-          <div class="bg-white rounded-2xl shadow-sm p-4">
-            <div class="flex justify-between items-center mb-1"><h3 class="text-sm font-bold text-slate-700">👥 อันดับสมาชิกทั้งหมด</h3></div>
-            <p class="text-[11px] text-slate-400 mb-3">แตะชื่อเพื่อดูรายละเอียดของผู้ใช้แต่ละคน</p>
+          <div class="cyber-panel rounded-2xl p-4">
+            <div class="flex justify-between items-center mb-1"><h3 class="font-cyber text-sm font-bold text-cyan-200">👥 อันดับสมาชิกทั้งหมด</h3></div>
+            <p class="text-[11px] text-slate-400 mb-3 font-tech">แตะชื่อเพื่อดูรายละเอียดของผู้ใช้แต่ละคน</p>
             <div class="space-y-1.5">
               ${(d.allUsers || []).map(u => `
-                <button data-user="${esc(u.email)}" class="w-full text-left flex items-center gap-2 rounded-xl border border-slate-100 hover:bg-slate-50 transition px-3 py-2">
-                  <span class="w-8 shrink-0 ${u.rank === 1 ? "text-amber-500" : u.rank === 2 ? "text-slate-400" : u.rank === 3 ? "text-amber-600" : "text-slate-300"} font-black text-sm">${u.rank <= 3 ? ["🥇","🥈","🥉"][u.rank - 1] : "#" + u.rank}</span>
-                  <span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-slate-700 truncate">${esc(u.name || u.email)}</span><span class="block text-[10px] text-slate-400 truncate">${esc(u.email)}</span></span>
-                  <span class="text-right shrink-0"><span class="block text-sm font-black text-red-700">${u.totalXp} XP</span><span class="block text-[10px] text-slate-400">${esc(u.role)}</span></span>
+                <button data-user="${esc(u.email)}" class="w-full text-left flex items-center gap-2 rounded-xl cyber-chip hover:bg-cyan-400/10 transition px-3 py-2">
+                  <span class="w-8 shrink-0 ${u.rank === 1 ? "text-amber-400" : u.rank === 2 ? "text-slate-300" : u.rank === 3 ? "text-amber-600" : "text-slate-500"} font-cyber font-black text-sm">${u.rank <= 3 ? ["🥇","🥈","🥉"][u.rank - 1] : "#" + u.rank}</span>
+                  <span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-slate-100 truncate font-tech">${esc(u.name || u.email)}</span><span class="block text-[10px] text-slate-500 truncate font-mono">${esc(u.email)}</span></span>
+                  <span class="text-right shrink-0"><span class="block font-cyber text-sm font-black neon-cyan">${u.totalXp} XP</span><span class="block text-[10px] text-slate-500 font-tech">${esc(u.role)}</span></span>
                 </button>`).join("")}
             </div>
           </div>`;
         $("dashAdminRankCard").querySelectorAll("[data-user]").forEach(b => b.addEventListener("click", () => openUserDetail(b.dataset.user)));
       } else $("dashAdminRankCard").classList.add("hidden");
     } catch (err) {
-      $("dashHero").innerHTML = `<div class="bg-white rounded-2xl shadow-sm p-4 text-sm text-red-500 text-center">โหลดแดชบอร์ดไม่สำเร็จ: ${esc(err.message)}</div>`;
+      $("dashHero").innerHTML = `<div class="cyber-panel rounded-2xl p-4 text-sm text-red-400 text-center">โหลดแดชบอร์ดไม่สำเร็จ: ${esc(err.message)}</div>`;
     }
   }
 
   function rankRowHtml(u, withRole) {
-    return `<div class="flex items-center gap-2 rounded-xl border border-slate-100 px-3 py-2">
+    return `<div class="flex items-center gap-2 rounded-xl cyber-chip px-3 py-2">
       <span class="w-6 text-base">${u.rank <= 3 ? ["🥇","🥈","🥉"][u.rank - 1] : "🏅"}</span>
-      <div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-700 truncate">${esc(u.name || u.email)}</p><p class="text-[10px] text-slate-400 truncate">${esc(u.email)}</p></div>
-      <div class="text-right shrink-0"><p class="text-sm font-black text-red-700">${u.totalXp} XP</p><p class="text-[10px] text-slate-400">Lv.${u.level}</p></div>
+      <div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-100 truncate font-tech">${esc(u.name || u.email)}</p><p class="text-[10px] text-slate-500 truncate font-mono">${esc(u.email)}</p></div>
+      <div class="text-right shrink-0"><p class="font-cyber text-sm font-black neon-cyan">${u.totalXp} XP</p><p class="text-[10px] text-slate-500 font-tech">Lv.${u.level}</p></div>
     </div>`;
   }
 

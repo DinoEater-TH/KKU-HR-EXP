@@ -1,5 +1,5 @@
 /************************************************************************
- * KKU HR Exp — Phase 5.2 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 6.0 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
  * โครงสร้างทั้งหมด (Phase 1-5)
@@ -12,7 +12,8 @@
  *   Notify: ประกาศจาก Admin (บังหน้าจอจนกว่าจะรับทราบ)
  *   Guard : กันสแปม / เนื้อหาซ้ำ / เนื้อหาไม่เกี่ยวกับงาน (Phase 5)
  *   Audit : แอดมินยกเลิกรายการ (Soft-void) หัก XP คืน + audit trail (Phase 5.1)
- *   Dash  : แดชบอร์ดผู้ใช้ + จัดอันดับ + ดูข้อมูลรายบุคคล (admin) (Phase 5.2)
+ *   Dash  : แดชบอร์ดผู้ใช้ + จัดอันดับ + ดูข้อมูลรายบุคคล (admin) (Phase 6.0)
+ *   RPG   : โบนัส Streak (บันทึกต่อเนื่องรายวัน + milestone) (Phase 6.0)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -31,6 +32,10 @@ var GEMINI_PROP      = "GEMINI_API_KEY";
 var ADMIN_PROP       = "ADMIN_EMAILS";   // เก็บเป็น "a@kku.ac.th,b@kku.ac.th"
 
 var XP = { WORK_LOG: 10, ISSUE: 15, SOLUTION: 25, RESOLVE: 50, LIKE_RECEIVED: 5 };
+
+/* ---- RPG: โบนัส Streak (มาบันทึกต่อเนื่อง) ---- */
+var STREAK_BONUS_DAILY = 5;                                  // โบนัสเมื่อบันทึกครั้งแรกของวัน
+var STREAK_MILESTONES  = { 3: 15, 7: 40, 14: 100, 30: 300 }; // โบนัสพิเศษเมื่อติดต่อกันครบ N วัน
 
 /* ---- ป้องกันการใช้งานผิด: สแปม / เนื้อหาซ้ำ / เนื้อหาไม่เกี่ยวกับงาน ---- */
 var SPAM_MIN_INTERVAL_SEC = 10;    // ระยะห่างขั้นต่ำระหว่างการส่ง (วินาที)
@@ -78,7 +83,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 5.2", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.0", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -105,7 +110,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 5.2" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.0" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -203,7 +208,8 @@ function recordWork_(email, detail, files, category, clientRef) {
     File_URLs: urls.join("\n"), Category: category, Client_Ref: clientRef || ""
   });
   var lv = awardXp_(email, XP.WORK_LOG, "work_log", id, clientRef);
-  return json_({ status: "ok", type: "work", id: id, time: ts, files: urls.length, xp: XP.WORK_LOG, totalXp: lv.totalXp });
+  var st = applyStreakBonus_(email, clientRef);
+  return json_({ status: "ok", type: "work", id: id, time: ts, files: urls.length, xp: XP.WORK_LOG, totalXp: lv.totalXp + st.awarded, streakBonus: st.awarded, streakDays: st.streak });
 }
 
 function recordIssue_(email, detail, files, category, clientRef) {
@@ -216,7 +222,8 @@ function recordIssue_(email, detail, files, category, clientRef) {
     Solution: "", Solved_By: "", File_URLs: urls.join("\n"), Category: category, Client_Ref: clientRef || ""
   });
   var lv = awardXp_(email, XP.ISSUE, "issue", id, clientRef);
-  return json_({ status: "ok", type: "issue", id: id, time: ts, files: urls.length, xp: XP.ISSUE, totalXp: lv.totalXp });
+  var st = applyStreakBonus_(email, clientRef);
+  return json_({ status: "ok", type: "issue", id: id, time: ts, files: urls.length, xp: XP.ISSUE, totalXp: lv.totalXp + st.awarded, streakBonus: st.awarded, streakDays: st.streak });
 }
 
 function handleAddSolution_(email, name, issueId, solution) {
@@ -538,16 +545,23 @@ function myProfile_(idToken, emailParam) {
   var name = row === -1 ? (info.name || "") : String(ush.getRange(row, map["Full_Name"]).getValue() || info.name || "");
 
   var lv = levelFor_(totalXp);
-  var history = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
-    .filter(function (h) { return String(h.User_Email) === email && String(h.Reason || "").indexOf("rejected:") !== 0; })
+  var xpAll = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
+    .filter(function (h) { return String(h.User_Email) === email && String(h.Reason || "").indexOf("rejected:") !== 0; });
+  var history = xpAll
     .map(function (h) { return { time: String(h.Timestamp || ""), amount: Number(h.Amount || 0), reason: String(h.Reason || "") }; })
     .sort(function (a, b) { return a.time < b.time ? 1 : -1; })
     .slice(0, 50);
 
+  var users = readObjects_(getSheet_(SHEETS.USERS, HEADERS.USERS), HEADERS.USERS);
+  var rank = rankOfUser_(email, users);
+  var counts = reasonCounts_(xpAll);
+
   return {
     status: "ok", email: email, name: name, totalXp: totalXp, isAdmin: isAdmin_(email),
     level: lv.level, title: lv.title, minXp: lv.minXp, nextXp: lv.nextMinXp, nextTitle: lv.nextTitle,
-    history: history
+    history: history,
+    rank: rank, totalUsers: users.length,
+    counts: counts, solutionCount: counts.solution, streak: streakStats_(email)
   };
 }
 
@@ -587,6 +601,72 @@ function rankMap_(users) {
   var map = {};
   for (var i = 0; i < ranked.length; i++) map[String(ranked[i].Email)] = i + 1;
   return map;
+}
+
+/* ---- RPG: Streak (จำนวนวันติดต่อกันที่บันทึกงาน/แจ้งปัญหา) ---- */
+function ymdToDate_(s) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s));
+  if (!m) return null;
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+}
+function shiftYmd_(s, n) {
+  var d = ymdToDate_(s);
+  if (!d) return s;
+  d.setUTCDate(d.getUTCDate() + n);
+  return Utilities.formatDate(d, "UTC", "yyyy-MM-dd");
+}
+
+/* วันที่ที่มีกิจกรรม (work_log / issue) ของผู้ใช้ เรียงจากเก่า → ใหม่ */
+function activeDaysFor_(email) {
+  var set = {};
+  readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY).forEach(function (h) {
+    if (String(h.User_Email) !== email) return;
+    var r = String(h.Reason || "");
+    if (r !== "work_log" && r !== "issue") return;
+    var d = String(h.Timestamp || "").substring(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) set[d] = 1;
+  });
+  return Object.keys(set).sort();
+}
+
+function streakStats_(email) {
+  var today = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd");
+  var list = activeDaysFor_(email);
+  var days = {};
+  list.forEach(function (d) { days[d] = 1; });
+
+  var longest = 0, run = 0, prev = null;
+  list.forEach(function (d) {
+    if (prev && shiftYmd_(prev, 1) === d) run++; else run = 1;
+    if (run > longest) longest = run;
+    prev = d;
+  });
+
+  var activeToday = !!days[today];
+  var cursor = activeToday ? today : shiftYmd_(today, -1);
+  var current = 0;
+  while (days[cursor]) { current++; cursor = shiftYmd_(cursor, -1); }
+
+  var ymp = today.substring(0, 7);
+  return {
+    current: current, longest: longest, activeToday: activeToday,
+    daysThisMonth: list.filter(function (d) { return d.substring(0, 7) === ymp; }).length,
+    totalDays: list.length
+  };
+}
+
+/* ให้โบนัสสตรีคเมื่อบันทึกครั้งแรกของวัน (เรียกหลัง awardXp_ ของงานหลัก) */
+function applyStreakBonus_(email, clientRef) {
+  var today = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd");
+  var hist = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY);
+  var gotToday = hist.some(function (h) {
+    return String(h.User_Email) === email && String(h.Reason) === "streak" && String(h.Timestamp || "").substring(0, 10) === today;
+  });
+  if (gotToday) return { awarded: 0, streak: streakStats_(email).current };
+  var st = streakStats_(email);
+  var bonus = STREAK_BONUS_DAILY + (STREAK_MILESTONES[st.current] || 0);
+  awardXp_(email, bonus, "streak", today, clientRef || "");
+  return { awarded: bonus, streak: st.current, milestone: STREAK_MILESTONES[st.current] || 0 };
 }
 
 function dashboard_(idToken, emailParam) {
@@ -649,6 +729,7 @@ function dashboard_(idToken, emailParam) {
     ],
     recent: recent,
     rank: rank, totalUsers: users.length,
+    streak: streakStats_(email),
     top: top,
     allUsers: isAdmin ? users.map(function (u) {
       return { rank: ranks[String(u.Email)] || 0, email: String(u.Email), name: String(u.Full_Name || ""), totalXp: Number(u.Total_XP || 0), level: Number(u.Level || 1), role: String(u.Role || "User") };
@@ -730,13 +811,16 @@ function submitResult_(clientRef, idToken) {
   if (!idToken) throw new Error("ต้องเข้าสู่ระบบใหม่");
   var email = verifyIdToken_(idToken).email;
 
-  var xpRow = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
-    .filter(function (h) { return String(h.Client_Ref) === String(clientRef) && String(h.User_Email) === email; })[0];
-  if (!xpRow) return { status: "ok", found: false };
+  var all = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
+    .filter(function (h) { return String(h.Client_Ref) === String(clientRef) && String(h.User_Email) === email; });
 
-  if (String(xpRow.Reason || "").indexOf("rejected:") === 0) {
-    return { status: "ok", found: true, rejected: true, message: String(xpRow.Reason).slice("rejected:".length).trim() };
+  var rej = all.filter(function (h) { return String(h.Reason || "").indexOf("rejected:") === 0; })[0];
+  if (rej) {
+    return { status: "ok", found: true, rejected: true, message: String(rej.Reason).slice("rejected:".length).trim() };
   }
+
+  var xpRow = all.filter(function (h) { var r = String(h.Reason || ""); return r === "work_log" || r === "issue"; })[0];
+  if (!xpRow) return { status: "ok", found: false };
 
   var refId = String(xpRow.Ref_ID || "");
   var reason = String(xpRow.Reason || "");
@@ -760,10 +844,14 @@ function submitResult_(clientRef, idToken) {
   var totalXp = row === -1 ? 0 : Number(ush.getRange(row, map["Total_XP"]).getValue() || 0);
   var lv = levelFor_(totalXp);
 
+  var streakRow = all.filter(function (h) { return String(h.Reason) === "streak"; })[0];
+  var streakBonus = streakRow ? Number(streakRow.Amount || 0) : 0;
+
   return {
     status: "ok", found: true, type: type, category: category, refId: refId,
     amount: Number(xpRow.Amount || 0), timestamp: timestamp,
-    totalXp: totalXp, level: lv.level, title: lv.title, nextXp: lv.nextMinXp
+    totalXp: totalXp, level: lv.level, title: lv.title, nextXp: lv.nextMinXp,
+    streakBonus: streakBonus, streakDays: streakBonus ? streakStats_(email).current : 0
   };
 }
 
