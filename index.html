@@ -54,7 +54,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 5.1</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 5.2</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -75,6 +75,7 @@
       </div>
 
       <div class="max-w-lg mx-auto px-2 pb-2 flex gap-1.5 overflow-x-auto no-scrollbar">
+        <button data-tab="dashboard" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📊 แดชบอร์ด</button>
         <button data-tab="work"    class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📝 บันทึก</button>
         <button data-tab="board"   class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🧩 บอร์ด</button>
         <button data-tab="kb"      class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📚 ความรู้</button>
@@ -85,6 +86,17 @@
     </header>
 
     <main class="max-w-lg mx-auto px-4 pt-4">
+
+      <!-- ===== แดชบอร์ด ===== -->
+      <div id="tab-dashboard" class="tab-panel hidden fade-in space-y-3">
+        <div id="dashHero"></div>
+        <div id="dashStats"></div>
+        <div id="dashMonthlyCard"></div>
+        <div id="dashMixCard"></div>
+        <div id="dashRecentCard"></div>
+        <div id="dashRankCard"></div>
+        <div id="dashAdminRankCard" class="hidden"></div>
+      </div>
 
       <!-- ===== บันทึก ===== -->
       <div id="tab-work" class="tab-panel fade-in">
@@ -222,7 +234,7 @@
           <p class="text-[11px] text-slate-400 mt-2">ไฟล์เรียงวันที่-เวลา ใหม่→เก่า พร้อมชื่อผู้บันทึก หมวดหมู่ (AI) สถานะ และลิงก์ไฟล์แนบ</p>
         </div>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 5.1</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 5.2</p>
       </div>
 
     </main>
@@ -291,15 +303,26 @@
     </div>
   </div>
 
+  <!-- ================= Modal: ดูข้อมูลผู้ใช้ (admin drill-down) ================= -->
+  <div id="userModal" class="hidden fixed inset-0 z-[78] bg-black/50 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden pop max-h-[92vh] flex flex-col">
+      <div id="userModalHead" class="p-5 text-white bg-gradient-to-br from-indigo-800 via-indigo-700 to-purple-700"></div>
+      <div id="userModalBody" class="p-5 overflow-y-auto space-y-3"></div>
+      <div class="p-4 pt-0">
+        <button id="userModalClose" class="w-full py-3 rounded-xl bg-slate-200 text-slate-700 font-bold active:scale-[.98] transition">ปิด</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= Toast ================= -->
   <div id="toast" class="hidden fixed bottom-6 inset-x-0 z-[80] flex justify-center px-4">    <div id="toastBox" class="max-w-sm w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl text-center"></div>
   </div>
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 5.1 (index.html)
+     KKU HR Exp — Phase 5.2 (index.html)
      ============================================================ */
-  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"work", pendingNotifs:[], linkCtx:null, voidCtx:null, adminSubs:[], boardItems:{}, kbItems:{}, historyItems:{} };
+  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, adminSubs:[], dashData:null, boardItems:{}, kbItems:{}, historyItems:{} };
   let subSearchTimer = null;
   const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน" };
 
@@ -361,7 +384,7 @@
     $("userAvatar").src = state.user.picture || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>";
     $("loginView").classList.add("hidden");
     $("appView").classList.remove("hidden");
-    switchTab("work");
+    switchTab("dashboard");
     loadProfile();       // อัปเดต Level ที่ header
     checkNotifications();
   }
@@ -479,6 +502,7 @@
       const active = b.dataset.tab === tab;
       b.className = "tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold " + (active ? "bg-white text-red-800 shadow" : "bg-white/15 text-white");
     });
+    if (tab === "dashboard") loadDashboard();
     if (tab === "board") loadBoard();
     if (tab === "kb") loadKb();
     if (tab === "history") loadHistory();
@@ -514,6 +538,8 @@
       $("detail").value = ""; state.attachments = []; renderPreviews();
       showSaveModal(detail, result);
       loadProfile();
+      if (state.currentTab === "dashboard") loadDashboard();
+      if (state.currentTab === "admin" && state.isAdmin) loadAdmin();
     } catch (err) {
       showToast(err && err.message === "offline"
         ? "📴 ออฟไลน์อยู่ กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนส่ง"
@@ -788,7 +814,7 @@
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       state.isAdmin = !!data.isAdmin;
       $("tabBtnAdmin").classList.toggle("hidden", !state.isAdmin);
-      if (!state.isAdmin && state.currentTab === "admin") switchTab("work");
+      if (!state.isAdmin && state.currentTab === "admin") switchTab("dashboard");
       $("headerLevelNum").textContent = "Lv " + data.level;
 
       let pct = 100, nextLabel = "ระดับสูงสุดแล้ว 🏆";
@@ -956,6 +982,197 @@
     }
   }
 
+  /* ---------- แดชบอร์ด (Dashboard) ---------- */
+  function monthBarsHtml(months) {
+    const max = Math.max.apply(null, months.map(m => m.xp));
+    return `<div class="flex items-end gap-1.5 h-24">
+      ${months.map(m => {
+        const pct = m.xp > 0 ? Math.max(6, Math.round(m.xp / (max || 1) * 100)) : 2;
+        return `<div class="flex-1 flex flex-col items-center gap-1 min-w-0">
+          <span class="text-[9px] font-bold ${m.xp > 0 ? "text-red-700" : "text-slate-300"}">${m.xp > 0 ? m.xp : ""}</span>
+          <div class="w-full rounded-t-md bg-gradient-to-t from-red-800 to-red-400 transition-all" style="height:${m.xp > 0 ? pct : 3}%"></div>
+          <span class="text-[9px] text-slate-400">${esc(m.label)}</span>
+        </div>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function progressHtml(minXp, nextXp, totalXp, colorA, colorB) {
+    const range = nextXp ? (nextXp - minXp) : 1;
+    const pct = nextXp ? Math.min(100, Math.max(2, Math.round((totalXp - minXp) / range * 100))) : 100;
+    return `<div class="flex items-center gap-3">
+      <span class="text-xs text-white/70 shrink-0">${totalXp}</span>
+      <div class="flex-1 h-2.5 rounded-full bg-black/20 overflow-hidden">
+        <div class="h-full rounded-full bg-gradient-to-r ${colorA || "from-white"} ${colorB || "to-white/80"}" style="width:${pct}%"></div>
+      </div>
+      ${nextXp ? `<span class="text-[10px] text-white/70 shrink-0">${nextXp} XP ≥</span>` : `<span class="text-[10px] text-white/70 shrink-0">สูงสุด</span>`}
+    </div>`;
+  }
+
+  function statCard(icon, label, value, sub, color) {
+    return `<div class="bg-white rounded-2xl shadow-sm p-3.5 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl ${color || "bg-red-50 text-red-700"} flex items-center justify-center text-lg shrink-0">${icon}</div>
+      <div class="min-w-0">
+        <p class="text-lg font-black text-slate-800 leading-none">${value}</p>
+        <p class="text-[11px] text-slate-400 mt-0.5 truncate">${esc(label)}</p>
+        ${sub ? `<p class="text-[10px] text-emerald-600 font-semibold">${sub}</p>` : ""}
+      </div>
+    </div>`;
+  }
+
+  async function loadDashboard() {
+    ["dashHero","dashStats","dashMonthlyCard","dashMixCard","dashRecentCard","dashRankCard","dashAdminRankCard"]
+      .forEach(id => $(id).innerHTML = "");
+    try {
+      const d = await apiGet({ action:"dashboard", idToken:state.idToken, email:state.user.email });
+      if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
+      state.dashData = d;
+
+      const nextNote = d.nextTitle ? `· เติมอีก ${Math.max(0, d.nextXp - d.totalXp)} XP ถึง ${esc(d.nextTitle)}` : "· ระดับสูงสุดแล้ว";
+      $("dashHero").innerHTML = `
+        <div class="bg-gradient-to-br from-red-800 via-red-700 to-rose-600 rounded-3xl p-5 text-white shadow-xl relative overflow-hidden">
+          <div class="absolute -top-8 -right-8 w-36 h-36 rounded-full bg-white/10"></div>
+          <div class="absolute top-12 right-12 w-16 h-16 rounded-full bg-white/10"></div>
+          <p class="text-white/70 text-xs">สวัสดี 👋 ${state.user.name || ""}</p>
+          <h2 class="text-xl font-black mt-1">${esc(d.title)} <span class="text-sm font-bold text-white/70">Lv.${d.level}</span></h2>
+          <p class="text-[11px] text-white/60 mt-0.5">${esc(d.name || d.email)} · อันดับ #${d.rank} จาก ${d.totalUsers} คน ${nextNote}</p>
+          <div class="mt-4 grid grid-cols-3 gap-3">
+            <div class="bg-white/15 rounded-2xl p-3 backdrop-blur"><p class="text-2xl font-black">${d.totalXp}</p><p class="text-[10px] text-white/70">Total XP</p></div>
+            <div class="bg-white/15 rounded-2xl p-3 backdrop-blur"><p class="text-2xl font-black">${d.workCount + d.issueCount}</p><p class="text-[10px] text-white/70">ทั้งหมดส่งข้อมูล</p></div>
+            <div class="bg-white/15 rounded-2xl p-3 backdrop-blur"><p class="text-2xl font-black">#${d.rank}</p><p class="text-[10px] text-white/70">จัดอันดับ</p></div>
+          </div>
+          <div class="mt-4">${progressHtml(d.minXp, d.nextXp, d.totalXp, "from-amber-300", "to-amber-500")}</div>
+        </div>`;
+
+      const solvedTxt = d.solvedCount ? `แก้สำเร็จ ${d.solvedCount}` : "";
+      $("dashStats").innerHTML = `<div class="grid grid-cols-2 gap-2.5">
+        ${statCard("📋", "บันทึกงาน", d.workCount, "", "bg-emerald-50 text-emerald-600")}
+        ${statCard("🛠️", "แจ้งปัญหา", d.issueCount, solvedTxt, "bg-amber-50 text-amber-600")}
+        ${statCard("💡", "เสนอวิธีแก้", d.counts.solution, "", "bg-sky-50 text-sky-600")}
+        ${statCard("⭐", "โบนัส XP", d.counts.bonus, "", "bg-violet-50 text-violet-600")}
+      </div>`;
+
+      $("dashMonthlyCard").innerHTML = `
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold text-slate-700">📈 XP ย้อนหลัง 6 เดือน</h3><span class="text-[11px] text-slate-400">เฉพาะรับ (ไม่รวมหักคืน)</span></div>
+          ${monthBarsHtml(d.months || [])}
+        </div>`;
+
+      const mixMax = Math.max.apply(null, (d.mix || []).map(m => m.value).concat([1]));
+      $("dashMixCard").innerHTML = `
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-3">🧩 สัดส่วนกิจกรรม</h3>
+          <div class="space-y-2.5">
+            ${(d.mix || []).filter(m => { const x = m.value || 0; return x > 0 || (m.key === "งาน" || m.key === "ปัญหา"); }).map(m => `
+              <div>
+                <div class="flex justify-between text-[11px] mb-1"><span class="text-slate-600">${esc(m.key)}</span><span class="font-bold text-slate-700">${m.value}</span></div>
+                <div class="h-2.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full ${m.color || "bg-red-500"}" style="width:${Math.max(2, Math.round((m.value || 0) / mixMax * 100))}%"></div></div>
+              </div>`).join("")}
+          </div>
+        </div>`;
+
+      const rc = (d.recent || []).map(it => `
+        <div class="flex items-start gap-3">
+          <span class="text-xl shrink-0">${it.type === "work" ? "📋" : "🛠️"}</span>
+          <div class="flex-1 min-w-0 border-b border-slate-100 pb-2">
+            <p class="text-sm text-slate-700 whitespace-pre-wrap truncate">${esc(it.detail)}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">🕒 ${esc(it.time)}${it.status ? " · " + esc(it.status) : ""}</p>
+          </div>
+        </div>`).join("") || `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีรายการ</p>`;
+      $("dashRecentCard").innerHTML = `<div class="bg-white rounded-2xl shadow-sm p-4"><h3 class="text-sm font-bold text-slate-700 mb-3">🕒 กิจกรรมล่าสุด</h3><div class="space-y-2">${rc}</div></div>`;
+
+      const topRows = (d.top || []).map(u => rankRowHtml(u, false)).join("") || `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีผู้ใช้</p>`;
+      $("dashRankCard").innerHTML = `<div class="bg-white rounded-2xl shadow-sm p-4"><div class="flex justify-between items-center mb-3"><h3 class="text-sm font-bold text-slate-700">🏆 ผู้ทำคะแนนสูงสุด</h3><span class="text-[11px] text-slate-400">อันดับของคุณ #${d.rank}</span></div><div class="space-y-2">${topRows}</div></div>`;
+
+      if (d.isAdmin) {
+        $("dashAdminRankCard").classList.remove("hidden");
+        $("dashAdminRankCard").innerHTML = `
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <div class="flex justify-between items-center mb-1"><h3 class="text-sm font-bold text-slate-700">👥 อันดับสมาชิกทั้งหมด</h3></div>
+            <p class="text-[11px] text-slate-400 mb-3">แตะชื่อเพื่อดูรายละเอียดของผู้ใช้แต่ละคน</p>
+            <div class="space-y-1.5">
+              ${(d.allUsers || []).map(u => `
+                <button data-user="${esc(u.email)}" class="w-full text-left flex items-center gap-2 rounded-xl border border-slate-100 hover:bg-slate-50 transition px-3 py-2">
+                  <span class="w-8 shrink-0 ${u.rank === 1 ? "text-amber-500" : u.rank === 2 ? "text-slate-400" : u.rank === 3 ? "text-amber-600" : "text-slate-300"} font-black text-sm">${u.rank <= 3 ? ["🥇","🥈","🥉"][u.rank - 1] : "#" + u.rank}</span>
+                  <span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-slate-700 truncate">${esc(u.name || u.email)}</span><span class="block text-[10px] text-slate-400 truncate">${esc(u.email)}</span></span>
+                  <span class="text-right shrink-0"><span class="block text-sm font-black text-red-700">${u.totalXp} XP</span><span class="block text-[10px] text-slate-400">${esc(u.role)}</span></span>
+                </button>`).join("")}
+            </div>
+          </div>`;
+        $("dashAdminRankCard").querySelectorAll("[data-user]").forEach(b => b.addEventListener("click", () => openUserDetail(b.dataset.user)));
+      } else $("dashAdminRankCard").classList.add("hidden");
+    } catch (err) {
+      $("dashHero").innerHTML = `<div class="bg-white rounded-2xl shadow-sm p-4 text-sm text-red-500 text-center">โหลดแดชบอร์ดไม่สำเร็จ: ${esc(err.message)}</div>`;
+    }
+  }
+
+  function rankRowHtml(u, withRole) {
+    return `<div class="flex items-center gap-2 rounded-xl border border-slate-100 px-3 py-2">
+      <span class="w-6 text-base">${u.rank <= 3 ? ["🥇","🥈","🥉"][u.rank - 1] : "🏅"}</span>
+      <div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-700 truncate">${esc(u.name || u.email)}</p><p class="text-[10px] text-slate-400 truncate">${esc(u.email)}</p></div>
+      <div class="text-right shrink-0"><p class="text-sm font-black text-red-700">${u.totalXp} XP</p><p class="text-[10px] text-slate-400">Lv.${u.level}</p></div>
+    </div>`;
+  }
+
+  async function openUserDetail(email) {
+    const body = $("userModalBody"), head = $("userModalHead");
+    body.innerHTML = `<p class="text-sm text-slate-400 text-center py-6">กำลังโหลด...</p>`;
+    head.innerHTML = `<p class="text-xs text-white/70">ผู้ใช้รายบุคคล</p>`;
+    $("userModal").classList.remove("hidden");
+    try {
+      const d = await apiGet({ action:"adminUserDetail", idToken:state.idToken, email });
+      if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
+
+      head.innerHTML = `
+        <p class="text-xs text-white/70">ผู้ใช้รายบุคคล ${d.isAdmin ? '<span class="bg-white/20 text-[9px] font-bold rounded px-1.5 py-0.5">Admin</span>' : ""}</p>
+        <div class="flex items-center gap-3 mt-2">
+          <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-xl font-black shrink-0">${(d.name || d.email || "?").charAt(0).toUpperCase()}</div>
+          <div class="min-w-0">
+            <h2 class="text-lg font-black truncate">${esc(d.name || d.email)}</h2>
+            <p class="text-[11px] text-white/70 font-mono truncate">${esc(d.email)}</p>
+            <p class="text-[11px] text-white/80 mt-0.5">${esc(d.title)} · Lv.${d.level} · อันดับ #${d.rank}/${d.totalUsers}</p>
+          </div>
+          <div class="ml-auto text-right shrink-0"><p class="text-xl font-black">${d.totalXp}</p><p class="text-[10px] text-white/70">Total XP</p></div>
+        </div>
+        <div class="mt-3">${progressHtml(d.minXp, d.nextXp, d.totalXp, "from-amber-300", "to-amber-500")}</div>`;
+
+      body.innerHTML = `
+        <div class="grid grid-cols-2 gap-2">
+          ${statCard("📋", "บันทึกงาน", d.count_items.work, "", "bg-emerald-50 text-emerald-600")}
+          ${statCard("🛠️", "แจ้งปัญหา", d.count_items.issue, d.count_items.solved ? `<b>${d.count_items.solved}</b> แก้สำเร็จ` : "", "bg-amber-50 text-amber-600")}
+          ${statCard("💡", "เสนอวิธีแก้", d.counts.solution, "", "bg-sky-50 text-sky-600")}
+          ${statCard("⭐", "โบนัส", d.counts.bonus, "", "bg-violet-50 text-violet-600")}
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4 border border-slate-100">
+          <h3 class="text-sm font-bold text-slate-700 mb-3">📈 XP ย้อนหลัง 6 เดือน</h3>${monthBarsHtml(d.months || [])}
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4 border border-slate-100">
+          <h3 class="text-sm font-bold text-slate-700 mb-3">💰 ประวัติ XP (ล่าสุด)</h3>
+          ${(d.history || []).length ? `<div class="space-y-2">${d.history.map(h => `
+            <div class="flex items-center gap-3">
+              <div class="w-2 h-2 rounded-full ${Number(h.amount) < 0 ? "bg-red-500" : "bg-emerald-500"} shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex justify-between"><span class="text-sm text-slate-700">${esc(REASON_LABEL[h.reason] || h.reason)}</span><span class="text-sm font-bold ${Number(h.amount) < 0 ? "text-red-500" : "text-emerald-600"}">${Number(h.amount) >= 0 ? "+" : ""}${h.amount} XP</span></div>
+                <p class="text-[10px] text-slate-400">${esc(h.time)}</p>
+              </div>
+            </div>`).join("")}</div>` : `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีประวัติ</p>`}
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4 border border-slate-100">
+          <h3 class="text-sm font-bold text-slate-700 mb-3">🗂️ รายการส่งข้อมูล (ล่าสุด 30)</h3>
+          ${(d.items || []).length ? `<div class="space-y-2">${d.items.map(it => `
+            <div class="flex items-start gap-2">
+              <span class="text-base shrink-0">${it.type === "work" ? "📋" : "🛠️"}</span>
+              <div class="flex-1 min-w-0 border-b border-slate-100 pb-2">
+                <p class="text-sm text-slate-700 whitespace-pre-wrap">${esc(it.detail)}</p>
+                <p class="text-[10px] text-slate-400 mt-0.5">${esc(it.time)}${it.status ? " · " + esc(it.status) : ""} · #${esc(it.id)}</p>
+              </div>
+            </div>`).join("")}</div>` : `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีรายการ</p>`}
+        </div>`;
+    } catch (err) {
+      body.innerHTML = `<p class="text-sm text-red-500 text-center py-6">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+    }
+  }
+
   async function adminSendNotif() {
     const msg = $("adminNotifMsg").value.trim();
     if (!msg) { showToast("กรุณาพิมพ์ข้อความประกาศ", "warn"); return; }
@@ -1085,6 +1302,7 @@
     $("subSearch").addEventListener("input", () => { clearTimeout(subSearchTimer); subSearchTimer = setTimeout(loadAdminSubmissions, 400); });
     $("voidConfirm").addEventListener("click", confirmVoid);
     $("voidCancel").addEventListener("click", () => { $("voidModal").classList.add("hidden"); state.voidCtx = null; });
+    $("userModalClose").addEventListener("click", () => $("userModal").classList.add("hidden"));
     renderModeButtons();
 
     updateOnline();

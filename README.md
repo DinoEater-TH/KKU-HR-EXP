@@ -16,13 +16,15 @@ index.html (GitHub Pages)  →  Code.gs (Google Apps Script)  →  Google Sheets
 | Database | Google Sheets (`Users`, `Work_Logs`, `Issues`) | บัญชี @kku.ac.th |
 | Storage | Google Drive (โฟลเดอร์ `KKU HR Exp - Uploads`) | บัญชี @kku.ac.th |
 
-## ฟีเจอร์ Phase 1
+## ฟีเจอร์ (สรุปทุก Phase)
 
-- Login ด้วย Google เฉพาะอีเมล `@kku.ac.th` + แสดงชื่อ-นามสกุลจริง
-- บันทึกงาน (Work Log) และ แจ้งปัญหา (Issue)
-- Auto Timestamp (บันทึกวันเวลาไทยอัตโนมัติ ผู้ใช้ไม่ต้องพิมพ์)
-- แนบรูป/ไฟล์ (รูปถูกย่อขนาดอัตโนมัติ) เก็บขึ้น Drive แล้วบันทึกลิงก์ลง Sheet
-- Admin Menu ใน Sheet: Export เป็น Excel (.xlsx) / CSV
+- **Login** ด้วย Google เฉพาะอีเมล `@kku.ac.th` + ชื่อ-นามสกุลจริง
+- **บันทึกงาน / แจ้งปัญหา** พร้อม Auto Timestamp + แนบรูป/ไฟล์ (ย่อรูปอัตโนมัติ เก็บขึ้น Drive)
+- **AI (Gemini)** แยกประเภทงาน/ปัญหา และตรวจความเกี่ยวข้องก่อนบันทึก
+- **กันการทุจริต (Phase 5)** — กันสแปม · กันเนื้อหาซ้ำ · กันเนื้อหาไม่เกี่ยวกับงาน
+- **XP / Level / ยศ** ตามเกณฑ์ที่แอดมินตั้งได้ + คลังองค์ความรู้ (Knowledge Base) + Like
+- **แดชบอร์ด (Phase 5.2)** — สถิติส่วนตัว, กราฟ XP 6 เดือน, สัดส่วนกิจกรรม, จัดอันดับสมาชิก
+- **แอดมิน**: ตรวจ/ยกเลิกรายการ (หัก XP คืน + audit), ดูข้อมูลรายบุคคล (drill-down), ประกาศ, จัดการสิทธิ์, Export CSV/Excel
 
 ## เริ่มต้นใช้งาน
 

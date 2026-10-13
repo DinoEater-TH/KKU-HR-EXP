@@ -1,17 +1,18 @@
 /************************************************************************
- * KKU HR Exp — Phase 5.1 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 5.2 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
  * โครงสร้างทั้งหมด (Phase 1-5)
  *   Sheets: Users, Work_Logs, Issues, Solutions,
  *           XP_History, XP_Rules, Likes, Notifications, Notif_Acks
- *   API   : doGet (JSONP อ่านข้อมูล) / doPost (เขียนข้อมูล)
+ *   API   : doGet (อ่านข้อมูล → JSON) / doPost (เขียนข้อมูล)
  *   AI    : Gemini จำแนกข้อความ + ตรวจความเกี่ยวข้อง (คีย์เก็บใน Script Properties)
  *   Game  : XP / Level / Title ตามตาราง XP_Rules
  *   KB    : คลังองค์ความรู้จากเคสที่แก้สำเร็จ + Like (+5 XP)
  *   Notify: ประกาศจาก Admin (บังหน้าจอจนกว่าจะรับทราบ)
  *   Guard : กันสแปม / เนื้อหาซ้ำ / เนื้อหาไม่เกี่ยวกับงาน (Phase 5)
  *   Audit : แอดมินยกเลิกรายการ (Soft-void) หัก XP คืน + audit trail (Phase 5.1)
+ *   Dash  : แดชบอร์ดผู้ใช้ + จัดอันดับ + ดูข้อมูลรายบุคคล (admin) (Phase 5.2)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -77,7 +78,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 5.1", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 5.2", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -86,6 +87,10 @@ function doGet(e) {
         return output_(knowledgeBase_(p.idToken, p.email), cb);
       case "myProfile":
         return output_(myProfile_(p.idToken, p.email), cb);
+      case "dashboard":
+        return output_(dashboard_(p.idToken, p.email), cb);
+      case "adminUserDetail":
+        return output_(adminUserDetail_(p.idToken, p.email), cb);
       case "activeNotifications":
         return output_(activeNotifications_(p.idToken), cb);
       case "submitResult":
@@ -100,7 +105,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 5.1" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 5.2" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -543,6 +548,164 @@ function myProfile_(idToken, emailParam) {
     status: "ok", email: email, name: name, totalXp: totalXp, isAdmin: isAdmin_(email),
     level: lv.level, title: lv.title, minXp: lv.minXp, nextXp: lv.nextMinXp, nextTitle: lv.nextTitle,
     history: history
+  };
+}
+
+/* ======================================================================
+ * [5c] Dashboard (ผู้ใช้ + จัดอันดับ) & ข้อมูลผู้ใช้รายคน (admin)
+ * ==================================================================== */
+var MONTHS_TH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+
+function last6Months_() {
+  var now = new Date();
+  var out = [];
+  for (var i = 5; i >= 0; i--) {
+    var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push({ key: Utilities.formatDate(d, TIMEZONE, "yyyy-MM"), month: d.getMonth(), label: MONTHS_TH[d.getMonth()], xp: 0 });
+  }
+  return out;
+}
+
+function reasonCounts_(rows) {
+  var c = { work_log: 0, issue: 0, solution: 0, resolve_issue: 0, like_received: 0, bonus: 0 };
+  rows.forEach(function (h) {
+    var r = String(h.Reason || "");
+    if (c[r] != null && r !== "void") c[r]++;
+  });
+  return c;
+}
+
+function rankOfUser_(email, users) {
+  var ranked = users.slice().sort(function (a, b) { return (Number(b.Total_XP) || 0) - (Number(a.Total_XP) || 0); });
+  for (var i = 0; i < ranked.length; i++) if (String(ranked[i].Email) === String(email)) return i + 1;
+  return ranked.length + 1;
+}
+
+/* คำนวณอันดับของผู้ใช้ทุกคนครั้งเดียว → คืน { email: rank } */
+function rankMap_(users) {
+  var ranked = users.slice().sort(function (a, b) { return (Number(b.Total_XP) || 0) - (Number(a.Total_XP) || 0); });
+  var map = {};
+  for (var i = 0; i < ranked.length; i++) map[String(ranked[i].Email)] = i + 1;
+  return map;
+}
+
+function dashboard_(idToken, emailParam) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบใหม่เพื่อดู Dashboard");
+  var info = verifyIdToken_(idToken);
+  var email = info.email;
+  if (emailParam && emailParam !== email) throw new Error("email mismatch");
+  var isAdmin = isAdmin_(email);
+
+  var users = readObjects_(getSheet_(SHEETS.USERS, HEADERS.USERS), HEADERS.USERS);
+  var me = null;
+  for (var i = 0; i < users.length; i++) if (String(users[i].Email) === email) { me = users[i]; break; }
+  var totalXp = me ? Number(me.Total_XP || 0) : 0;
+  var name = me ? String(me.Full_Name || "") : (info.name || "");
+  var lv = levelFor_(totalXp);
+
+  var xpRows = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
+    .filter(function (h) { return String(h.User_Email) === email && String(h.Reason || "").indexOf("rejected:") !== 0; });
+
+  var counts = reasonCounts_(xpRows);
+  var months = last6Months_();
+  xpRows.forEach(function (h) {
+    if (String(h.Reason || "") === "void") return;
+    var k = String(h.Timestamp || "").substring(0, 7);
+    for (var m = 0; m < months.length; m++) if (months[m].key === k) { months[m].xp += Number(h.Amount || 0); break; }
+  });
+
+  var works = readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
+    .filter(function (r) { return String(r.User_Email) === email && !isVoided_(r); });
+  var issues = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
+    .filter(function (r) { return String(r.User_Email) === email && !isVoided_(r); });
+  var solved = issues.filter(function (r) { return String(r.Status) === "Solved"; }).length;
+
+  var recent = works.map(function (r) {
+    return { type: "work", id: String(r.Log_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "work") };
+  }).concat(issues.map(function (r) {
+    return { type: "issue", id: String(r.Issue_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "issue"), status: String(r.Status || "Pending") };
+  })).sort(function (a, b) { return a.time < b.time ? 1 : -1; }).slice(0, 5);
+
+  var rank = rankOfUser_(email, users);
+  var ranks = rankMap_(users);
+  var top = users.slice()
+    .sort(function (a, b) { return (Number(b.Total_XP) || 0) - (Number(a.Total_XP) || 0); })
+    .slice(0, 5)
+    .map(function (u, idx) {
+      return { rank: idx + 1, email: String(u.Email), name: String(u.Full_Name || ""), totalXp: Number(u.Total_XP || 0), level: Number(u.Level || 1), role: String(u.Role || "User") };
+    });
+
+  var resp = {
+    status: "ok", email: email, name: name, isAdmin: isAdmin,
+    totalXp: totalXp, level: lv.level, title: lv.title,
+    minXp: lv.minXp, nextXp: lv.nextMinXp, nextTitle: lv.nextTitle,
+    counts: counts, workCount: works.length, issueCount: issues.length, solvedCount: solved,
+    months: months,
+    mix: [
+      { key: "งาน", value: works.length, color: "bg-emerald-500" },
+      { key: "ปัญหา", value: issues.length, color: "bg-amber-500" },
+      { key: "วิธีแก้", value: counts.solution, color: "bg-sky-500" },
+      { key: "โบนัส", value: counts.bonus, color: "bg-violet-500" }
+    ],
+    recent: recent,
+    rank: rank, totalUsers: users.length,
+    top: top,
+    allUsers: isAdmin ? users.map(function (u) {
+      return { rank: ranks[String(u.Email)] || 0, email: String(u.Email), name: String(u.Full_Name || ""), totalXp: Number(u.Total_XP || 0), level: Number(u.Level || 1), role: String(u.Role || "User") };
+    }) : []
+  };
+  resp.allUsers.sort(function (a, b) { return a.rank - b.rank; });
+  return resp;
+}
+
+/* ข้อมูลผู้ใช้รายบุคคล สำหรับแอดมิน (drill-down) */
+function adminUserDetail_(idToken, targetEmail) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var adminEmail = verifyIdToken_(idToken).email;
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!targetEmail) throw new Error("missing email");
+
+  var users = readObjects_(getSheet_(SHEETS.USERS, HEADERS.USERS), HEADERS.USERS);
+  var me = null;
+  for (var i = 0; i < users.length; i++) if (String(users[i].Email) === String(targetEmail)) { me = users[i]; break; }
+  if (!me) throw new Error("ไม่พบผู้ใช้ " + targetEmail);
+
+  var totalXp = Number(me.Total_XP || 0);
+  var lv = levelFor_(totalXp);
+
+  var xpRows = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
+    .filter(function (h) { return String(h.User_Email) === String(targetEmail) && String(h.Reason || "").indexOf("rejected:") !== 0; });
+  var counts = reasonCounts_(xpRows);
+  var months = last6Months_();
+  xpRows.forEach(function (h) {
+    if (String(h.Reason || "") === "void") return;
+    var k = String(h.Timestamp || "").substring(0, 7);
+    for (var m = 0; m < months.length; m++) if (months[m].key === k) { months[m].xp += Number(h.Amount || 0); break; }
+  });
+
+  var works = readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
+    .filter(function (r) { return String(r.User_Email) === String(targetEmail) && !isVoided_(r); })
+    .map(function (r) {
+      return { type: "work", id: String(r.Log_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "work") };
+    });
+  var issues = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
+    .filter(function (r) { return String(r.User_Email) === String(targetEmail) && !isVoided_(r); })
+    .map(function (r) {
+      return { type: "issue", id: String(r.Issue_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "issue"), status: String(r.Status || "Pending") };
+    });
+  var items = works.concat(issues).sort(function (a, b) { return a.time < b.time ? 1 : -1; }).slice(0, 30);
+
+  var history = xpRows.map(function (h) {
+    return { time: String(h.Timestamp || ""), amount: Number(h.Amount || 0), reason: String(h.Reason || "") };
+  }).sort(function (a, b) { return a.time < b.time ? 1 : -1; }).slice(0, 40);
+
+  var rank = rankOfUser_(String(targetEmail), users);
+  return {
+    status: "ok", email: String(targetEmail), name: String(me.Full_Name || ""),
+    role: String(me.Role || "User"), totalUsers: users.length, rank: rank, isAdmin: isAdmin_(String(targetEmail)),
+    totalXp: totalXp, level: lv.level, title: lv.title, minXp: lv.minXp, nextXp: lv.nextMinXp, nextTitle: lv.nextTitle,
+    counts: counts, count_items: { work: works.length, issue: issues.length, solved: issues.filter(function (r) { return String(r.Status) === "Solved"; }).length },
+    months: months, history: history, items: items
   };
 }
 
