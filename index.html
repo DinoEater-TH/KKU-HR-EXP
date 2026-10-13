@@ -54,7 +54,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 4</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 5</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -363,25 +363,34 @@
     }
   }
 
-  /* ---------- อ่านข้อมูล (JSONP) ---------- */
-  function jsonp(params) {
-    return new Promise((resolve, reject) => {
-      if (!CONFIG.APPS_SCRIPT_URL.startsWith("https://")) return reject(new Error("not configured"));
-      const cb = "hrxcb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
-      const script = document.createElement("script");
-      let done = false;
-      const timer = setTimeout(() => { if (!done) { done = true; cleanup(); reject(new Error("timeout")); } }, 20000);
-      function cleanup() {
-        clearTimeout(timer);
-        try { delete window[cb]; } catch (e) { window[cb] = undefined; }
-        if (script.parentNode) script.parentNode.removeChild(script);
-      }
-      window[cb] = (data) => { if (done) return; done = true; cleanup(); resolve(data); };
-      const qs = Object.keys(params).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(params[k])).join("&");
-      script.src = CONFIG.APPS_SCRIPT_URL + (CONFIG.APPS_SCRIPT_URL.indexOf("?") > -1 ? "&" : "?") + "callback=" + cb + "&" + qs;
-      script.onerror = () => { if (done) return; done = true; cleanup(); reject(new Error("network")); };
-      document.body.appendChild(script);
-    });
+  /* ---------- อ่านข้อมูล (fetch GET — ไม่ใช้ JSONP เพื่อกันปัญหา mobile browser) ---------- */
+  function apiGet(params) {
+    const qs = Object.keys(params).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(params[k])).join("&");
+    return fetch(CONFIG.APPS_SCRIPT_URL + "?" + qs)
+      .then(r => {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .catch(err => {
+        // fallback: ลอง JSONP ถ้า fetch โดนบลอค (CORS / network)
+        return new Promise((resolve, reject) => {
+          if (!CONFIG.APPS_SCRIPT_URL.startsWith("https://")) return reject(new Error("not configured"));
+          const cb = "hrxcb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
+          const script = document.createElement("script");
+          let done = false;
+          const timer = setTimeout(() => { if (!done) { done = true; cleanup(); reject(new Error("timeout")); } }, 20000);
+          function cleanup() {
+            clearTimeout(timer);
+            try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+            if (script.parentNode) script.parentNode.removeChild(script);
+          }
+          window[cb] = (data) => { if (done) return; done = true; cleanup(); resolve(data); };
+          const jqs = Object.keys(params).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(params[k])).join("&");
+          script.src = CONFIG.APPS_SCRIPT_URL + (CONFIG.APPS_SCRIPT_URL.indexOf("?") > -1 ? "&" : "?") + "callback=" + cb + "&" + jqs;
+          script.onerror = () => { if (done) return; done = true; cleanup(); reject(new Error("network")); };
+          document.body.appendChild(script);
+        });
+      });
   }
 
   /* ---------- ไฟล์แนบ ---------- */
@@ -461,8 +470,12 @@
     const clientRef = "C" + Date.now() + Math.floor(Math.random()*1000);
     try {
       await sendToServer({ action, email:state.user.email, name:state.user.name, detail, files:state.attachments, idToken:state.idToken, clientRef });
-      $("detail").value = ""; state.attachments = []; renderPreviews();
       const result = await pollResult(clientRef);
+      if (result && result.rejected) {
+        showSaveModal(detail, result);
+        return;
+      }
+      $("detail").value = ""; state.attachments = []; renderPreviews();
       showSaveModal(detail, result);
       loadProfile();
     } catch (err) {
@@ -478,7 +491,7 @@
     for (let i = 0; i < 12; i++) {
       await sleep(700);
       try {
-        const d = await jsonp({ action:"submitResult", clientRef, idToken:state.idToken, email:state.user.email });
+        const d = await apiGet({ action:"submitResult", clientRef, idToken:state.idToken, email:state.user.email });
         if (d && d.found) return d;
       } catch (e) {}
     }
@@ -487,6 +500,16 @@
 
   function showSaveModal(detail, r) {
     const head = $("saveModalHead"), body = $("saveModalBody");
+    if (r && r.rejected) {
+      head.className = "p-5 text-center text-white bg-gradient-to-r from-red-600 to-red-700";
+      $("saveModalIcon").textContent = "⛔";
+      $("saveModalTitle").textContent = "บันทึกไม่สำเร็จ";
+      body.innerHTML = `
+        <div class="rounded-xl bg-red-50 border border-red-200 p-3 text-red-700 font-semibold">${esc(r.message)}</div>
+        <div class="rounded-xl bg-slate-50 p-3 text-slate-600 whitespace-pre-wrap">${esc(detail)}</div>`;
+      $("saveModal").classList.remove("hidden");
+      return;
+    }
     if (r) {
       const isWork = r.type === "work";
       head.className = "p-5 text-center text-white bg-gradient-to-r " + (isWork ? "from-emerald-600 to-emerald-700" : "from-amber-600 to-orange-700");
@@ -517,7 +540,7 @@
     const wrap = $("boardList");
     wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">กำลังโหลด...</p>`;
     try {
-      const data = await jsonp({ action:"pendingIssues", idToken:state.idToken || "", email:state.user.email });
+      const data = await apiGet({ action:"pendingIssues", idToken:state.idToken || "", email:state.user.email });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       if (!data.issues.length) { wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">ยังไม่มีปัญหาที่รอแก้ไข 🎉</p>`; return; }
       state.boardItems = {}; data.issues.forEach(it => state.boardItems[it.id] = it);
@@ -572,7 +595,7 @@
     const wrap = $("kbList");
     wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">กำลังโหลด...</p>`;
     try {
-      const data = await jsonp({ action:"knowledgeBase", idToken:state.idToken || "", email:state.user.email });
+      const data = await apiGet({ action:"knowledgeBase", idToken:state.idToken || "", email:state.user.email });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       if (!data.articles.length) { wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">ยังไม่มีองค์ความรู้ (เคสที่แก้สำเร็จ)</p>`; return; }
       state.kbItems = {}; data.articles.forEach(it => state.kbItems[it.id] = it);
@@ -619,7 +642,7 @@
     }
     wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">กำลังโหลด...</p>`;
     try {
-      const data = await jsonp({ action:"myHistory", idToken:state.idToken, email:state.user.email });
+      const data = await apiGet({ action:"myHistory", idToken:state.idToken, email:state.user.email });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       if (!data.items.length) { wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">ยังไม่มีรายการที่บันทึกไว้</p>`; return; }
       state.historyItems = {}; data.items.forEach(it => state.historyItems[it.id] = it);
@@ -725,7 +748,7 @@
     if (!state.idToken) return;
     const wrap = $("profileBody");
     try {
-      const data = await jsonp({ action:"myProfile", idToken:state.idToken, email:state.user.email });
+      const data = await apiGet({ action:"myProfile", idToken:state.idToken, email:state.user.email });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       state.isAdmin = !!data.isAdmin;
       $("tabBtnAdmin").classList.toggle("hidden", !state.isAdmin);
@@ -769,7 +792,7 @@
   async function checkNotifications() {
     if (!state.idToken) return;
     try {
-      const data = await jsonp({ action:"activeNotifications", idToken:state.idToken });
+      const data = await apiGet({ action:"activeNotifications", idToken:state.idToken });
       if (data && data.status === "ok" && data.notifications.length) {
         state.pendingNotifs = data.notifications;
         $("notifBody").innerHTML = data.notifications.map(n => `
@@ -794,7 +817,7 @@
     if (!state.isAdmin) return;
     $("adminPendingList").innerHTML = `<p class="text-sm text-slate-400 text-center py-4">กำลังโหลด...</p>`;
     try {
-      const data = await jsonp({ action:"adminOverview", idToken:state.idToken });
+      const data = await apiGet({ action:"adminOverview", idToken:state.idToken });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
 
       const pl = data.pendingApprovals;
@@ -886,7 +909,7 @@
   async function doExport(type, format) {
     showToast("กำลังเตรียมไฟล์...", "warn");
     try {
-      const data = await jsonp({ action:"exportData", type, idToken:state.idToken });
+      const data = await apiGet({ action:"exportData", type, idToken:state.idToken });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       if (!data.rows.length) { showToast("ไม่มีข้อมูลให้ Export", "warn"); return; }
       const label = type === "issues" ? "Issues" : "Work_Logs";

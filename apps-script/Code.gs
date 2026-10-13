@@ -1,15 +1,16 @@
 /************************************************************************
- * KKU HR Exp — Phase 3 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 5 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
- * โครงสร้างทั้งหมด (Phase 1-3)
+ * โครงสร้างทั้งหมด (Phase 1-5)
  *   Sheets: Users, Work_Logs, Issues, Solutions,
  *           XP_History, XP_Rules, Likes, Notifications, Notif_Acks
  *   API   : doGet (JSONP อ่านข้อมูล) / doPost (เขียนข้อมูล)
- *   AI    : Gemini จำแนกข้อความ (คีย์เก็บใน Script Properties)
+ *   AI    : Gemini จำแนกข้อความ + ตรวจความเกี่ยวข้อง (คีย์เก็บใน Script Properties)
  *   Game  : XP / Level / Title ตามตาราง XP_Rules
  *   KB    : คลังองค์ความรู้จากเคสที่แก้สำเร็จ + Like (+5 XP)
  *   Notify: ประกาศจาก Admin (บังหน้าจอจนกว่าจะรับทราบ)
+ *   Guard : กันสแปม / เนื้อหาซ้ำ / เนื้อหาไม่เกี่ยวกับงาน (Phase 5)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -28,6 +29,17 @@ var GEMINI_PROP      = "GEMINI_API_KEY";
 var ADMIN_PROP       = "ADMIN_EMAILS";   // เก็บเป็น "a@kku.ac.th,b@kku.ac.th"
 
 var XP = { WORK_LOG: 10, ISSUE: 15, SOLUTION: 25, RESOLVE: 50, LIKE_RECEIVED: 5 };
+
+/* ---- ป้องกันการใช้งานผิด: สแปม / เนื้อหาซ้ำ / เนื้อหาไม่เกี่ยวกับงาน ---- */
+var SPAM_MIN_INTERVAL_SEC = 10;    // ระยะห่างขั้นต่ำระหว่างการส่ง (วินาที)
+var SPAM_MAX_PER_WINDOW   = 5;     // ส่งได้สูงสุดกี่ครั้งต่อช่วงเวลา
+var SPAM_WINDOW_MIN       = 30;    // ช่วงเวลานับสแปม (นาที)
+var DUP_LOOKBACK_HOURS    = 24;    // ย้อนตรวจเนื้อหาซ้ำ (ชั่วโมง)
+var DUP_SIMILARITY        = 0.85;  // เกณฑ์ความคล้าย (0.0-1.0)
+var MIN_DETAIL_CHARS      = 5;     // ความยาวข้อความขั้นต่ำ (ตัวอักษร)
+var REJECT_NON_WORK       = true;  // ปฏิเสธเนื้อหาที่ไม่เกี่ยวข้องกับงาน
+var OFF_TOPIC_WORDS = ["ประท้วง", "ทวงหนี้", "ร้องเรียน", "ลาออก", "การเมือง", "เลือกตั้ง",
+  "เล่นเกม", "หวย", "พนัน", "ขายของ", "เงินเดือน", "โบนัส", "หยุดงาน", "สไตรก์", "เรียกร้อง", "สหภาพ", "ไม่ยุติธรรม", "ด่าผู้บริหาร"];
 
 var SHEETS = {
   USERS: "Users", WORK_LOGS: "Work_Logs", ISSUES: "Issues", SOLUTIONS: "Solutions",
@@ -64,7 +76,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 3", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 5", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -85,7 +97,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 3" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 5" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -155,6 +167,22 @@ function handleLogin_(email, name) {
 }
 
 function handleWorkLog_(email, detail, files, category, clientRef) {
+  validateAndAssess_(email, detail, clientRef);
+  return recordWork_(email, detail, files, category || "work", clientRef);
+}
+
+function handleIssue_(email, detail, files, category, clientRef) {
+  validateAndAssess_(email, detail, clientRef);
+  return recordIssue_(email, detail, files, category || "issue", clientRef);
+}
+
+function handleAutoSubmit_(email, detail, files, clientRef) {
+  var a = validateAndAssess_(email, detail, clientRef);
+  if (a.category === "issue") return recordIssue_(email, detail, files, "issue", clientRef);
+  return recordWork_(email, detail, files, "work", clientRef);
+}
+
+function recordWork_(email, detail, files, category, clientRef) {
   var sh = getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS);
   var ts = nowStr_();
   var urls = uploadFiles_(files);
@@ -167,7 +195,7 @@ function handleWorkLog_(email, detail, files, category, clientRef) {
   return json_({ status: "ok", type: "work", id: id, time: ts, files: urls.length, xp: XP.WORK_LOG, totalXp: lv.totalXp });
 }
 
-function handleIssue_(email, detail, files, category, clientRef) {
+function recordIssue_(email, detail, files, category, clientRef) {
   var sh = getSheet_(SHEETS.ISSUES, HEADERS.ISSUES);
   var ts = nowStr_();
   var urls = uploadFiles_(files);
@@ -178,12 +206,6 @@ function handleIssue_(email, detail, files, category, clientRef) {
   });
   var lv = awardXp_(email, XP.ISSUE, "issue", id, clientRef);
   return json_({ status: "ok", type: "issue", id: id, time: ts, files: urls.length, xp: XP.ISSUE, totalXp: lv.totalXp });
-}
-
-function handleAutoSubmit_(email, detail, files, clientRef) {
-  var result = classify_(detail);
-  if (result.category === "issue") return handleIssue_(email, detail, files, "issue", clientRef);
-  return handleWorkLog_(email, detail, files, "work", clientRef);
 }
 
 function handleAddSolution_(email, name, issueId, solution) {
@@ -505,7 +527,7 @@ function myProfile_(idToken, emailParam) {
 
   var lv = levelFor_(totalXp);
   var history = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
-    .filter(function (h) { return String(h.User_Email) === email; })
+    .filter(function (h) { return String(h.User_Email) === email && String(h.Reason || "").indexOf("rejected:") !== 0; })
     .map(function (h) { return { time: String(h.Timestamp || ""), amount: Number(h.Amount || 0), reason: String(h.Reason || "") }; })
     .sort(function (a, b) { return a.time < b.time ? 1 : -1; })
     .slice(0, 50);
@@ -541,6 +563,10 @@ function submitResult_(clientRef, idToken) {
   var xpRow = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
     .filter(function (h) { return String(h.Client_Ref) === String(clientRef) && String(h.User_Email) === email; })[0];
   if (!xpRow) return { status: "ok", found: false };
+
+  if (String(xpRow.Reason || "").indexOf("rejected:") === 0) {
+    return { status: "ok", found: true, rejected: true, message: String(xpRow.Reason).slice("rejected:".length).trim() };
+  }
 
   var refId = String(xpRow.Ref_ID || "");
   var reason = String(xpRow.Reason || "");
@@ -705,35 +731,51 @@ function awardXp_(email, amount, reason, refId, clientRef) {
 }
 
 /* ======================================================================
- * [7] AI จำแนกข้อความ (Gemini + fallback)
+ * [7] AI จำแนกข้อความ + ตรวจความเกี่ยวข้องกับงาน (Gemini + fallback)
  * ==================================================================== */
-function classify_(text) {
-  try { return { category: classifyWithGemini_(text), source: "ai" }; }
-  catch (err) { console.warn("Gemini failed: " + err); return { category: classifyByKeywords_(text), source: "keyword" }; }
+function assessContent_(text) {
+  try { return assessWithGemini_(text); }
+  catch (err) { console.warn("Gemini failed: " + err); return assessByKeywords_(text); }
 }
 
-function classifyWithGemini_(text) {
+function assessWithGemini_(text) {
   var key = PropertiesService.getScriptProperties().getProperty(GEMINI_PROP);
   if (!key) throw new Error("ยังไม่ได้ตั้งค่า " + GEMINI_PROP);
 
   var url = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent?key=" + key;
   var prompt =
-    "คุณเป็นผู้ช่วยจำแนกบันทึกของนักวิชาการโสตทัศนศึกษา ให้ตอบว่าเป็นงาน (work) หรือ ปัญหา (issue) เท่านั้น\n" +
-    "- work  = งานประจำ / ตั้งระบบ / ถ่ายภาพ / คุมระบบ / ประชุม / กิจกรรม ที่ทำสำเร็จ\n" +
-    "- issue = อุปกรณ์เสีย ชำรุด โปรแกรมค้าง ระบบมีปัญหา ต้องซ่อม หรือยังไม่เรียบร้อย\n" +
-    "ตอบ JSON รูปแบบ {\"category\":\"work\"} หรือ {\"category\":\"issue\"} เท่านั้น";
+    "คุณเป็นผู้ช่วยตรวจสอบบันทึกของนักวิชาการโสตทัศนศึกษา (งานเครื่องเสียง/ภาพ/แสง/อุปกรณ์ AV ในมหาวิทยาลัย)\n" +
+    "1) จัดหมวด: \"work\" = งานที่ทำ/สำเร็จ (ตั้งระบบ ถ่ายภาพ คุมระบบ ประชุม กิจกรรม) หรือ \"issue\" = อุปกรณ์เสีย/ชำรุด/ค้าง/ต้องซ่อม\n" +
+    "2) ตรวจความเกี่ยวข้อง: \"valid\" = true ถ้าข้อความเกี่ยวข้องกับงานโสตทัศนศึกษา/งานในองค์กร และ false ถ้าไม่เกี่ยวข้อง " +
+    "(เช่น เรื่องส่วนตัว การเมือง การประท้วง ทวงสิทธิ์ ด่าผู้บริหาร ขายของ เกม บันเทิง ฯลฯ)\n" +
+    "ตอบ JSON รูปแบบ {\"category\":\"work\"|\"issue\",\"valid\":true|false} เท่านั้น";
 
   var payload = {
     contents: [{ parts: [{ text: prompt + "\n\nข้อความ:\n" + text }] }],
     generationConfig: {
       temperature: 0, responseMimeType: "application/json",
-      responseSchema: { type: "OBJECT", properties: { category: { type: "STRING", enum: ["work", "issue"] } }, required: ["category"] }
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          category: { type: "STRING", enum: ["work", "issue"] },
+          valid: { type: "BOOLEAN" }
+        },
+        required: ["category", "valid"]
+      }
     }
   };
   var res = UrlFetchApp.fetch(url, { method: "post", contentType: "application/json", payload: JSON.stringify(payload), muteHttpExceptions: true });
   if (res.getResponseCode() !== 200) throw new Error("Gemini HTTP " + res.getResponseCode());
   var out = JSON.parse(res.getContentText()).candidates[0].content.parts[0].text;
-  return (String(JSON.parse(out).category).toLowerCase() === "issue") ? "issue" : "work";
+  var j = JSON.parse(out);
+  return {
+    category: (String(j.category).toLowerCase() === "issue") ? "issue" : "work",
+    valid: j.valid !== false
+  };
+}
+
+function assessByKeywords_(text) {
+  return { category: classifyByKeywords_(text), valid: classifyOffTopic_(text) };
 }
 
 function classifyByKeywords_(text) {
@@ -742,6 +784,120 @@ function classifyByKeywords_(text) {
     "แตก", "หลุด", "ช้า", "เบลอ", "ไม่มีเสียง", "เปิดไม่ติด", "จอดับ", "เชื่อมต่อไม่ได้", "ผิดพลาด", "ใช้งานไม่ได้", "แจ้งซ่อม"];
   for (var i = 0; i < issueWords.length; i++) if (t.indexOf(issueWords[i]) !== -1) return "issue";
   return "work";
+}
+
+function classifyOffTopic_(text) {
+  var t = String(text || "").toLowerCase();
+  for (var i = 0; i < OFF_TOPIC_WORDS.length; i++) if (t.indexOf(OFF_TOPIC_WORDS[i]) !== -1) return false;
+  return true;
+}
+
+/* ======================================================================
+ * [7b] ป้องกันการใช้งานผิด: สแปม / เนื้อหาซ้ำ / เนื้อหาไม่เกี่ยวกับงาน
+ * ==================================================================== */
+function validateAndAssess_(email, detail, clientRef) {
+  var d = String(detail || "").trim();
+  if (d.length < MIN_DETAIL_CHARS) rejectSubmission_(email, d, clientRef, "ข้อความสั้นเกินไป (อย่างน้อย " + MIN_DETAIL_CHARS + " ตัวอักษร) กรุณากรอกรายละเอียดงานให้ชัดเจนขึ้น");
+
+  var spam = checkRateLimit_(email);
+  if (spam.blocked) rejectSubmission_(email, d, clientRef, spam.msg);
+
+  if (checkDuplicate_(email, d)) rejectSubmission_(email, d, clientRef, "เนื้อหานี้ซ้ำ/คล้ายกับรายการที่คุณบันทึกไว้แล้ว โปรดตรวจสอบที่แท็บ 🗂️ ประวัติ");
+
+  var a = assessContent_(d);
+  if (REJECT_NON_WORK && a.valid === false) rejectSubmission_(email, d, clientRef, "เนื้อหาไม่เกี่ยวข้องกับงานโสตทัศนศึกษา กรุณาบันทึกเฉพาะงาน/ปัญหาในการทำงานเท่านั้น");
+  return a;
+}
+
+/* บันทึกการปฏิเสธลง XP_History (Amount=0, Reason=rejected:...) แล้วโยน Error
+   เพื่อให้ฝั่ง frontend ดึงข้อความผ่าน submitResult ได้ */
+function rejectSubmission_(email, detail, clientRef, message) {
+  var xsh = getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY);
+  appendByHeaders_(xsh, HEADERS.XP_HISTORY, {
+    XP_ID: "REJ-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_(),
+    Timestamp: nowStr_(), User_Email: email, Amount: 0,
+    Reason: "rejected: " + message, Ref_ID: "", Client_Ref: clientRef || ""
+  });
+  throw new Error(message);
+}
+
+function checkRateLimit_(email) {
+  var hist = readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
+    .filter(function (h) {
+      var r = String(h.Reason || "");
+      return String(h.User_Email) === email && (r === "work_log" || r === "issue" || r.indexOf("rejected:") === 0);
+    });
+  var now = Date.now();
+  var last = 0, count = 0;
+  for (var i = 0; i < hist.length; i++) {
+    var t = parseBkkTs_(String(hist[i].Timestamp));
+    if (!t) continue;
+    var epoch = t.getTime();
+    if (epoch > last) last = epoch;
+    if (now - epoch <= SPAM_WINDOW_MIN * 60000) count++;
+  }
+  if (last && now - last < SPAM_MIN_INTERVAL_SEC * 1000) {
+    var wait = Math.ceil((SPAM_MIN_INTERVAL_SEC * 1000 - (now - last)) / 1000);
+    return { blocked: true, msg: "กรุณารออีก " + wait + " วินาที ก่อนส่งรายการถัดไป" };
+  }
+  if (count >= SPAM_MAX_PER_WINDOW) {
+    return { blocked: true, msg: "ส่งข้อมูลถี่เกินไป (เกิน " + SPAM_MAX_PER_WINDOW + " ครั้ง ใน " + SPAM_WINDOW_MIN + " นาที) กรุณารอสักครู่" };
+  }
+  return { blocked: false };
+}
+
+function checkDuplicate_(email, detail) {
+  var norm = normalizeText_(detail);
+  if (!norm) return false;
+  var lookback = Date.now() - DUP_LOOKBACK_HOURS * 3600000;
+  var rows = readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
+    .concat(readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES))
+    .filter(function (r) { return String(r.User_Email) === email; });
+  for (var i = 0; i < rows.length; i++) {
+    var t = parseBkkTs_(String(rows[i].Timestamp));
+    if (t && t.getTime() < lookback) continue;
+    var n2 = normalizeText_(String(rows[i].Detail || ""));
+    if (!n2) continue;
+    if (n2 === norm || norm.indexOf(n2) !== -1 || n2.indexOf(norm) !== -1) return true;
+    if (textSimilarity_(norm, n2) >= DUP_SIMILARITY) return true;
+  }
+  return false;
+}
+
+function normalizeText_(s) {
+  return String(s || "").toLowerCase()
+    .replace(/[^\u0E00-\u0E7Fa-zA-Z0-9 ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function bigrams_(s) {
+  var out = [];
+  for (var i = 0; i < s.length - 1; i++) out.push(s.substr(i, 2));
+  return out;
+}
+
+function textSimilarity_(a, b) {
+  var ga = bigrams_(a), gb = bigrams_(b);
+  if (!ga.length && !gb.length) return 1;
+  if (!ga.length || !gb.length) return 0;
+  var ca = {}, cb = {}, keys = {};
+  for (var i = 0; i < ga.length; i++) { ca[ga[i]] = (ca[ga[i]] || 0) + 1; keys[ga[i]] = 1; }
+  for (var j = 0; j < gb.length; j++) { cb[gb[j]] = (cb[gb[j]] || 0) + 1; keys[gb[j]] = 1; }
+  var inter = 0, union = 0;
+  Object.keys(keys).forEach(function (k) {
+    var x = ca[k] || 0, y = cb[k] || 0;
+    inter += Math.min(x, y);
+    union += Math.max(x, y);
+  });
+  return union ? inter / union : 0;
+}
+
+/* แปลง "yyyy-MM-dd HH:mm:ss" (เวลาไทย) เป็น Date (Bangkok = UTC+7) */
+function parseBkkTs_(s) {
+  var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(String(s));
+  if (!m) return null;
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) - 7 * 3600000);
 }
 
 /* ======================================================================
@@ -929,7 +1085,7 @@ function output_(obj, callback) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("⚙️ HR Exp Admin")
-    .addItem("1) ตั้งค่า/อัปเกรดชีต (Phase 4)", "setupSheets")
+    .addItem("1) ตั้งค่า/อัปเกรดชีต", "setupSheets")
     .addItem("2) ตั้งค่า Gemini API Key", "setGeminiKey")
     .addItem("3) ตั้งค่าแอดมิน (ADMIN_EMAILS)", "setAdminEmails")
     .addItem("4) สร้างประกาศแจ้งเตือนใหม่", "createNotification")
