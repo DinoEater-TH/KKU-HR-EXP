@@ -115,7 +115,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.5", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.6", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -130,6 +130,8 @@ function doGet(e) {
         return output_(achievementsList_(p.idToken, p.email), cb);
       case "adminUserDetail":
         return output_(adminUserDetail_(p.idToken, p.email), cb);
+      case "adminUserRecords":
+        return output_(adminUserRecords_(p.idToken, p.email, p.type, p.includeVoided), cb);
       case "activeNotifications":
         return output_(activeNotifications_(p.idToken), cb);
       case "submitResult":
@@ -976,6 +978,50 @@ function adminUserDetail_(idToken, targetEmail) {
   };
 }
 
+/* รายการบันทึกทั้งหมดของผู้ใช้รายคน (สำหรับแอดมิน) — รวมไฟล์/ลิงก์/สถานะยกเลิก */
+function adminUserRecords_(idToken, targetEmail, type, includeVoided) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var adminEmail = verifyIdToken_(idToken).email;
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!targetEmail) throw new Error("missing email");
+  var target = String(targetEmail);
+  var wantVoided = isTruthy_(includeVoided);
+
+  var list = [];
+  if (type !== "issue") {
+    readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
+      .filter(function (r) { return String(r.User_Email || "") === target; })
+      .forEach(function (r) {
+        var v = isVoided_(r);
+        if (v && !wantVoided) return;
+        list.push({
+          type: "work", id: String(r.Log_ID || ""), time: String(r.Timestamp || ""),
+          detail: String(r.Detail || ""), category: String(r.Category || "work"),
+          voided: v, voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || ""),
+          files: fileMetaList_(r), links: parseLinks_(r.Links)
+        });
+      });
+  }
+  if (type !== "work") {
+    readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
+      .filter(function (r) { return String(r.User_Email || "") === target; })
+      .forEach(function (r) {
+        var v = isVoided_(r);
+        if (v && !wantVoided) return;
+        list.push({
+          type: "issue", id: String(r.Issue_ID || ""), time: String(r.Timestamp || ""),
+          detail: String(r.Detail || ""), category: String(r.Category || "issue"),
+          status: String(r.Status || "Pending"), solution: String(r.Solution || ""), solvedBy: String(r.Solved_By || ""),
+          voided: v, voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || ""),
+          files: fileMetaList_(r), links: parseLinks_(r.Links)
+        });
+      });
+  }
+  list.sort(function (a, b) { return a.time < b.time ? 1 : -1; });
+  var cap = list.slice(0, 1000);
+  return { status: "ok", count: list.length, shown: cap.length, items: cap };
+}
+
 function activeNotifications_(idToken) {
   if (!idToken) return { status: "ok", notifications: [] };
   var email = verifyIdToken_(idToken).email;
@@ -1057,11 +1103,19 @@ function adminOverview_(idToken) {
     })
     .sort(function (a, b) { return a.time < b.time ? 1 : -1; });
 
-  var users = readObjects_(getSheet_(SHEETS.USERS, HEADERS.USERS), HEADERS.USERS)
-    .map(function (u) {
-      return { email: String(u.Email || ""), name: String(u.Full_Name || ""),
-               totalXp: Number(u.Total_XP || 0), level: Number(u.Level || 1), role: String(u.Role || "User") };
-    });
+  var usersRaw = readObjects_(getSheet_(SHEETS.USERS, HEADERS.USERS), HEADERS.USERS);
+  var ranks = rankMap_(usersRaw);
+  var workBy = {}, issueBy = {};
+  readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
+    .forEach(function (r) { if (isVoided_(r)) return; var e = String(r.User_Email || ""); workBy[e] = (workBy[e] || 0) + 1; });
+  readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
+    .forEach(function (r) { if (isVoided_(r)) return; var e = String(r.User_Email || ""); issueBy[e] = (issueBy[e] || 0) + 1; });
+  var users = usersRaw.map(function (u) {
+    var e = String(u.Email || "");
+    return { rank: ranks[e] || 0, email: e, name: String(u.Full_Name || ""),
+             totalXp: Number(u.Total_XP || 0), level: Number(u.Level || 1), role: String(u.Role || "User"),
+             lastLogin: String(u.Last_Login || ""), workCount: workBy[e] || 0, issueCount: issueBy[e] || 0 };
+  }).sort(function (a, b) { return a.rank - b.rank; });
 
   var notifs = readObjects_(getSheet_(SHEETS.NOTIFICATIONS, HEADERS.NOTIFICATIONS), HEADERS.NOTIFICATIONS)
     .filter(function (n) { return isTruthy_(n.Active); })
