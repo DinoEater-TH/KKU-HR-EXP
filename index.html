@@ -610,6 +610,83 @@
     } catch (e) {} finally { state._achLoading = false; }
   }
 
+  /* ---------- Clipboard, file badges, copy link ---------- */
+  function copyToClipboard(text, labelHint) {
+    if (!text) return;
+    const show = () => showToast("📋 " + (labelHint || "คัดลอก") + " แล้ว", "success");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(show).catch(() => fallbackCopy_(text));
+    } else fallbackCopy_(text);
+  }
+  function fallbackCopy_(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.left = "-999px";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); showToast("📋 คัดลอกแล้ว", "success"); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  function copyFromAttr(el) { copyToClipboard(el.getAttribute("data-copy") || "", el.getAttribute("data-label") || ""); }
+
+  function isImage(mime) { return String(mime).startsWith("image/"); }
+  function driveThumbUrl(id) { return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w200` : ""; }
+
+  function fileLabel(f) {
+    if (f.name) return f.name;
+    const u = f.url || "";
+    const i = u.lastIndexOf("/"); return i >= 0 ? u.substring(i + 1) : "ไฟล์";
+  }
+  function shortName(name, max) {
+    return name.length > (max || 20) ? name.substring(0, (max || 20) - 2) + "…" : name;
+  }
+
+  function fileBadges(files) {
+    if (!files || !files.length) return "";
+    const images = files.filter(f => isImage(f.mimeType));
+    const others = files.filter(f => !isImage(f.mimeType));
+    let html = "";
+    if (images.length) {
+      html += `<div class="flex flex-wrap gap-2">${images.map(f => {
+        const tn = driveThumbUrl(f.id);
+        const url = esc(f.url);
+        return `<span class="group relative inline-block w-16 h-16 rounded-lg overflow-hidden border border-cyan-400/30 cyber-chip">
+          <a href="${url}" target="_blank" rel="noopener" class="block w-full h-full no-underline">
+            ${tn ? `<img src="${esc(tn)}" alt="" class="w-full h-full object-cover" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=\\'flex items-center justify-center w-full h-full text-2xl\\'>📷</span>'" />` : `<span class="flex items-center justify-center w-full h-full text-2xl">📷</span>`}
+          </a>
+          <button data-copy="${url}" data-label="ลิงก์รูป" onclick="copyFromAttr(this)" title="คัดลอกลิงก์" class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/55 text-white text-[10px] flex items-center justify-center active:scale-90 transition">📋</button>
+        </span>`;
+      }).join("")}</div>`;
+    }
+    if (others.length) {
+      html += (images.length ? `<div class="mt-1.5 flex flex-wrap gap-1.5">` : `<div class="flex flex-wrap gap-1.5">`);
+      html += others.map(f => {
+        const url = esc(f.url);
+        const label = esc(shortName(fileLabel(f), 24));
+        const isPdf = /\.pdf$/i.test(f.name) || String(f.mimeType).includes("pdf");
+        const icon = isPdf ? "📄" : "📎";
+        return `<span class="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg text-[11px] bg-slate-100 text-slate-700 border border-slate-200 max-w-[180px]">
+          <span>${icon}</span>
+          <span class="truncate min-w-0">${label}</span>
+          <a href="${url}" target="_blank" rel="noopener" class="shrink-0 px-0.5 hover:text-blue-600 no-underline">🔍</a>
+          <button data-copy="${url}" data-label="ไฟล์" onclick="copyFromAttr(this)" class="shrink-0 px-0.5 hover:text-cyan-600">📋</button>
+        </span>`;
+      }).join("");
+      html += `</div>`;
+    }
+    return html;
+  }
+
+  function linkBadges(links) {
+    if (!links || !links.length) return "";
+    return links.map((l, i) => {
+      const label = l.t ? esc(l.t) : ("ลิงก์ " + (i + 1));
+      const url = esc(l.u);
+      return `<span class="inline-flex items-center gap-0.5">
+        <a href="${url}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-semibold border border-blue-100 active:scale-95 transition">🔗 ${label}</a>
+        <button data-copy="${url}" data-label="ลิงก์" onclick="copyFromAttr(this)" class="text-[11px] px-1.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 active:scale-95 transition hover:bg-blue-100">📋</button>
+      </span>`;
+    }).join("");
+  }
+
   function parseJwt(token) {
     try {
       const b = token.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");
@@ -1016,7 +1093,7 @@
     const badge = it.status === "In-Progress"
       ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">กำลังแก้ไข</span>`
       : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">รอแก้ไข</span>`;
-    const files = it.files.length ? `<div class="mt-2 flex flex-wrap gap-2">${it.files.map((u,i)=>`<a href="${esc(u)}" target="_blank" class="text-[11px] px-2 py-1 rounded-lg bg-slate-100 text-slate-600">📎 ไฟล์ ${i+1}</a>`).join("")}</div>` : "";
+    const files = fileBadges(it.files);
     const links = linkBadges(it.links);
     const sols = it.solutions.length ? `<div class="mt-3 space-y-2">${it.solutions.map(s=>`<div class="bg-emerald-50 rounded-lg p-2.5"><p class="text-[11px] text-emerald-700 font-semibold">💡 ${esc(s.by)}${s.mine ? ' <span class="text-amber-700">(ของฉัน)</span>' : ""} · ${esc(s.time)}</p><p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(s.text)}</p></div>`).join("")}</div>` : "";
     const resolveBtn = it.canResolve ? `<button data-resolve="${esc(it.id)}" class="mt-2 w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold active:scale-95 transition">✅ ยืนยันว่าแก้ไขสำเร็จ (+50 XP)</button>` : "";
@@ -1085,7 +1162,7 @@
 
   function kbCard(it) {
     const sols = it.solutions.map(s => `<div class="bg-slate-50 rounded-lg p-2.5"><p class="text-[11px] text-slate-500 font-semibold">👤 ${esc(s.by)} เสนอ</p><p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(s.text)}</p></div>`).join("");
-    const files = it.files.length ? it.files.map((u,i)=>`<a href="${esc(u)}" target="_blank" class="text-[11px] px-2 py-1 rounded-lg bg-slate-100 text-slate-600">📎 ไฟล์ ${i+1}</a>`).join("") : "";
+    const files = fileBadges(it.files);
     const links = linkBadges(it.links);
     const likeBtn = it.likedByMe
       ? `<span class="text-xs text-red-500 font-semibold">❤️ ${it.likeCount} Like</span>`
@@ -1141,7 +1218,7 @@
     const badge = isWork
       ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">บันทึกงาน</span>`
       : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">ปัญหา · ${esc(it.status || "Pending")}</span>`;
-    const files = it.files.length ? it.files.map((u,i)=>`<a href="${esc(u)}" target="_blank" class="text-[11px] px-2 py-1 rounded-lg bg-slate-100 text-slate-600">📎 ไฟล์ ${i+1}</a>`).join("") : `<span class="text-[11px] text-slate-400">ยังไม่มีไฟล์แนบ</span>`;
+    const files = it.files.length ? fileBadges(it.files) : `<span class="text-[11px] text-slate-400">ยังไม่มีไฟล์แนบ</span>`;
     const links = linkBadges(it.links);
     const linkCount = (it.links && it.links.length) || 0;
     const linkBtn = `<button data-editlinks="${esc(it.id)}" data-linkstype="${it.type}" class="mt-2 w-full py-2 rounded-lg border ${linkCount ? "border-blue-200" : "border-dashed border-blue-300"} text-blue-700 text-xs font-semibold active:scale-95 transition">${linkCount ? "🔗 แก้ไขลิงก์ (" + linkCount + ")" : "🔗 วางลิงก์ข้อมูลเพิ่มเติม"}</button>`;
@@ -1175,13 +1252,6 @@
   }
 
   /* ---------- ลิงก์ข้อมูลเพิ่มเติม ---------- */
-  function linkBadges(links) {
-    if (!links || !links.length) return "";
-    return links.map((l, i) => {
-      const label = l.t ? esc(l.t) : ("ลิงก์ " + (i + 1));
-      return `<a href="${esc(l.u)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-semibold border border-blue-100 active:scale-95 transition">🔗 ${label}</a>`;
-    }).join("");
-  }
 
   function linkRowHtml(t, u) {
     return `<div class="link-row flex gap-2 items-start">

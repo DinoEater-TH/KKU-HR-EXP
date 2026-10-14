@@ -87,8 +87,8 @@ var SHEETS = {
 
 var HEADERS = {
   USERS:         ["Email", "Full_Name", "Total_XP", "Level", "Last_Login", "Role"],
-  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "Category", "Client_Ref", "Links", "Status", "Void_Reason", "Voided_By", "Voided_At"],
-  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links", "Void_Reason", "Voided_By", "Voided_At"],
+  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "File_Meta", "Category", "Client_Ref", "Links", "Status", "Void_Reason", "Voided_By", "Voided_At"],
+  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "File_Meta", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links", "Void_Reason", "Voided_By", "Voided_At"],
   SOLUTIONS:     ["Solution_ID", "Issue_ID", "Timestamp", "Solution_Text", "Proposed_By", "Proposer_Name"],
   XP_HISTORY:    ["XP_ID", "Timestamp", "User_Email", "Amount", "Reason", "Ref_ID", "Client_Ref"],
   XP_RULES:      ["Level", "Title", "Min_XP"],
@@ -238,11 +238,13 @@ function handleAutoSubmit_(email, detail, files, clientRef) {
 function recordWork_(email, detail, files, category, clientRef) {
   var sh = getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS);
   var ts = nowStr_();
-  var urls = uploadFiles_(files);
+  var infos = uploadFiles_(files);
+  var urls = infos.map(function (fi) { return fi.url; });
   var id = "LOG-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_();
   appendByHeaders_(sh, HEADERS.WORK_LOGS, {
     Log_ID: id, Timestamp: ts, User_Email: email, Detail: detail,
-    File_URLs: urls.join("\n"), Category: category, Client_Ref: clientRef || ""
+    File_URLs: urls.join("\n"), File_Meta: urls.length ? JSON.stringify(infos) : "",
+    Category: category, Client_Ref: clientRef || ""
   });
   var lv = awardXp_(email, XP.WORK_LOG, "work_log", id, clientRef);
   var st = applyStreakBonus_(email, clientRef);
@@ -253,11 +255,13 @@ function recordWork_(email, detail, files, category, clientRef) {
 function recordIssue_(email, detail, files, category, clientRef) {
   var sh = getSheet_(SHEETS.ISSUES, HEADERS.ISSUES);
   var ts = nowStr_();
-  var urls = uploadFiles_(files);
+  var infos = uploadFiles_(files);
+  var urls = infos.map(function (fi) { return fi.url; });
   var id = "ISS-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_();
   appendByHeaders_(sh, HEADERS.ISSUES, {
     Issue_ID: id, Timestamp: ts, User_Email: email, Detail: detail, Status: "Pending",
-    Solution: "", Solved_By: "", File_URLs: urls.join("\n"), Category: category, Client_Ref: clientRef || ""
+    Solution: "", Solved_By: "", File_URLs: urls.join("\n"), File_Meta: urls.length ? JSON.stringify(infos) : "",
+    Category: category, Client_Ref: clientRef || ""
   });
   var lv = awardXp_(email, XP.ISSUE, "issue", id, clientRef);
   var st = applyStreakBonus_(email, clientRef);
@@ -568,7 +572,7 @@ function pendingIssues_(idToken) {
     }
     list.push({
       id: String(r.Issue_ID || ""), time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
-      status: status, files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links), solutions: byIssue[String(r.Issue_ID)] || [],
+      status: status, files: fileMetaList_(r), links: parseLinks_(r.Links), solutions: byIssue[String(r.Issue_ID)] || [],
       canResolve: canResolve, mySolution: mySolution
     }); // ไม่ส่ง User_Email
   }
@@ -583,13 +587,13 @@ function myHistory_(idToken, emailParam) {
   var works = readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
     .filter(function (r) { return String(r.User_Email) === email && !isVoided_(r); })
     .map(function (r) {
-      return { type: "work", id: String(r.Log_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "work"), files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links) };
+      return { type: "work", id: String(r.Log_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "work"), files: fileMetaList_(r), links: parseLinks_(r.Links) };
     });
 
   var issues = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
     .filter(function (r) { return String(r.User_Email) === email && !isVoided_(r); })
     .map(function (r) {
-      return { type: "issue", id: String(r.Issue_ID), time: String(r.Timestamp), detail: String(r.Detail), status: String(r.Status || "Pending"), category: String(r.Category || "issue"), files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links) };
+      return { type: "issue", id: String(r.Issue_ID), time: String(r.Timestamp), detail: String(r.Detail), status: String(r.Status || "Pending"), category: String(r.Category || "issue"), files: fileMetaList_(r), links: parseLinks_(r.Links) };
     });
 
   var all = works.concat(issues).sort(function (a, b) { return a.time < b.time ? 1 : -1; });
@@ -618,7 +622,7 @@ function knowledgeBase_(idToken, emailParam) {
     var likeList = likes.filter(function (l) { return String(l.Issue_ID) === id; });
     list.push({
       id: id, time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
-      files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links), solutions: byIssue[id] || [],
+      files: fileMetaList_(r), links: parseLinks_(r.Links), solutions: byIssue[id] || [],
       solver: String(r.Solved_By || ""), likeCount: likeList.length,
       likedByMe: !!me && likeList.some(function (l) { return String(l.User_Email) === me; })
     });
@@ -1049,7 +1053,7 @@ function adminOverview_(idToken) {
   var pending = iss.filter(function (r) { return String(r.Status) === "Solved" && !isTruthy_(r.KB_Approved); })
     .map(function (r) {
       return { id: String(r.Issue_ID), time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
-               solver: String(r.Solved_By || ""), files: splitUrls_(r.File_URLs) };
+               solver: String(r.Solved_By || ""), files: fileMetaList_(r) };
     })
     .sort(function (a, b) { return a.time < b.time ? 1 : -1; });
 
@@ -1496,7 +1500,7 @@ function isAdmin_(email) {
 function uploadFiles_(files) {
   if (!files || !files.length) return [];
   var folder = getOrCreateFolder_(DRIVE_FOLDER);
-  var urls = [];
+  var infos = [];
   files.forEach(function (f, i) {
     try {
       if (!f || !f.base64) return;
@@ -1504,10 +1508,10 @@ function uploadFiles_(files) {
       var blob = Utilities.newBlob(bytes, f.mimeType || "application/octet-stream", f.name || ("file-" + (i + 1)));
       var file = folder.createFile(blob);
       try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (ignore) {}
-      urls.push(file.getUrl());
-    } catch (err) { urls.push("upload failed: " + err); }
+      infos.push({ url: file.getUrl(), id: file.getId(), name: f.name || ("file-" + (i + 1)), mimeType: f.mimeType || "" });
+    } catch (err) { infos.push({ url: "upload failed: " + err, id: "", name: "error", mimeType: "" }); }
   });
-  return urls;
+  return infos;
 }
 
 function getOrCreateFolder_(name) {
@@ -1602,17 +1606,44 @@ function assertOwner_(sh, row, emailHeader, email) {
   if (String(sh.getRange(row, map[emailHeader]).getValue() || "") !== email) throw new Error("ไม่มีสิทธิ์แก้ไขรายการนี้");
 }
 
-function appendFileUrls_(sh, row, urls) {
-  if (!urls || !urls.length) return;
+function appendFileUrls_(sh, row, infos) {
+  if (!infos || !infos.length) return;
   var map = headerMap_(sh);
+
+  // Append URLs to File_URLs
   var col = map["File_URLs"];
   var cur = String(sh.getRange(row, col).getValue() || "");
-  sh.getRange(row, col).setValue((cur ? cur + "\n" : "") + urls.join("\n"));
+  var newUrls = infos.map(function (fi) { return fi.url; }).join("\n");
+  sh.getRange(row, col).setValue((cur ? cur + "\n" : "") + newUrls);
+
+  // Append meta to File_Meta (JSON array merge)
+  var metaCol = map["File_Meta"];
+  if (metaCol) {
+    var curMeta = String(sh.getRange(row, metaCol).getValue() || "").trim();
+    var existing = [];
+    if (curMeta) { try { existing = JSON.parse(curMeta); } catch (e) {} }
+    var merged = existing.concat(infos);
+    sh.getRange(row, metaCol).setValue(JSON.stringify(merged));
+  }
 }
 
 function splitUrls_(v) {
   var s = String(v || "").trim();
   return s ? s.split(/\s*\n\s*/).filter(function (x) { return x; }) : [];
+}
+
+/* อ่าน File_Meta (JSON array) ถ้าไม่มี → fallback เป็น splitUrls_ + ชื่อ/ชนิดว่าง */
+function fileMetaList_(r) {
+  var meta = String(r.File_Meta || "").trim();
+  if (meta) {
+    try {
+      var parsed = JSON.parse(meta);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    } catch (e) {}
+  }
+  // fallback: อ่านจาก File_URLs (ข้อมูลเก่า), สร้างชื่อ generic
+  var urls = splitUrls_(r.File_URLs);
+  return urls.map(function (u) { return { url: u, id: "", name: "", mimeType: "" }; });
 }
 
 /* ---------- ลิงก์ข้อมูลเพิ่มเติม (เก็บเป็น JSON ในคอลัมน์ Links) ---------- */
