@@ -682,6 +682,21 @@
     }
   }
 
+  /* ---------- กันกดปุ่มซ้ำระหว่างดำเนินการ ---------- */
+  async function runBusy(btn, fn) {
+    if (!btn) return fn();
+    if (btn.dataset.busy === "1") return;
+    btn.dataset.busy = "1";
+    btn.disabled = true;
+    btn.classList.add("opacity-60", "cursor-not-allowed");
+    try { return await fn(); }
+    finally {
+      btn.dataset.busy = "";
+      btn.disabled = false;
+      btn.classList.remove("opacity-60", "cursor-not-allowed");
+    }
+  }
+
   /* ---------- แคชข้อมูลในเครื่อง (offline snapshot) ---------- */
   function cacheNs() { return "hrx_cache_" + (((state.user && state.user.email) || "anon").toLowerCase()); }
   function cacheAll() { try { return JSON.parse(localStorage.getItem(cacheNs())) || {}; } catch (e) { return {}; } }
@@ -970,8 +985,8 @@
       if (!data.issues.length) { wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">ยังไม่มีปัญหาที่รอแก้ไข 🎉</p>`; return; }
       state.boardItems = {}; data.issues.forEach(it => state.boardItems[it.id] = it);
       wrap.innerHTML = data.issues.map(issueCard).join("");
-      wrap.querySelectorAll("[data-solve]").forEach(b => b.addEventListener("click", () => submitSolution(b.dataset.solve)));
-      wrap.querySelectorAll("[data-resolve]").forEach(b => b.addEventListener("click", () => resolveIssue(b.dataset.resolve)));
+      wrap.querySelectorAll("[data-solve]").forEach(b => b.addEventListener("click", () => runBusy(b, () => submitSolution(b.dataset.solve))));
+      wrap.querySelectorAll("[data-resolve]").forEach(b => b.addEventListener("click", () => runBusy(b, () => resolveIssue(b.dataset.resolve))));
     } catch (err) {
       wrap.innerHTML = `<p class="text-center text-sm text-red-500 py-8">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }
@@ -1025,7 +1040,7 @@
       if (!data.articles.length) { wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">ยังไม่มีองค์ความรู้ (เคสที่แก้สำเร็จ)</p>`; return; }
       state.kbItems = {}; data.articles.forEach(it => state.kbItems[it.id] = it);
       wrap.innerHTML = data.articles.map(kbCard).join("");
-      wrap.querySelectorAll("[data-like]").forEach(b => b.addEventListener("click", () => likeArticle(b.dataset.like)));
+      wrap.querySelectorAll("[data-like]").forEach(b => b.addEventListener("click", () => runBusy(b, () => likeArticle(b.dataset.like))));
     } catch (err) {
       wrap.innerHTML = `<p class="text-center text-sm text-red-500 py-8">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }
@@ -1073,7 +1088,7 @@
       state.historyItems = {}; data.items.forEach(it => state.historyItems[it.id] = it);
       wrap.innerHTML = data.items.map(historyCard).join("");
       wrap.querySelectorAll("[data-backfill]").forEach(b => b.addEventListener("click", () => backfill(b.dataset.backfillType, b.dataset.backfill)));
-      wrap.querySelectorAll("[data-resolve]").forEach(b => b.addEventListener("click", () => resolveIssue(b.dataset.resolve)));
+      wrap.querySelectorAll("[data-resolve]").forEach(b => b.addEventListener("click", () => runBusy(b, () => resolveIssue(b.dataset.resolve))));
       wrap.querySelectorAll("[data-editlinks]").forEach(b => b.addEventListener("click", () => {
         const it = state.historyItems[b.dataset.editlinks] || {};
         openLinkModal(b.dataset.linkstype, b.dataset.editlinks, it.links);
@@ -1310,7 +1325,7 @@
           ${a.solver ? `<p class="text-[11px] text-amber-700 font-semibold mt-1">🏅 ${esc(a.solver)}</p>` : ""}
           <button data-approve="${esc(a.id)}" class="mt-2 w-full py-2 rounded-lg bg-blue-600 text-white text-xs font-bold active:scale-95 transition">อนุมัติขึ้นคลังองค์ความรู้</button>
         </div>`).join("") : `<p class="text-sm text-slate-400 text-center py-4">ไม่มีรายการรออนุมัติ 🎉</p>`;
-      $("adminPendingList").querySelectorAll("[data-approve]").forEach(b => b.addEventListener("click", () => approveIssue(b.dataset.approve)));
+      $("adminPendingList").querySelectorAll("[data-approve]").forEach(b => b.addEventListener("click", () => runBusy(b, () => approveIssue(b.dataset.approve))));
 
       const opts = data.users.map(u => `<option value="${esc(u.email)}">${esc(u.name || u.email)} (${u.totalXp} XP · ${esc(u.role)})</option>`).join("");
       $("adminUserSelect").innerHTML = opts || `<option value="">— ไม่มีผู้ใช้ —</option>`;
@@ -1391,9 +1406,7 @@
     if (!ctx) return;
     const reason = $("voidReason").value.trim();
     if (!reason) { showToast("กรุณากรอกเหตุผลที่ยกเลิก", "warn"); return; }
-    $("voidConfirm").disabled = true;
     const ok = await postAction({ action:"voidRecord", recordType:ctx.type, recordId:ctx.id, reason, email:state.user.email, idToken:state.idToken }, "⛔ ยกเลิกรายการแล้ว (หัก XP คืน)");
-    $("voidConfirm").disabled = false;
     if (ok) {
       $("voidModal").classList.add("hidden");
       state.voidCtx = null;
@@ -1543,7 +1556,7 @@
                 </button>`).join("")}
             </div>
           </div>`;
-        $("dashAdminRankCard").querySelectorAll("[data-user]").forEach(b => b.addEventListener("click", () => openUserDetail(b.dataset.user)));
+        $("dashAdminRankCard").querySelectorAll("[data-user]").forEach(b => b.addEventListener("click", () => runBusy(b, () => openUserDetail(b.dataset.user))));
       } else $("dashAdminRankCard").classList.add("hidden");
     } catch (err) {
       $("dashHero").innerHTML = `<div class="cyber-panel rounded-2xl p-4 text-sm text-red-400 text-center">โหลดแดชบอร์ดไม่สำเร็จ: ${esc(err.message)}</div>`;
@@ -1718,25 +1731,25 @@
     document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
     document.querySelectorAll(".mode-btn").forEach(b => b.addEventListener("click", () => { state.mode = b.dataset.mode; renderModeButtons(); }));
     $("submitBtn").addEventListener("click", submit);
-    $("refreshBoard").addEventListener("click", loadBoard);
-    $("refreshKb").addEventListener("click", loadKb);
-    $("refreshHistory").addEventListener("click", loadHistory);
-    $("logoutBtn").addEventListener("click", logout);
+    $("refreshBoard").addEventListener("click", (e) => runBusy(e.currentTarget, loadBoard));
+    $("refreshKb").addEventListener("click", (e) => runBusy(e.currentTarget, loadKb));
+    $("refreshHistory").addEventListener("click", (e) => runBusy(e.currentTarget, loadHistory));
+    $("logoutBtn").addEventListener("click", (e) => runBusy(e.currentTarget, logout));
     $("saveModalClose").addEventListener("click", () => $("saveModal").classList.add("hidden"));
-    $("notifAck").addEventListener("click", ackNotifications);
-    $("adminNotifSend").addEventListener("click", adminSendNotif);
-    $("adminBonusSend").addEventListener("click", adminGrantBonus);
-    $("adminRoleSend").addEventListener("click", adminSetRole);
+    $("notifAck").addEventListener("click", (e) => runBusy(e.currentTarget, ackNotifications));
+    $("adminNotifSend").addEventListener("click", (e) => runBusy(e.currentTarget, adminSendNotif));
+    $("adminBonusSend").addEventListener("click", (e) => runBusy(e.currentTarget, adminGrantBonus));
+    $("adminRoleSend").addEventListener("click", (e) => runBusy(e.currentTarget, adminSetRole));
     $("adminRuleAdd").addEventListener("click", addRuleRow);
-    $("adminRuleSave").addEventListener("click", saveRules);
+    $("adminRuleSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveRules));
     $("adminRules").addEventListener("click", (e) => {
       const btn = e.target.closest(".rule-remove");
       if (btn) { const r = btn.closest(".rule-row"); if (r) r.remove(); }
     });
-    document.querySelectorAll(".export-btn").forEach(b => b.addEventListener("click", () => doExport(b.dataset.export, b.dataset.format)));
+    document.querySelectorAll(".export-btn").forEach(b => b.addEventListener("click", () => runBusy(b, () => doExport(b.dataset.export, b.dataset.format))));
     $("linkAddRow").addEventListener("click", addLinkRow);
     $("linkCancel").addEventListener("click", () => { $("linkModal").classList.add("hidden"); state.linkCtx = null; });
-    $("linkSave").addEventListener("click", saveLinks);
+    $("linkSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveLinks));
     $("linkRows").addEventListener("click", (e) => {
       const btn = e.target.closest(".link-remove");
       if (btn) { const r = btn.closest(".link-row"); if (r) r.remove(); }
@@ -1744,7 +1757,7 @@
     $("subFilterType").addEventListener("change", loadAdminSubmissions);
     $("subIncludeVoided").addEventListener("change", loadAdminSubmissions);
     $("subSearch").addEventListener("input", () => { clearTimeout(subSearchTimer); subSearchTimer = setTimeout(loadAdminSubmissions, 400); });
-    $("voidConfirm").addEventListener("click", confirmVoid);
+    $("voidConfirm").addEventListener("click", (e) => runBusy(e.currentTarget, confirmVoid));
     $("voidCancel").addEventListener("click", () => { $("voidModal").classList.add("hidden"); state.voidCtx = null; });
     $("userModalClose").addEventListener("click", () => $("userModal").classList.add("hidden"));
     renderModeButtons();
@@ -1778,7 +1791,7 @@
       }
     }
 
-    $("syncNow").addEventListener("click", refreshAll);
+    $("syncNow").addEventListener("click", (e) => runBusy(e.currentTarget, refreshAll));
     initGoogle();
   });
   </script>
