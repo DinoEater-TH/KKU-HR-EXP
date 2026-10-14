@@ -132,8 +132,9 @@
         <button data-tab="work"    class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📝 บันทึก</button>
         <button data-tab="board"   class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🧩 บอร์ด</button>
         <button data-tab="kb"      class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📚 ความรู้</button>
-        <button data-tab="history" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🗂️ ประวัติ</button>
-        <button data-tab="profile" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">👤 โปรไฟล์</button>
+      <button data-tab="history" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🗂️ ประวัติ</button>
+      <button data-tab="resend" id="tabBtnResend" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📤 รอส่ง</button>
+      <button data-tab="profile" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">👤 โปรไฟล์</button>
         <button data-tab="admin" id="tabBtnAdmin" class="hidden tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🛡️ แอดมิน</button>
       </div>
     </header>
@@ -216,6 +217,15 @@
           <button id="refreshHistory" class="text-xs bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm active:scale-95">↻ รีเฟรช</button>
         </div>
         <div id="historyList" class="space-y-3"></div>
+      </div>
+
+      <!-- ===== รอส่ง (รายการที่ถูกตีกลับ) ===== -->
+      <div id="tab-resend" class="tab-panel hidden fade-in">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm font-semibold text-slate-600">รายการที่ถูกตีกลับ (แก้ไขแล้วส่งใหม่)</p>
+          <button id="refreshResend" class="text-xs bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm active:scale-95">↻ รีเฟรช</button>
+        </div>
+        <div id="resendList" class="space-y-3"></div>
       </div>
 
       <!-- ===== โปรไฟล์ ===== -->
@@ -313,7 +323,7 @@
           <p class="text-[11px] text-slate-400 mt-2">ไฟล์เรียงวันที่-เวลา ใหม่→เก่า พร้อมชื่อผู้บันทึก หมวดหมู่ (AI) สถานะ และลิงก์ไฟล์แนบ</p>
         </div>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 5.2</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.7</p>
       </div>
 
     </main>
@@ -382,12 +392,12 @@
   </div>
 
   <!-- ================= Modal: ยกเลิกรายการ (admin) ================= -->
-  <div id="voidModal" class="hidden fixed inset-0 z-[75] bg-black/50 flex items-center justify-center p-5">
+  <div id="voidModal" class="hidden fixed inset-0 z-[85] bg-black/50 flex items-center justify-center p-5">
     <div class="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden pop">
-      <div class="p-5 text-center text-white bg-gradient-to-r from-red-600 to-red-800">
-        <div class="text-4xl">🗑️</div>
-        <h2 class="text-lg font-bold mt-1">ยกเลิกรายการ</h2>
-        <p class="text-[11px] text-white/80 mt-1">XP ของรายการนี้จะถูกหักคืน และผู้ใช้จะเห็นว่าโดนยกเลิก</p>
+      <div id="voidHead" class="p-5 text-center text-white bg-gradient-to-r from-red-600 to-red-800">
+        <div id="voidIcon" class="text-4xl">🗑️</div>
+        <h2 id="voidTitle" class="text-lg font-bold mt-1">ยกเลิกรายการ</h2>
+        <p id="voidSub" class="text-[11px] text-white/80 mt-1">XP ของรายการนี้จะถูกหักคืน และผู้ใช้จะเห็นว่าโดนยกเลิก</p>
       </div>
       <div id="voidPreview" class="p-5 pb-0 text-sm text-slate-700 whitespace-pre-wrap max-h-[30vh] overflow-y-auto"></div>
       <div class="p-5">
@@ -412,6 +422,63 @@
     </div>
   </div>
 
+  <!-- ================= Modal: แก้ไขรายการ (admin) ================= -->
+  <div id="adminEditModal" class="hidden fixed inset-0 z-[85] bg-black/50 flex items-end sm:items-center justify-center sm:p-5">
+    <div class="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden pop">
+      <div class="p-5 text-center text-white bg-gradient-to-r from-amber-600 to-orange-700">
+        <div class="text-4xl">✏️</div>
+        <h2 class="text-lg font-bold mt-1">แก้ไขรายการ (แอดมิน)</h2>
+        <p class="text-[11px] text-white/80 mt-1">แก้ข้อความ / หมวดหมู่ / สถานะของรายการผู้ใช้</p>
+      </div>
+      <div class="p-5 space-y-3">
+        <div>
+          <label class="text-xs font-semibold text-slate-600">หมวดหมู่</label>
+          <select id="adminEditCategory" class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="work">📋 บันทึกงาน</option>
+            <option value="issue">🛠️ ปัญหา</option>
+          </select>
+        </div>
+        <div id="adminEditStatusWrap">
+          <label class="text-xs font-semibold text-slate-600">สถานะ</label>
+          <select id="adminEditStatus" class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="Pending">รอแก้ไข (Pending)</option>
+            <option value="In-Progress">กำลังแก้ไข (In-Progress)</option>
+            <option value="Solved">แก้ไขสำเร็จ (Solved)</option>
+            <option value="Closed">ปิดเคส (Closed)</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600">รายละเอียด</label>
+          <textarea id="adminEditDetailText" rows="5" placeholder="พิมพ์รายละเอียด..." class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+        </div>
+      </div>
+      <div class="p-4 pt-0 flex gap-2">
+        <button id="adminEditCancel" class="flex-1 py-3 rounded-xl bg-slate-200 text-slate-700 font-bold active:scale-[.98] transition">ปิด</button>
+        <button id="adminEditSave" class="flex-[2] py-3 rounded-xl bg-amber-600 text-white font-bold active:scale-[.98] transition">💾 บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Modal: แก้ไขแล้วส่งใหม่ (user) ================= -->
+  <div id="resendModal" class="hidden fixed inset-0 z-[85] bg-black/50 flex items-end sm:items-center justify-center sm:p-5">
+    <div class="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden pop">
+      <div class="p-5 text-center text-white bg-gradient-to-r from-emerald-600 to-emerald-700">
+        <div class="text-4xl">📤</div>
+        <h2 class="text-lg font-bold mt-1">แก้ไขแล้วส่งใหม่</h2>
+        <p class="text-[11px] text-white/80 mt-1">ปรับข้อความให้ตรงตามที่แอดมินแนะนำ แล้วกดส่งใหม่เพื่อรับ XP</p>
+      </div>
+      <div id="resendReason" class="px-5 pt-4"></div>
+      <div class="p-5">
+        <label class="text-xs font-semibold text-slate-600">รายละเอียด</label>
+        <textarea id="resendDetailText" rows="5" placeholder="พิมพ์รายละเอียด..." class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+      </div>
+      <div class="p-4 pt-0 flex gap-2">
+        <button id="resendCancel" class="flex-1 py-3 rounded-xl bg-slate-200 text-slate-700 font-bold active:scale-[.98] transition">ปิด</button>
+        <button id="resendConfirm" class="flex-[2] py-3 rounded-xl bg-emerald-600 text-white font-bold active:scale-[.98] transition">📤 ส่งใหม่</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= Toast ================= -->
   <div id="toast" class="hidden fixed bottom-6 inset-x-0 z-[80] flex justify-center px-4">    <div id="toastBox" class="max-w-sm w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl text-center"></div>
   </div>
@@ -428,7 +495,7 @@
   /* ============================================================
      KKU HR Exp — Phase 6.0 (index.html) · RPG: Juice + Streak + Character Card
      ============================================================ */
-  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, historyItems:{}, sound: localStorage.getItem("hrx_sound") !== "0" };
+  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, historyItems:{}, sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
   let userSearchTimer = null;
   const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
@@ -758,6 +825,7 @@
     $("appView").classList.remove("hidden");
     switchTab("dashboard");
     loadProfile().then(() => prefetchAll());  // อัปเดต Level + ดาวน์โหลดข้อมูลลงเครื่อง
+    refreshResendBadge();
     checkNotifications();
     updateSyncBar();
   }
@@ -844,6 +912,7 @@
       return "adminSubmissions|" + (params.type || "") + "|" + (params.q || "") + "|" + (params.includeVoided || "");
     if (params.action === "adminUserDetail") return "adminUserDetail|" + (params.email || "");
     if (params.action === "adminUserRecords") return "adminUserRecords|" + (params.email || "") + "|" + (params.type || "") + "|" + (params.includeVoided || "");
+    if (params.action === "myRejected") return "myRejected";
     return params.action;
   }
   function isAuthError(msg) { return /id token|token|เข้าสู่ระบบ|audience|domain not allowed|หมดอายุ/i.test(String(msg || "")); }
@@ -913,6 +982,7 @@
       { action:"myHistory", idToken:state.idToken, email:email },
       { action:"myProfile", idToken:state.idToken, email:email },
       { action:"achievements", idToken:state.idToken, email:email },
+      { action:"myRejected", idToken:state.idToken },
       { action:"activeNotifications", idToken:state.idToken }
     ];
     if (state.isAdmin) {
@@ -930,6 +1000,7 @@
     showToast("⏳ กำลังอัปเดตข้อมูลลงเครื่อง...", "warn");
     _prefetching = false;
     await prefetchAll();
+    refreshResendBadge();
     showToast("✅ อัปเดตข้อมูลลงเครื่องแล้ว");
     if (state.currentTab === "admin") loadAdmin();
     else if (state.currentTab && state.currentTab !== "dashboard") switchTab(state.currentTab);
@@ -991,6 +1062,7 @@
     if (tab === "board") loadBoard();
     if (tab === "kb") loadKb();
     if (tab === "history") loadHistory();
+    if (tab === "resend") loadResend();
     if (tab === "profile") loadProfile();
     if (tab === "admin") loadAdmin();
   }
@@ -1238,6 +1310,7 @@
     const badge = isWork
       ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">บันทึกงาน</span>`
       : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">ปัญหา · ${esc(it.status || "Pending")}</span>`;
+    const rejected = it.rejected ? `<div class="mt-2 rounded-xl bg-red-50 border border-red-200 p-2.5"><p class="text-[11px] font-bold text-red-700">⛔ ถูกตีกลับ — โปรดแก้ไขแล้วส่งใหม่ที่แท็บ 📤 รอส่ง</p><p class="text-sm text-red-700 mt-0.5 whitespace-pre-wrap">${esc(it.rejectReason)}</p></div>` : "";
     const files = it.files.length ? fileBadges(it.files) : `<span class="text-[11px] text-slate-400">ยังไม่มีไฟล์แนบ</span>`;
     const links = linkBadges(it.links);
     const linkCount = (it.links && it.links.length) || 0;
@@ -1248,6 +1321,7 @@
       <div class="card bg-white rounded-2xl shadow-sm p-4">
         <div class="flex items-center justify-between gap-2">${badge}<span class="text-[11px] text-slate-400">🕒 ${esc(it.time)}</span></div>
         <p class="mt-2 text-sm text-slate-800 whitespace-pre-wrap">${esc(it.detail)}</p>
+        ${rejected}
         <div class="mt-2 flex flex-wrap gap-2 items-center">${files}</div>
         ${links ? `<div class="mt-2 flex flex-wrap gap-2">${links}</div>` : ""}
         <button data-editdetail="${esc(it.id)}" data-edittype="${it.type}" class="mt-3 w-full py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold active:scale-95 transition">✏️ แก้ไขข้อความ</button>
@@ -1255,6 +1329,86 @@
         ${linkBtn}
         ${resolveBtn}
       </div>`;
+  }
+
+  /* ---------- รอส่ง: รายการที่ถูกตีกลับ ---------- */
+  function updateResendBadge(n) {
+    const b = $("tabBtnResend");
+    if (!b) return;
+    b.textContent = n > 0 ? "📤 รอส่ง (" + n + ")" : "📤 รอส่ง";
+  }
+
+  async function refreshResendBadge() {
+    if (!state.idToken) { updateResendBadge(0); return; }
+    try {
+      const data = await apiGet({ action:"myRejected", idToken:state.idToken });
+      updateResendBadge((data && data.count) || 0);
+    } catch (e) {}
+  }
+
+  async function loadResend() {
+    const wrap = $("resendList");
+    if (!state.idToken) {
+      wrap.innerHTML = `<div class="text-center py-8"><p class="text-sm text-amber-600 mb-3">กรุณาเข้าสู่ระบบใหม่เพื่อดูรายการ</p><button onclick="logout()" class="text-xs bg-red-700 text-white px-4 py-2 rounded-full">ออกจากระบบ</button></div>`;
+      return;
+    }
+    wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">กำลังโหลด...</p>`;
+    try {
+      const data = await apiGet({ action:"myRejected", idToken:state.idToken });
+      if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
+      state.rejectedItems = {}; data.items.forEach(it => state.rejectedItems[it.id] = it);
+      updateResendBadge(data.items.length);
+      if (!data.items.length) { wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">ยังไม่มีรายการที่ถูกตีกลับ 🎉</p>`; return; }
+      wrap.innerHTML = data.items.map(resendCard).join("");
+      wrap.querySelectorAll("[data-resend]").forEach(b => b.addEventListener("click", () => openResendModal(b.dataset.resendType, b.dataset.resend)));
+    } catch (err) {
+      wrap.innerHTML = `<p class="text-center text-sm text-red-500 py-8">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+    }
+  }
+
+  function resendCard(it) {
+    const isWork = it.type === "work";
+    const badge = isWork
+      ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">บันทึกงาน</span>`
+      : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">ปัญหา</span>`;
+    const files = (it.files && it.files.length) ? `<div class="mt-2 flex flex-wrap gap-2 items-center">${fileBadges(it.files)}</div>` : "";
+    const links = (it.links && it.links.length) ? `<div class="mt-2 flex flex-wrap gap-2">${linkBadges(it.links)}</div>` : "";
+    return `
+      <div class="card bg-white rounded-2xl shadow-sm p-4 border-l-4 border-red-400">
+        <div class="flex items-center justify-between gap-2">${badge}<span class="text-[11px] text-slate-400">🕒 ${esc(it.time)}</span></div>
+        <p class="mt-2 text-sm text-slate-800 whitespace-pre-wrap">${esc(it.detail)}</p>
+        <div class="mt-2 rounded-xl bg-red-50 border border-red-200 p-3">
+          <p class="text-[11px] font-bold text-red-700">⛔ เหตุผลที่ถูกตีกลับ</p>
+          <p class="text-sm text-red-700 mt-0.5 whitespace-pre-wrap">${esc(it.reason)}</p>
+          <p class="text-[10px] text-red-500 mt-1">โดย ${esc(it.rejectedBy)} · ${esc(it.rejectedAt)}</p>
+        </div>
+        ${files}${links}
+        <button data-resend="${esc(it.id)}" data-resend-type="${it.type}" class="mt-3 w-full py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-bold active:scale-95 transition">✏️ แก้ไขแล้วส่งใหม่ (รับ XP)</button>
+      </div>`;
+  }
+
+  function openResendModal(type, id) {
+    const it = (state.rejectedItems || {})[id] || {};
+    state.resendCtx = { type, id };
+    $("resendReason").innerHTML = it.reason
+      ? `<div class="rounded-xl bg-red-50 border border-red-200 p-3"><p class="text-[11px] font-bold text-red-700">⛔ เหตุผลที่ถูกตีกลับ</p><p class="text-sm text-red-700 mt-0.5 whitespace-pre-wrap">${esc(it.reason)}</p></div>`
+      : "";
+    $("resendDetailText").value = it.detail || "";
+    $("resendModal").classList.remove("hidden");
+    setTimeout(() => { try { $("resendDetailText").focus(); } catch (e) {} }, 50);
+  }
+
+  async function confirmResend() {
+    const ctx = state.resendCtx;
+    if (!ctx) return;
+    const detail = $("resendDetailText").value.trim();
+    if (detail.length < 5) { showToast("ข้อความต้องมีอย่างน้อย 5 ตัวอักษร", "warn"); return; }
+    const ok = await postAction({ action:"resubmitRecord", recordType:ctx.type, recordId:ctx.id, detail, email:state.user.email, idToken:state.idToken }, "📤 ส่งรายการใหม่แล้ว (ได้รับ XP)");
+    if (ok) {
+      $("resendModal").classList.add("hidden");
+      state.resendCtx = null;
+      setTimeout(() => { loadResend(); loadProfile(); loadHistory(); if (state.currentTab === "dashboard") loadDashboard(); }, 1200);
+    }
   }
 
   function backfill(type, id) {
@@ -1559,17 +1713,22 @@
         return;
       }
       wrap.innerHTML = items.map(it => `
-        <div class="rounded-xl border ${it.voided ? "border-red-100 bg-red-50/50" : "border-slate-100"} p-3">
+        <div class="rounded-xl border ${it.voided ? "border-red-100 bg-red-50/50" : (it.rejected ? "border-orange-100 bg-orange-50/50" : "border-slate-100")} p-3">
           <div class="flex justify-between items-start gap-2">
             <div class="min-w-0">
               <span class="text-[10px] font-mono text-slate-400">#${esc(it.id)}</span>
               <span class="text-[10px] ${it.type === "work" ? "text-emerald-600" : "text-amber-700"} font-bold ml-1">${it.type === "work" ? "📋 งาน" : "🛠️ ปัญหา"}</span>
               ${it.voided ? '<span class="text-[10px] bg-red-600 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกยกเลิก</span>' : ""}
+              ${it.rejected ? '<span class="text-[10px] bg-orange-600 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกตีกลับ</span>' : ""}
               <p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(it.detail)}</p>
               <p class="text-[11px] text-slate-400 mt-1">👤 ${esc(it.name || it.user)} · <span class="font-mono">${esc(it.user)}</span> · 🕒 ${esc(it.time)}</p>
               ${it.voided ? `<p class="text-[11px] text-red-600 mt-1">เหตุผล: ${esc(it.voidReason)} · โดย ${esc(it.voidedBy)} · ${esc(it.voidedAt)}</p>` : ""}
+              ${it.rejected ? `<p class="text-[11px] text-orange-600 mt-1">เหตุผลตีกลับ: ${esc(it.rejectReason)}</p>` : ""}
             </div>
-            ${it.voided ? "" : `<button data-void="${esc(it.type)}:${esc(it.id)}" class="shrink-0 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold border border-red-200 active:scale-95 transition">ยกเลิก</button>`}
+            ${(it.voided || it.rejected) ? "" : `<div class="shrink-0 flex flex-col gap-1.5">
+              <button data-void="${esc(it.type)}:${esc(it.id)}" class="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold border border-red-200 active:scale-95 transition">ยกเลิก</button>
+              <button data-reject="${esc(it.type)}:${esc(it.id)}" class="px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 text-xs font-bold border border-orange-200 active:scale-95 transition">ตีกลับ</button>
+            </div>`}
           </div>
         </div>`).join("") +
         (data.count > data.shown ? `<p class="text-center text-[11px] text-slate-400 pt-2">แสดง ${data.shown}/${data.count} รายการล่าสุด</p>` : "");
@@ -1578,32 +1737,94 @@
         const [t, id] = b.dataset.void.split(":");
         b.addEventListener("click", () => openVoidModal(t, id));
       });
+      wrap.querySelectorAll("[data-reject]").forEach(b => {
+        const [t, id] = b.dataset.reject.split(":");
+        b.addEventListener("click", () => openRejectModal(t, id));
+      });
     } catch (err) {
       wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }
   }
 
-  function openVoidModal(type, id) {
-    const items = (state.adminSubs || []).filter(i => i.type === type && i.id === id);
-    const it = items[0] || {};
+  function _findRecord(type, id) {
+    const pools = [state.adminSubs, state.userRecords];
+    for (const p of pools) { const it = (p || []).find(x => x.type === type && x.id === id); if (it) return it; }
+    return {};
+  }
+
+  function openRecordActionModal(mode, type, id) {
+    const it = _findRecord(type, id);
+    const isReject = mode === "reject";
+    $("voidHead").className = "p-5 text-center text-white bg-gradient-to-r " + (isReject ? "from-orange-500 to-orange-700" : "from-red-600 to-red-800");
+    $("voidIcon").textContent = isReject ? "↩️" : "🗑️";
+    $("voidTitle").textContent = isReject ? "ตีกลับรายการ" : "ยกเลิกรายการ";
+    $("voidSub").textContent = isReject
+      ? "XP ของรายการนี้จะถูกหักคืน และรายการจะไปอยู่ในหน้าต่าง 📤 รอส่งของผู้ใช้ พร้อมเหตุผล เพื่อให้แก้ไขแล้วส่งใหม่"
+      : "XP ของรายการนี้จะถูกหักคืน และผู้ใช้จะเห็นว่าโดนยกเลิก";
+    $("voidConfirm").textContent = isReject ? "↩️ ยืนยันตีกลับ" : "⛔ ยืนยันยกเลิก";
     $("voidPreview").textContent = `#${id}\n${it.detail || ""}`;
     $("voidReason").value = "";
-    state.voidCtx = { type, id };
+    $("voidReason").placeholder = isReject ? "เช่น ข้อมูลไม่ตรงกับงาน / รายละเอียดไม่ชัดเจน..." : "เช่น ข้อมูลไม่ครบ / ยกเลิกจริง / ทุจริต...";
+    state.voidCtx = { type, id, mode: isReject ? "reject" : "void" };
     $("voidModal").classList.remove("hidden");
     setTimeout(() => $("voidReason").focus(), 50);
   }
+
+  function openVoidModal(type, id) { openRecordActionModal("void", type, id); }
+  function openRejectModal(type, id) { openRecordActionModal("reject", type, id); }
 
   async function confirmVoid() {
     const ctx = state.voidCtx;
     if (!ctx) return;
     const reason = $("voidReason").value.trim();
-    if (!reason) { showToast("กรุณากรอกเหตุผลที่ยกเลิก", "warn"); return; }
-    const ok = await postAction({ action:"voidRecord", recordType:ctx.type, recordId:ctx.id, reason, email:state.user.email, idToken:state.idToken }, "⛔ ยกเลิกรายการแล้ว (หัก XP คืน)");
+    const isReject = ctx.mode === "reject";
+    if (!reason) { showToast(isReject ? "กรุณากรอกเหตุผลที่ตีกลับ" : "กรุณากรอกเหตุผลที่ยกเลิก", "warn"); return; }
+    const ok = await postAction({
+      action: isReject ? "adminRejectRecord" : "voidRecord",
+      recordType: ctx.type, recordId: ctx.id, reason, email: state.user.email, idToken: state.idToken
+    }, isReject ? "↩️ ตีกลับรายการแล้ว (หัก XP คืน · ผู้ใช้เห็นที่ 📤 รอส่ง)" : "⛔ ยกเลิกรายการแล้ว (หัก XP คืน)");
     if (ok) {
       $("voidModal").classList.add("hidden");
       state.voidCtx = null;
       loadAdminSubmissions();
       loadAdmin();
+      if (!$("userModal").classList.contains("hidden")) openUserDetail(state.userRecordEmail);
+    }
+  }
+
+  /* ---------- แอดมินแก้ไขรายการ (detail/category/status) ---------- */
+  function openAdminEditModal(type, id) {
+    const it = _findRecord(type, id);
+    state.adminEditCtx = { type, id };
+    $("adminEditDetailText").value = it.detail || "";
+    $("adminEditCategory").value = (it.category === "issue" || it.type === "issue") ? "issue" : "work";
+    if (it.type === "issue") {
+      $("adminEditStatusWrap").style.display = "";
+      const s = it.status || "Pending";
+      $("adminEditStatus").value = ["Pending", "In-Progress", "Solved", "Closed"].indexOf(s) !== -1 ? s : "Pending";
+    } else {
+      $("adminEditStatusWrap").style.display = "none";
+    }
+    $("adminEditModal").classList.remove("hidden");
+    setTimeout(() => { try { $("adminEditDetailText").focus(); } catch (e) {} }, 50);
+  }
+
+  async function saveAdminEdit() {
+    const ctx = state.adminEditCtx;
+    if (!ctx) return;
+    const detail = $("adminEditDetailText").value.trim();
+    if (detail.length < 5) { showToast("ข้อความต้องมีอย่างน้อย 5 ตัวอักษร", "warn"); return; }
+    const ok = await postAction({
+      action: "adminEditRecord", recordType: ctx.type, recordId: ctx.id, detail,
+      category: $("adminEditCategory").value,
+      status: ctx.type === "issue" ? $("adminEditStatus").value : "",
+      email: state.user.email, idToken: state.idToken
+    }, "✏️ บันทึกการแก้ไขแล้ว");
+    if (ok) {
+      $("adminEditModal").classList.add("hidden");
+      state.adminEditCtx = null;
+      loadAdminSubmissions();
+      if (!$("userModal").classList.contains("hidden")) openUserDetail(state.userRecordEmail);
     }
   }
 
@@ -1852,22 +2073,34 @@
     listEl.innerHTML = items.map(it => {
       const filesHtml = (it.files && it.files.length) ? `<div class="mt-1.5">${fileBadges(it.files)}</div>` : "";
       const linksHtml = (it.links && it.links.length) ? `<div class="mt-1.5 flex flex-wrap gap-1.5">${linkBadges(it.links)}</div>` : "";
-      const statusHtml = (it.type === "issue" && it.status && !it.voided)
+      const statusHtml = (it.type === "issue" && it.status && !it.voided && !it.rejected)
         ? `<p class="text-[10px] text-slate-400 mt-0.5">สถานะ: ${esc(it.status)}${it.solvedBy ? " · แก้โดย " + esc(it.solvedBy) : ""}</p>` : "";
       const voidHtml = it.voided
         ? `<p class="text-[10px] text-red-600 mt-0.5">⛔ ยกเลิก: ${esc(it.voidReason)} · โดย ${esc(it.voidedBy)} · ${esc(it.voidedAt)}</p>` : "";
-      return `<div class="rounded-xl border ${it.voided ? "border-red-100 bg-red-50/50" : "border-slate-100"} p-2.5">
+      const rejectHtml = it.rejected
+        ? `<p class="text-[10px] text-orange-600 mt-0.5">↩️ ตีกลับ: ${esc(it.rejectReason)} · โดย ${esc(it.rejectedBy)} · ${esc(it.rejectedAt)}</p>` : "";
+      const tone = it.voided ? "border-red-100 bg-red-50/50" : (it.rejected ? "border-orange-100 bg-orange-50/50" : "border-slate-100");
+      const actionBtns = (!it.voided && !it.rejected)
+        ? `<div class="flex gap-2 mt-2">
+             <button data-uedit="${esc(it.id)}" data-uedit-type="${it.type}" class="flex-1 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold active:scale-95 transition">✏️ แก้ไข</button>
+             <button data-ureject="${esc(it.id)}" data-ureject-type="${it.type}" class="flex-1 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-bold active:scale-95 transition">↩️ ตีกลับ</button>
+           </div>` : "";
+      return `<div class="rounded-xl border ${tone} p-2.5">
         <div class="flex justify-between items-start gap-2">
           <span class="text-[10px] font-mono text-slate-400">#${esc(it.id)}
             <span class="${it.type === "work" ? "text-emerald-600" : "text-amber-700"} font-bold ml-1">${it.type === "work" ? "📋 งาน" : "🛠️ ปัญหา"}</span>
             ${it.voided ? '<span class="text-[10px] bg-red-600 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกยกเลิก</span>' : ""}
+            ${it.rejected ? '<span class="text-[10px] bg-orange-600 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกตีกลับ</span>' : ""}
           </span>
           <span class="text-[10px] text-slate-400 shrink-0">🕒 ${esc(it.time)}</span>
         </div>
         <p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(it.detail)}</p>
-        ${statusHtml}${voidHtml}${filesHtml}${linksHtml}
+        ${statusHtml}${voidHtml}${rejectHtml}${filesHtml}${linksHtml}
+        ${actionBtns}
       </div>`;
     }).join("");
+    listEl.querySelectorAll("[data-uedit]").forEach(b => b.addEventListener("click", () => openAdminEditModal(b.dataset.ueditType, b.dataset.uedit)));
+    listEl.querySelectorAll("[data-ureject]").forEach(b => b.addEventListener("click", () => openRejectModal(b.dataset.urejectType, b.dataset.ureject)));
   }
 
   async function adminSendNotif() {
@@ -1992,6 +2225,11 @@
     $("linkSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveLinks));
     $("editCancel").addEventListener("click", () => { $("editModal").classList.add("hidden"); state.editCtx = null; });
     $("editSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveEditDetail));
+    $("resendCancel").addEventListener("click", () => { $("resendModal").classList.add("hidden"); state.resendCtx = null; });
+    $("resendConfirm").addEventListener("click", (e) => runBusy(e.currentTarget, confirmResend));
+    $("refreshResend").addEventListener("click", (e) => runBusy(e.currentTarget, loadResend));
+    $("adminEditCancel").addEventListener("click", () => { $("adminEditModal").classList.add("hidden"); state.adminEditCtx = null; });
+    $("adminEditSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveAdminEdit));
     $("linkRows").addEventListener("click", (e) => {
       const btn = e.target.closest(".link-remove");
       if (btn) { const r = btn.closest(".link-row"); if (r) r.remove(); }

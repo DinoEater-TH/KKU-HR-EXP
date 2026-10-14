@@ -87,8 +87,8 @@ var SHEETS = {
 
 var HEADERS = {
   USERS:         ["Email", "Full_Name", "Total_XP", "Level", "Last_Login", "Role"],
-  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "File_Meta", "Category", "Client_Ref", "Links", "Status", "Void_Reason", "Voided_By", "Voided_At"],
-  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "File_Meta", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links", "Void_Reason", "Voided_By", "Voided_At"],
+  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "File_Meta", "Category", "Client_Ref", "Links", "Status", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At"],
+  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "File_Meta", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At"],
   SOLUTIONS:     ["Solution_ID", "Issue_ID", "Timestamp", "Solution_Text", "Proposed_By", "Proposer_Name"],
   XP_HISTORY:    ["XP_ID", "Timestamp", "User_Email", "Amount", "Reason", "Ref_ID", "Client_Ref"],
   XP_RULES:      ["Level", "Title", "Min_XP"],
@@ -115,7 +115,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.6", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.7", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -132,6 +132,8 @@ function doGet(e) {
         return output_(adminUserDetail_(p.idToken, p.email), cb);
       case "adminUserRecords":
         return output_(adminUserRecords_(p.idToken, p.email, p.type, p.includeVoided), cb);
+      case "myRejected":
+        return output_(myRejected_(p.idToken), cb);
       case "activeNotifications":
         return output_(activeNotifications_(p.idToken), cb);
       case "submitResult":
@@ -194,6 +196,12 @@ case "saveXpRules":
         return handleSaveXpRules_(email, data.rules || []);
       case "voidRecord":
         return handleVoidRecord_(email, data.recordType, data.recordId, data.reason || "");
+      case "adminEditRecord":
+        return handleAdminEditRecord_(email, data.recordType, data.recordId, data.detail || "", data.category, data.status);
+      case "adminRejectRecord":
+        return handleAdminRejectRecord_(email, data.recordType, data.recordId, data.reason || "");
+      case "resubmitRecord":
+        return handleResubmitRecord_(email, data.recordType, data.recordId, data.detail);
       default:               return json_({ status: "error", message: "unknown action: " + data.action });
     }
   } catch (err) {
@@ -589,13 +597,15 @@ function myHistory_(idToken, emailParam) {
   var works = readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
     .filter(function (r) { return String(r.User_Email) === email && !isVoided_(r); })
     .map(function (r) {
-      return { type: "work", id: String(r.Log_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "work"), files: fileMetaList_(r), links: parseLinks_(r.Links) };
+      return { type: "work", id: String(r.Log_ID), time: String(r.Timestamp), detail: String(r.Detail), category: String(r.Category || "work"), files: fileMetaList_(r), links: parseLinks_(r.Links),
+        rejected: isRejected_(r), rejectReason: String(r.Reject_Reason || "") };
     });
 
   var issues = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
     .filter(function (r) { return String(r.User_Email) === email && !isVoided_(r); })
     .map(function (r) {
-      return { type: "issue", id: String(r.Issue_ID), time: String(r.Timestamp), detail: String(r.Detail), status: String(r.Status || "Pending"), category: String(r.Category || "issue"), files: fileMetaList_(r), links: parseLinks_(r.Links) };
+      return { type: "issue", id: String(r.Issue_ID), time: String(r.Timestamp), detail: String(r.Detail), status: String(r.Status || "Pending"), category: String(r.Category || "issue"), files: fileMetaList_(r), links: parseLinks_(r.Links),
+        rejected: isRejected_(r), rejectReason: String(r.Reject_Reason || "") };
     });
 
   var all = works.concat(issues).sort(function (a, b) { return a.time < b.time ? 1 : -1; });
@@ -997,7 +1007,9 @@ function adminUserRecords_(idToken, targetEmail, type, includeVoided) {
         list.push({
           type: "work", id: String(r.Log_ID || ""), time: String(r.Timestamp || ""),
           detail: String(r.Detail || ""), category: String(r.Category || "work"),
+          status: String(r.Status || ""),
           voided: v, voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || ""),
+          rejected: isRejected_(r), rejectReason: String(r.Reject_Reason || ""), rejectedBy: String(r.Rejected_By || ""), rejectedAt: String(r.Rejected_At || ""),
           files: fileMetaList_(r), links: parseLinks_(r.Links)
         });
       });
@@ -1013,6 +1025,7 @@ function adminUserRecords_(idToken, targetEmail, type, includeVoided) {
           detail: String(r.Detail || ""), category: String(r.Category || "issue"),
           status: String(r.Status || "Pending"), solution: String(r.Solution || ""), solvedBy: String(r.Solved_By || ""),
           voided: v, voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || ""),
+          rejected: isRejected_(r), rejectReason: String(r.Reject_Reason || ""), rejectedBy: String(r.Rejected_By || ""), rejectedAt: String(r.Rejected_At || ""),
           files: fileMetaList_(r), links: parseLinks_(r.Links)
         });
       });
@@ -1156,7 +1169,8 @@ function adminSubmissions_(idToken, type, q, includeVoided) {
           type: "work", id: String(r.Log_ID || ""), time: String(r.Timestamp || ""),
           user: String(r.User_Email || ""), name: names[String(r.User_Email)] || "",
           detail: String(r.Detail || ""), category: String(r.Category || "work"), voided: v,
-          voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || "")
+          voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || ""),
+          rejected: isRejected_(r), rejectReason: String(r.Reject_Reason || "")
         });
       });
   }
@@ -1170,7 +1184,8 @@ function adminSubmissions_(idToken, type, q, includeVoided) {
           user: String(r.User_Email || ""), name: names[String(r.User_Email)] || "",
           detail: String(r.Detail || ""), category: String(r.Category || "issue"),
           status: String(r.Status || "Pending"), voided: v,
-          voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || "")
+          voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || ""),
+          rejected: isRejected_(r), rejectReason: String(r.Reject_Reason || "")
         });
       });
   }
@@ -1457,6 +1472,8 @@ function parseBkkTs_(s) {
  * ==================================================================== */
 /* เช็กว่ารายการถูกยกเลิกแล้วหรือยัง (Status = "Void") */
 function isVoided_(r) { return String(r && r.Status || "").trim() === "Void"; }
+/* เช็กว่ารายการถูกตีกลับให้แก้ไขหรือยัง (Status = "Rejected") */
+function isRejected_(r) { return String(r && r.Status || "").trim() === "Rejected"; }
 
 /* ยกเลิก record ของผู้ใช้ (งาน/ปัญหา) โดยแอดมิน: ติดธง Void + เก็บ audit + หัก XP คืน */
 function handleVoidRecord_(adminEmail, recordType, recordId, reason) {
@@ -1484,28 +1501,33 @@ function handleVoidRecord_(adminEmail, recordType, recordId, reason) {
   if (map["Voided_By"])   sh.getRange(row, map["Voided_By"]).setValue(adminEmail);
   if (map["Voided_At"])   sh.getRange(row, map["Voided_At"]).setValue(ts);
 
-  var reversed = reverseXpForRecord_(owner, recordId, reason);
+  var reversed = reverseXpForRecord_(owner, recordId, reason, "void");
   return json_({ status: "ok", type: type, id: recordId, reversedXp: reversed, message: "ยกเลิกรายการเรียบร้อย" });
 }
 
 /* หัก XP คืนสำหรับ record: เพิ่มแถว XP_History (Amount ติดลบ) + ลด Total_XP + recompute Level
-   กันซ้ำ: ถ้ามีแถว Reason="void" สำหรับ Ref_ID เดิมแล้ว จะไม่หักซ้ำ */
-function reverseXpForRecord_(email, recordId, reason) {
+   คิดจาก "ยอดสุทธิ" ของรายการ (positive จาก work_log/issue, negative จาก void/reject)
+   กันหักซ้ำอัตโนมัติ (ถ้ายอดสุทธิ <= 0 จะไม่หัก) และรองรับหลายรอบ reject→resubmit */
+function netRecordXp_(recordId) {
+  return readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
+    .filter(function (h) { return String(h.Ref_ID) === String(recordId); })
+    .reduce(function (sum, h) {
+      var r = String(h.Reason);
+      if (r === "work_log" || r === "issue" || r === "void" || r === "reject") return sum + Number(h.Amount || 0);
+      return sum;
+    }, 0);
+}
+
+function reverseXpForRecord_(email, recordId, reason, tag) {
+  tag = tag || "void";
   var xsh = getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY);
-  var rows = readObjects_(xsh, HEADERS.XP_HISTORY)
-    .filter(function (h) { return String(h.Ref_ID) === String(recordId); });
-  if (rows.some(function (h) { return String(h.Reason) === "void"; })) return 0;
-  var base = 0;
-  rows.forEach(function (h) {
-    var r = String(h.Reason);
-    if (r === "work_log" || r === "issue") base += Number(h.Amount || 0);
-  });
-  if (!base) return 0;
+  var net = netRecordXp_(recordId);
+  if (net <= 0) return 0;
 
   appendByHeaders_(xsh, HEADERS.XP_HISTORY, {
     XP_ID: "XP-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_(),
-    Timestamp: nowStr_(), User_Email: email, Amount: -base, Reason: "void",
-    Ref_ID: recordId, Client_Ref: ("void: " + reason).slice(0, 100)
+    Timestamp: nowStr_(), User_Email: email, Amount: -net, Reason: tag,
+    Ref_ID: recordId, Client_Ref: (tag + ": " + reason).slice(0, 100)
   });
 
   if (email) {
@@ -1513,13 +1535,152 @@ function reverseXpForRecord_(email, recordId, reason) {
     var map = headerMap_(ush);
     var urow = findRowByHeader_(ush, "Email", email);
     if (urow !== -1) {
-      var total = Number(ush.getRange(urow, map["Total_XP"]).getValue() || 0) - base;
+      var total = Number(ush.getRange(urow, map["Total_XP"]).getValue() || 0) - net;
       if (total < 0) total = 0;
       ush.getRange(urow, map["Total_XP"]).setValue(total);
       ush.getRange(urow, map["Level"]).setValue(levelFor_(total).level);
     }
   }
-  return base;
+  return net;
+}
+
+/* ======================================================================
+ * [7d] แอดมินแก้ไข/ตีกลับรายการ + ผู้ใช้ส่งใหม่ (Phase 6.7)
+ * ==================================================================== */
+/* หา sheet/หัวข้อคอลัมน์ ตามประเภทรายการ */
+function recordSheet_(recordType) {
+  if (String(recordType) === "issue") return { sh: getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), idHeader: "Issue_ID" };
+  return { sh: getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), idHeader: "Log_ID" };
+}
+
+/* แอดมินแก้ไข Detail / Category / Status ของรายการผู้ใช้ */
+function handleAdminEditRecord_(adminEmail, recordType, recordId, detail, category, status) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!recordId) throw new Error("ไม่พบรหัสรายการ");
+
+  var t = recordSheet_(recordType);
+  var sh = t.sh, idHeader = t.idHeader;
+  var type = idHeader === "Issue_ID" ? "issue" : "work";
+  var row = findRowByHeader_(sh, idHeader, recordId);
+  if (row === -1) throw new Error("ไม่พบรายการนี้ (อาจถูกลบจากชีตไปแล้ว)");
+  var map = headerMap_(sh);
+
+  var curStatus = String(sh.getRange(row, map["Status"]).getValue() || "");
+  if (curStatus === "Void") throw new Error("รายการนี้ถูกยกเลิกแล้ว แก้ไขไม่ได้");
+
+  if (detail != null && String(detail).trim()) {
+    var d = String(detail).trim();
+    if (d.length < MIN_DETAIL_CHARS) throw new Error("ข้อความต้องมีอย่างน้อย " + MIN_DETAIL_CHARS + " ตัวอักษร");
+    if (d.length > 5000) throw new Error("ข้อความยาวเกินไป (สูงสุด 5000 ตัวอักษร)");
+    sh.getRange(row, map["Detail"]).setValue(d);
+  }
+
+  if (category != null && String(category).trim() && map["Category"]) {
+    sh.getRange(row, map["Category"]).setValue(String(category).trim().slice(0, 40));
+  }
+
+  if (status != null && String(status).trim() && map["Status"]) {
+    var s = String(status).trim();
+    var allowed = ["Pending", "In-Progress", "Solved", "Closed"];
+    if (allowed.indexOf(s) === -1) throw new Error("สถานะไม่ถูกต้อง");
+    if (curStatus === "Rejected") throw new Error("รายการที่ถูกตีกลับให้ผู้ใช้ส่งใหม่ (แก้สถานะผ่านการส่งใหม่)");
+    sh.getRange(row, map["Status"]).setValue(s);
+  }
+
+  return json_({ status: "ok", type: type, id: recordId, message: "บันทึกการแก้ไขแล้ว" });
+}
+
+/* แอดมินตีกลับรายการ (Status="Rejected") + หัก XP คืน + เก็บเหตุผล ให้ผู้ใช้แก้แล้วส่งใหม่ */
+function handleAdminRejectRecord_(adminEmail, recordType, recordId, reason) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!recordId) throw new Error("ไม่พบรหัสรายการ");
+  reason = String(reason || "").trim();
+  if (!reason) throw new Error("กรุณาระบุเหตุผลในการปฏิเสธ");
+
+  var t = recordSheet_(recordType);
+  var sh = t.sh, idHeader = t.idHeader;
+  var type = idHeader === "Issue_ID" ? "issue" : "work";
+  var row = findRowByHeader_(sh, idHeader, recordId);
+  if (row === -1) throw new Error("ไม่พบรายการนี้ (อาจถูกลบจากชีตไปแล้ว)");
+  var map = headerMap_(sh);
+
+  var cur = String(sh.getRange(row, map["Status"]).getValue() || "");
+  if (cur === "Void") throw new Error("รายการนี้ถูกยกเลิกไปแล้ว");
+  if (cur === "Rejected") throw new Error("รายการนี้ถูกตีกลับไปแล้ว");
+
+  var owner = String(sh.getRange(row, map["User_Email"]).getValue() || "");
+  var ts = nowStr_();
+  sh.getRange(row, map["Status"]).setValue("Rejected");
+  if (map["Reject_Reason"]) sh.getRange(row, map["Reject_Reason"]).setValue(reason.slice(0, 200));
+  if (map["Rejected_By"])   sh.getRange(row, map["Rejected_By"]).setValue(adminEmail);
+  if (map["Rejected_At"])   sh.getRange(row, map["Rejected_At"]).setValue(ts);
+
+  var reversed = reverseXpForRecord_(owner, recordId, reason, "reject");
+  return json_({ status: "ok", type: type, id: recordId, reversedXp: reversed, message: "ตีกลับรายการเรียบร้อย (หัก XP คืนแล้ว)" });
+}
+
+/* ผู้ใช้แก้ไขแล้วส่งรายการที่ถูกตีกลับใหม่ — ล้างสถานะ Rejected + คืน XP ตามปกติ */
+function handleResubmitRecord_(email, recordType, recordId, detail) {
+  if (!recordId) throw new Error("ไม่พบรหัสรายการ");
+
+  var t = recordSheet_(recordType);
+  var sh = t.sh, idHeader = t.idHeader;
+  var type = idHeader === "Issue_ID" ? "issue" : "work";
+  var row = findRowByHeader_(sh, idHeader, recordId);
+  if (row === -1) throw new Error("ไม่พบรายการนี้");
+  var map = headerMap_(sh);
+
+  assertOwner_(sh, row, "User_Email", email);
+
+  if (String(sh.getRange(row, map["Status"]).getValue() || "") !== "Rejected") {
+    throw new Error("รายการนี้ไม่ได้อยู่ในสถานะถูกตีกลับ");
+  }
+
+  if (detail != null && String(detail).trim()) {
+    var d = String(detail).trim();
+    if (d.length < MIN_DETAIL_CHARS) throw new Error("ข้อความต้องมีอย่างน้อย " + MIN_DETAIL_CHARS + " ตัวอักษร");
+    if (d.length > 5000) throw new Error("ข้อความยาวเกินไป (สูงสุด 5000 ตัวอักษร)");
+    sh.getRange(row, map["Detail"]).setValue(d);
+  }
+
+  sh.getRange(row, map["Status"]).setValue(type === "issue" ? "Pending" : "");
+  if (map["Reject_Reason"]) sh.getRange(row, map["Reject_Reason"]).setValue("");
+  if (map["Rejected_By"])   sh.getRange(row, map["Rejected_By"]).setValue("");
+  if (map["Rejected_At"])   sh.getRange(row, map["Rejected_At"]).setValue("");
+
+  var xp = type === "issue" ? XP.ISSUE : XP.WORK_LOG;
+  var lv = awardXp_(email, xp, type === "issue" ? "issue" : "work_log", recordId, "");
+  evaluateAchievements_(email);
+  return json_({ status: "ok", type: type, id: recordId, xp: xp, totalXp: lv.totalXp, level: lv.level, title: lv.title, message: "ส่งรายการใหม่เรียบร้อย" });
+}
+
+/* รายการที่ถูกตีกลับของผู้ใช้ (หน้าต่าง "รอส่ง") */
+function myRejected_(idToken) {
+  if (!idToken) return { status: "ok", count: 0, items: [] };
+  var email = verifyIdToken_(idToken).email;
+  var out = [];
+
+  readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS).forEach(function (r) {
+    if (String(r.User_Email || "") !== email || String(r.Status || "") !== "Rejected") return;
+    out.push({
+      type: "work", id: String(r.Log_ID || ""), time: String(r.Timestamp || ""),
+      detail: String(r.Detail || ""), category: String(r.Category || "work"),
+      reason: String(r.Reject_Reason || ""), rejectedBy: String(r.Rejected_By || ""), rejectedAt: String(r.Rejected_At || ""),
+      files: fileMetaList_(r), links: parseLinks_(r.Links)
+    });
+  });
+  readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES).forEach(function (r) {
+    if (String(r.User_Email || "") !== email || String(r.Status || "") !== "Rejected") return;
+    out.push({
+      type: "issue", id: String(r.Issue_ID || ""), time: String(r.Timestamp || ""),
+      detail: String(r.Detail || ""), category: String(r.Category || "issue"),
+      reason: String(r.Reject_Reason || ""), rejectedBy: String(r.Rejected_By || ""), rejectedAt: String(r.Rejected_At || ""),
+      files: fileMetaList_(r), links: parseLinks_(r.Links)
+    });
+  });
+
+  out.sort(function (a, b) { return a.time < b.time ? 1 : -1; });
+  return { status: "ok", count: out.length, items: out };
 }
 
 /* ======================================================================
