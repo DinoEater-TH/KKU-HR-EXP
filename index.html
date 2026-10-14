@@ -103,10 +103,11 @@
       <h1 class="mt-5 text-2xl font-bold text-slate-900">KKU HR Exp</h1>
       <p class="mt-1 text-sm text-slate-500">ระบบบันทึกงานนักวิชาการโสตทัศนศึกษา<br>มหาวิทยาลัยขอนแก่น</p>
       <div class="mt-8 flex justify-center"><div id="g_id_signin"></div></div>
+      <p id="loginAutoMsg" class="hidden mt-4 text-xs text-slate-500"></p>
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 5.2</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.2</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -142,6 +143,10 @@
       <!-- ===== แดชบอร์ด ===== -->
       <div id="tab-dashboard" class="tab-panel hidden fade-in">
         <div class="cyber-wrap rounded-3xl p-3 sm:p-4 space-y-3">
+          <div id="syncBar" class="flex items-center justify-between gap-2 px-1">
+            <span id="syncText" class="text-[11px] text-slate-400 font-tech">📥 ข้อมูลในเครื่อง</span>
+            <button id="syncNow" class="text-[11px] px-3 py-1.5 rounded-full cyber-chip text-cyan-200 active:scale-95">↻ อัปเดต</button>
+          </div>
           <div id="dashHero"></div>
           <div id="dashStreak"></div>
           <div id="dashStats"></div>
@@ -593,11 +598,22 @@
     } catch (e) { return null; }
   }
 
+  /* token ยังไม่หมดอายุ (Google ID token อายุ ~1 ชม.) */
+  function tokenValid(tok) {
+    if (!tok) return false;
+    const p = parseJwt(tok);
+    return !!(p && p.exp && (p.exp * 1000) > (Date.now() + 60000));
+  }
+
   /* ---------- Google Sign-In ---------- */
   function initGoogle() {
     if (!window.google || !google.accounts) { setTimeout(initGoogle, 400); return; }
-    google.accounts.id.initialize({ client_id: CONFIG.GOOGLE_CLIENT_ID, callback: onCredential, auto_select: false });
+    google.accounts.id.initialize({ client_id: CONFIG.GOOGLE_CLIENT_ID, callback: onCredential, auto_select: true });
     google.accounts.id.renderButton($("g_id_signin"), { type:"standard", theme:"filled_blue", size:"large", text:"signin_with", shape:"pill", logo_alignment:"left", width:260 });
+    // ผู้ใช้ที่เคยเข้าสู่ระบบมาก่อน → ลองเข้าสู่ระบบอัตโนมัติแบบเงียบ (One Tap)
+    if (localStorage.getItem("hrx_user")) {
+      try { google.accounts.id.prompt(); } catch (e) {}
+    }
   }
 
   function onCredential(response) {
@@ -611,7 +627,8 @@
     state.user = { email:p.email, name:p.name || p.email, picture:p.picture || "" };
     state.idToken = response.credential;
     localStorage.setItem("hrx_user", JSON.stringify(state.user));
-    sessionStorage.setItem("hrx_token", state.idToken);
+    localStorage.setItem("hrx_token", state.idToken);
+    try { $("loginAutoMsg").classList.add("hidden"); } catch (e) {}
     sendToServer({ action:"login", email:state.user.email, name:state.user.name, idToken:state.idToken });
     enterApp();
   }
@@ -625,13 +642,16 @@
     $("loginView").classList.add("hidden");
     $("appView").classList.remove("hidden");
     switchTab("dashboard");
-    loadProfile();       // อัปเดต Level ที่ header
+    loadProfile().then(() => prefetchAll());  // อัปเดต Level + ดาวน์โหลดข้อมูลลงเครื่อง
     checkNotifications();
+    updateSyncBar();
   }
 
   function logout() {
+    clearCache();
     localStorage.removeItem("hrx_user");
-    sessionStorage.removeItem("hrx_token");
+    localStorage.removeItem("hrx_token");
+    try { sessionStorage.removeItem("hrx_token"); } catch (e) {}
     state.user = null; state.idToken = null;
     try { google.accounts.id.disableAutoSelect(); } catch (e) {}
     $("appView").classList.add("hidden");
@@ -662,34 +682,128 @@
     }
   }
 
-  /* ---------- อ่านข้อมูล (fetch GET — ไม่ใช้ JSONP เพื่อกันปัญหา mobile browser) ---------- */
+  /* ---------- แคชข้อมูลในเครื่อง (offline snapshot) ---------- */
+  function cacheNs() { return "hrx_cache_" + (((state.user && state.user.email) || "anon").toLowerCase()); }
+  function cacheAll() { try { return JSON.parse(localStorage.getItem(cacheNs())) || {}; } catch (e) { return {}; } }
+  function cacheRead(key) { const all = cacheAll(); return all[key] ? all[key].data : null; }
+  function cacheWrite(key, data) {
+    if (!key) return;
+    try {
+      const all = cacheAll();
+      all[key] = { t: Date.now(), data: data };
+      localStorage.setItem(cacheNs(), JSON.stringify(all));
+    } catch (e) { /* พื้นที่เต็ม — ข้ามไป */ }
+  }
+  function cacheNewestTime() {
+    const all = cacheAll(); let newest = 0;
+    Object.keys(all).forEach(k => { if (all[k] && all[k].t > newest) newest = all[k].t; });
+    return newest;
+  }
+  function clearCache() { try { localStorage.removeItem(cacheNs()); } catch (e) {} }
+  function updateSyncBar() {
+    const el = $("syncText"); if (!el) return;
+    const t = cacheNewestTime();
+    el.textContent = t
+      ? "📥 ข้อมูลในเครื่อง · อัปเดต " + new Date(t).toLocaleString("th-TH", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })
+      : "📥 ยังไม่มีข้อมูลในเครื่อง";
+  }
+  function apiCacheKey(params) {
+    if (!params || !params.action) return null;
+    if (params.action === "submitResult" || params.action === "exportData") return null; // ห้ามแคช (สถานะเปลี่ยนตลอด/ไฟล์ใหญ่)
+    if (params.action === "adminSubmissions")
+      return "adminSubmissions|" + (params.type || "") + "|" + (params.q || "") + "|" + (params.includeVoided || "");
+    if (params.action === "adminUserDetail") return "adminUserDetail|" + (params.email || "");
+    return params.action;
+  }
+  function isAuthError(msg) { return /id token|token|เข้าสู่ระบบ|audience|domain not allowed|หมดอายุ/i.test(String(msg || "")); }
+  let _authPromptAt = 0;
+  function onAuthExpired() {
+    if (Date.now() - _authPromptAt < 60000) return;
+    _authPromptAt = Date.now();
+    showToast("🔑 เซสชันหมดอายุ กำลังเข้าสู่ระบบอัตโนมัติ...", "warn");
+    try { if (window.google && google.accounts) google.accounts.id.prompt(); } catch (e) {}
+  }
+
+  /* ---------- อ่านข้อมูล (fetch GET → JSONP fallback → แคชในเครื่อง) ---------- */
   function apiGet(params) {
+    const key = apiCacheKey(params);
+    const cached = key ? cacheRead(key) : null;
+
+    if (navigator.onLine === false) {
+      if (cached) return Promise.resolve(cached);
+      return Promise.reject(new Error("offline"));
+    }
+
+    const fromJsonp = () => new Promise((resolve, reject) => {
+      if (!CONFIG.APPS_SCRIPT_URL.startsWith("https://")) return reject(new Error("not configured"));
+      const cb = "hrxcb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
+      const script = document.createElement("script");
+      let done = false;
+      const timer = setTimeout(() => { if (!done) { done = true; cleanup(); reject(new Error("timeout")); } }, 20000);
+      function cleanup() {
+        clearTimeout(timer);
+        try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+        if (script.parentNode) script.parentNode.removeChild(script);
+      }
+      window[cb] = (data) => { if (done) return; done = true; cleanup(); resolve(data); };
+      const jqs = Object.keys(params).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(params[k])).join("&");
+      script.src = CONFIG.APPS_SCRIPT_URL + (CONFIG.APPS_SCRIPT_URL.indexOf("?") > -1 ? "&" : "?") + "callback=" + cb + "&" + jqs;
+      script.onerror = () => { if (done) return; done = true; cleanup(); reject(new Error("network")); };
+      document.body.appendChild(script);
+    });
+
     const qs = Object.keys(params).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(params[k])).join("&");
     return fetch(CONFIG.APPS_SCRIPT_URL + "?" + qs)
-      .then(r => {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.json();
+      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .catch(() => fromJsonp())
+      .then(data => {
+        if (data && data.status === "ok") { cacheWrite(key, data); updateSyncBar(); return data; }
+        if (data && data.status === "error" && isAuthError(data.message)) onAuthExpired();
+        if (cached) return cached;   // ใช้ข้อมูลในเครื่องแทนเมื่อเซิร์ฟเวอร์ผิดพลาด/เซสชันหมดอายุ
+        return data;
       })
       .catch(err => {
-        // fallback: ลอง JSONP ถ้า fetch โดนบลอค (CORS / network)
-        return new Promise((resolve, reject) => {
-          if (!CONFIG.APPS_SCRIPT_URL.startsWith("https://")) return reject(new Error("not configured"));
-          const cb = "hrxcb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
-          const script = document.createElement("script");
-          let done = false;
-          const timer = setTimeout(() => { if (!done) { done = true; cleanup(); reject(new Error("timeout")); } }, 20000);
-          function cleanup() {
-            clearTimeout(timer);
-            try { delete window[cb]; } catch (e) { window[cb] = undefined; }
-            if (script.parentNode) script.parentNode.removeChild(script);
-          }
-          window[cb] = (data) => { if (done) return; done = true; cleanup(); resolve(data); };
-          const jqs = Object.keys(params).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(params[k])).join("&");
-          script.src = CONFIG.APPS_SCRIPT_URL + (CONFIG.APPS_SCRIPT_URL.indexOf("?") > -1 ? "&" : "?") + "callback=" + cb + "&" + jqs;
-          script.onerror = () => { if (done) return; done = true; cleanup(); reject(new Error("network")); };
-          document.body.appendChild(script);
-        });
+        if (isAuthError(err && err.message)) onAuthExpired();
+        if (cached) return cached;
+        throw err;
       });
+  }
+
+  /* ---------- ดาวน์โหลดข้อมูลทั้งหมดลงเครื่อง (แคช) ---------- */
+  let _prefetching = false;
+  async function prefetchAll() {
+    if (_prefetching || !state.idToken || navigator.onLine === false) return;
+    _prefetching = true;
+    const email = state.user.email;
+    const jobs = [
+      { action:"dashboard", idToken:state.idToken, email:email },
+      { action:"pendingIssues", idToken:state.idToken, email:email },
+      { action:"knowledgeBase", idToken:state.idToken, email:email },
+      { action:"myHistory", idToken:state.idToken, email:email },
+      { action:"myProfile", idToken:state.idToken, email:email },
+      { action:"achievements", idToken:state.idToken, email:email },
+      { action:"activeNotifications", idToken:state.idToken }
+    ];
+    if (state.isAdmin) {
+      jobs.push({ action:"adminOverview", idToken:state.idToken });
+      jobs.push({ action:"adminSubmissions", idToken:state.idToken, type:"", q:"", includeVoided:"" });
+    }
+    updateSyncBar();
+    for (const p of jobs) { try { await apiGet(p); } catch (e) {} }
+    updateSyncBar();
+    _prefetching = false;
+  }
+
+  async function refreshAll() {
+    if (navigator.onLine === false) { showToast("📴 ออฟไลน์อยู่ ไม่สามารถอัปเดตได้", "warn"); return; }
+    showToast("⏳ กำลังอัปเดตข้อมูลลงเครื่อง...", "warn");
+    _prefetching = false;
+    await prefetchAll();
+    showToast("✅ อัปเดตข้อมูลลงเครื่องแล้ว");
+    if (state.currentTab === "admin") loadAdmin();
+    else if (state.currentTab && state.currentTab !== "dashboard") switchTab(state.currentTab);
+    else loadDashboard();
+    updateSyncBar();
   }
 
   /* ---------- ไฟล์แนบ ---------- */
@@ -1645,15 +1759,26 @@
     }));
 
     const saved = localStorage.getItem("hrx_user");
-    const savedToken = sessionStorage.getItem("hrx_token");
-    if (saved && savedToken) {
-      try {
-        const u = JSON.parse(saved);
-        if (domainOf(u.email) === CONFIG.ALLOWED_DOMAIN) { state.user = u; state.idToken = savedToken; enterApp(); }
-        else { localStorage.removeItem("hrx_user"); sessionStorage.removeItem("hrx_token"); }
-      } catch (e) { localStorage.removeItem("hrx_user"); sessionStorage.removeItem("hrx_token"); }
-    } else if (saved) { localStorage.removeItem("hrx_user"); }
+    const savedToken = localStorage.getItem("hrx_token") || sessionStorage.getItem("hrx_token");
+    if (saved) {
+      let u = null;
+      try { u = JSON.parse(saved); } catch (e) {}
+      if (u && domainOf(u.email) === CONFIG.ALLOWED_DOMAIN) {
+        state.user = u;
+        if (savedToken && tokenValid(savedToken)) {
+          state.idToken = savedToken;   // ยังไม่หมดอายุ → เข้าแอปทันที (ใช้แคชในเครื่องได้ด้วย)
+          enterApp();
+        } else {
+          state.idToken = null;         // หมดอายุ → โชว์หน้า login + One Tap เข้าสู่ระบบอัตโนมัติ
+          $("loginAutoMsg").textContent = "🔁 กำลังเข้าสู่ระบบอัตโนมัติจากครั้งก่อน...";
+          $("loginAutoMsg").classList.remove("hidden");
+        }
+      } else {
+        localStorage.removeItem("hrx_user"); localStorage.removeItem("hrx_token");
+      }
+    }
 
+    $("syncNow").addEventListener("click", refreshAll);
     initGoogle();
   });
   </script>
