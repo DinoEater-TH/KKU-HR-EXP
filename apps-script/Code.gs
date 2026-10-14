@@ -34,7 +34,47 @@ var GEMINI_MODEL     = "gemini-2.0-flash";
 var GEMINI_PROP      = "GEMINI_API_KEY";
 var ADMIN_PROP       = "ADMIN_EMAILS";   // เก็บเป็น "a@kku.ac.th,b@kku.ac.th"
 
-var XP = { WORK_LOG: 10, ISSUE: 15, SOLUTION: 25, RESOLVE: 50, LIKE_RECEIVED: 5 };
+/* ---- RPG: แต้ม XP ต่อกิจกรรม (Phase 6.8 แอดมินกำหนดได้เอง) ---- */
+var XP_DEFAULTS = { WORK_LOG: 10, ISSUE: 15, SOLUTION: 25, RESOLVE: 50, LIKE_RECEIVED: 5 };
+var XP_LABELS = {
+  WORK_LOG:      "📝 บันทึกงาน (ต่อรายการ)",
+  ISSUE:         "🛠️ แจ้งปัญหา (ต่อรายการ)",
+  SOLUTION:      "💡 เสนอแนวทางแก้ไขปัญหา",
+  RESOLVE:       "✅ ยืนยันว่าแก้ไขสำเร็จ",
+  LIKE_RECEIVED: "❤️ เจ้าของวิธีแก้ได้รับ Like (ต่อครั้ง)"
+};
+var XP_CONFIG_PROP = "XP_CONFIG";   // เก็บ JSON ใน Script Properties
+var XP_MAX_POINTS   = 100000;       // เพดานแต้มต่อกิจกรรม
+
+/* อ่านแต้ม XP ที่แอดมินตั้งไว้ (merge กับค่าเริ่มต้น) */
+function getXpConfig_() {
+  var cfg = {};
+  Object.keys(XP_DEFAULTS).forEach(function (k) { cfg[k] = XP_DEFAULTS[k]; });
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty(XP_CONFIG_PROP);
+    if (raw) {
+      var o = JSON.parse(raw) || {};
+      Object.keys(XP_DEFAULTS).forEach(function (k) {
+        var v = Number(o[k]);
+        if (!isNaN(v) && v >= 0) cfg[k] = Math.min(XP_MAX_POINTS, Math.round(v));
+      });
+    }
+  } catch (e) {}
+  return cfg;
+}
+
+/* แอดมินบันทึกแต้ม XP ต่อกิจกรรม */
+function handleSaveXpConfig_(adminEmail, config) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  var clean = {};
+  Object.keys(XP_DEFAULTS).forEach(function (k) {
+    var v = Number(config[k]);
+    if (isNaN(v) || v < 0) v = XP_DEFAULTS[k];
+    clean[k] = Math.min(XP_MAX_POINTS, Math.round(v));
+  });
+  PropertiesService.getScriptProperties().setProperty(XP_CONFIG_PROP, JSON.stringify(clean));
+  return json_({ status: "ok", config: clean, message: "บันทึกแต้ม XP แล้ว" });
+}
 
 /* ---- RPG: โบนัส Streak (มาบันทึกต่อเนื่อง) ---- */
 var STREAK_BONUS_DAILY = 5;                                  // โบนัสเมื่อบันทึกครั้งแรกของวัน
@@ -115,7 +155,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.7", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.8", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -134,6 +174,8 @@ function doGet(e) {
         return output_(adminUserRecords_(p.idToken, p.email, p.type, p.includeVoided), cb);
       case "myRejected":
         return output_(myRejected_(p.idToken), cb);
+      case "xpConfig":
+        return output_({ status: "ok", config: getXpConfig_(), labels: XP_LABELS, defaults: XP_DEFAULTS }, cb);
       case "activeNotifications":
         return output_(activeNotifications_(p.idToken), cb);
       case "submitResult":
@@ -192,8 +234,10 @@ function doPost(e) {
       case "grantBonusXp":   return handleGrantBonusXp_(email, data.targetEmail, data.amount, data.reason);
       case "createNotification": return handleCreateNotification_(email, data.message || "");
       case "setUserRole":    return handleSetUserRole_(email, data.targetEmail, data.role);
-case "saveXpRules":
+      case "saveXpRules":
         return handleSaveXpRules_(email, data.rules || []);
+      case "saveXpConfig":
+        return handleSaveXpConfig_(email, data.config || {});
       case "voidRecord":
         return handleVoidRecord_(email, data.recordType, data.recordId, data.reason || "");
       case "adminEditRecord":
@@ -256,10 +300,11 @@ function recordWork_(email, detail, files, category, clientRef) {
     File_URLs: urls.join("\n"), File_Meta: urls.length ? JSON.stringify(infos) : "",
     Category: category, Client_Ref: clientRef || ""
   });
-  var lv = awardXp_(email, XP.WORK_LOG, "work_log", id, clientRef);
+  var xpWork = getXpConfig_().WORK_LOG;
+  var lv = awardXp_(email, xpWork, "work_log", id, clientRef);
   var st = applyStreakBonus_(email, clientRef);
   evaluateAchievements_(email);
-  return json_({ status: "ok", type: "work", id: id, time: ts, files: urls.length, xp: XP.WORK_LOG, totalXp: lv.totalXp + st.awarded, streakBonus: st.awarded, streakDays: st.streak });
+  return json_({ status: "ok", type: "work", id: id, time: ts, files: urls.length, xp: xpWork, totalXp: lv.totalXp + st.awarded, streakBonus: st.awarded, streakDays: st.streak });
 }
 
 function recordIssue_(email, detail, files, category, clientRef) {
@@ -273,10 +318,11 @@ function recordIssue_(email, detail, files, category, clientRef) {
     Solution: "", Solved_By: "", File_URLs: urls.join("\n"), File_Meta: urls.length ? JSON.stringify(infos) : "",
     Category: category, Client_Ref: clientRef || ""
   });
-  var lv = awardXp_(email, XP.ISSUE, "issue", id, clientRef);
+  var xpIssue = getXpConfig_().ISSUE;
+  var lv = awardXp_(email, xpIssue, "issue", id, clientRef);
   var st = applyStreakBonus_(email, clientRef);
   evaluateAchievements_(email);
-  return json_({ status: "ok", type: "issue", id: id, time: ts, files: urls.length, xp: XP.ISSUE, totalXp: lv.totalXp + st.awarded, streakBonus: st.awarded, streakDays: st.streak });
+  return json_({ status: "ok", type: "issue", id: id, time: ts, files: urls.length, xp: xpIssue, totalXp: lv.totalXp + st.awarded, streakBonus: st.awarded, streakDays: st.streak });
 }
 
 function handleAddSolution_(email, name, issueId, solution) {
@@ -304,9 +350,10 @@ function handleAddSolution_(email, name, issueId, solution) {
   var curStatus = String(issSheet.getRange(row, imap["Status"]).getValue() || "Pending");
   if (curStatus === "Pending" || curStatus === "") issSheet.getRange(row, imap["Status"]).setValue("In-Progress");
 
-  var lv = awardXp_(email, XP.SOLUTION, "solution", sid, "");
+  var xpSol = getXpConfig_().SOLUTION;
+  var lv = awardXp_(email, xpSol, "solution", sid, "");
   evaluateAchievements_(email);
-  return json_({ status: "ok", solutionId: sid, time: ts, xp: XP.SOLUTION, totalXp: lv.totalXp });
+  return json_({ status: "ok", solutionId: sid, time: ts, xp: xpSol, totalXp: lv.totalXp });
 }
 
 /* แก้ไขแนวทางแก้ไขของตัวเอง (เสนอได้ครั้งเดียวต่อรายการ แต่แก้ข้อความได้) */
@@ -418,10 +465,11 @@ function handleResolveIssue_(email, issueId) {
   if (map["Solved_By"]) sh.getRange(row, map["Solved_By"]).setValue(solverName || solverEmail);
   if (map["Solved_By_Email"]) sh.getRange(row, map["Solved_By_Email"]).setValue(solverEmail);
 
-  var lv = awardXp_(email, XP.RESOLVE, "resolve_issue", issueId, "");
+  var xpRes = getXpConfig_().RESOLVE;
+  var lv = awardXp_(email, xpRes, "resolve_issue", issueId, "");
   evaluateAchievements_(email);
   if (solverEmail && solverEmail !== email) evaluateAchievements_(solverEmail);
-  return json_({ status: "ok", xp: XP.RESOLVE, totalXp: lv.totalXp, level: lv.level, title: lv.title, solver: solverName || solverEmail });
+  return json_({ status: "ok", xp: xpRes, totalXp: lv.totalXp, level: lv.level, title: lv.title, solver: solverName || solverEmail });
 }
 
 function handleLikeArticle_(email, issueId) {
@@ -441,7 +489,7 @@ function handleLikeArticle_(email, issueId) {
   if (row === -1) throw new Error("issue not found");
   var map = headerMap_(sh);
   var solverEmail = map["Solved_By_Email"] ? String(sh.getRange(row, map["Solved_By_Email"]).getValue() || "") : "";
-  if (solverEmail) { awardXp_(solverEmail, XP.LIKE_RECEIVED, "like_received", issueId, ""); evaluateAchievements_(solverEmail); }
+  if (solverEmail) { awardXp_(solverEmail, getXpConfig_().LIKE_RECEIVED, "like_received", issueId, ""); evaluateAchievements_(solverEmail); }
 
   var count = likes.filter(function (l) { return String(l.Issue_ID) === String(issueId); }).length + 1;
   return json_({ status: "ok", count: count });
@@ -1136,8 +1184,14 @@ function adminOverview_(idToken) {
     .sort(function (a, b) { return a.time < b.time ? 1 : -1; });
 
   var rules = getXpRules_().map(function (r) { return { level: r.level, title: r.title, min: r.min }; });
+  var xpConfig = getXpConfig_();
+  var xpLabels = {};
+  Object.keys(XP_LABELS).forEach(function (k) { xpLabels[k] = XP_LABELS[k]; });
+  var xpDefaults = {};
+  Object.keys(XP_DEFAULTS).forEach(function (k) { xpDefaults[k] = XP_DEFAULTS[k]; });
 
-  return { status: "ok", pendingApprovals: pending, users: users, notifications: notifs, rules: rules };
+  return { status: "ok", pendingApprovals: pending, users: users, notifications: notifs, rules: rules,
+           xpConfig: xpConfig, xpLabels: xpLabels, xpDefaults: xpDefaults };
 }
 
 /* รายการส่งข้อมูลทั้งหมด (งาน/ปัญหา) สำหรับแอดมิน ตรวจสอบ + ยกเลิก */
@@ -1648,7 +1702,7 @@ function handleResubmitRecord_(email, recordType, recordId, detail) {
   if (map["Rejected_By"])   sh.getRange(row, map["Rejected_By"]).setValue("");
   if (map["Rejected_At"])   sh.getRange(row, map["Rejected_At"]).setValue("");
 
-  var xp = type === "issue" ? XP.ISSUE : XP.WORK_LOG;
+  var xp = type === "issue" ? getXpConfig_().ISSUE : getXpConfig_().WORK_LOG;
   var lv = awardXp_(email, xp, type === "issue" ? "issue" : "work_log", recordId, "");
   evaluateAchievements_(email);
   return json_({ status: "ok", type: type, id: recordId, xp: xp, totalXp: lv.totalXp, level: lv.level, title: lv.title, message: "ส่งรายการใหม่เรียบร้อย" });

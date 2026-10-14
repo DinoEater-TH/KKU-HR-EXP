@@ -291,6 +291,14 @@
         </div>
 
         <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-1">🎯 ตั้งค่าแต้ม XP ต่อกิจกรรม</h3>
+          <p class="text-[11px] text-slate-400 mb-2">กำหนดว่าแต่ละกิจกรรมได้กี่แต้ม • มีผลกับการบันทึกครั้งถัดไป (ย้อนหลังไม่เปลี่ยน)</p>
+          <div id="adminXpCfg" class="space-y-2"></div>
+          <button id="adminXpCfgSave" class="mt-2 w-full py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกแต้ม XP</button>
+          <button id="adminXpCfgReset" class="mt-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">↺ คืนค่าเริ่มต้น</button>
+        </div>
+
+        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
           <h3 class="text-sm font-bold text-slate-700 mb-2">⭐ มอบ XP พิเศษ (Bonus)</h3>
           <select id="adminUserSelect" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2"></select>
           <div class="flex gap-2 mb-2">
@@ -323,7 +331,7 @@
           <p class="text-[11px] text-slate-400 mt-2">ไฟล์เรียงวันที่-เวลา ใหม่→เก่า พร้อมชื่อผู้บันทึก หมวดหมู่ (AI) สถานะ และลิงก์ไฟล์แนบ</p>
         </div>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.7</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.8</p>
       </div>
 
     </main>
@@ -1681,6 +1689,7 @@
         .map(n => `<p class="text-[11px] text-slate-400 truncate">📌 ${esc(n.message)} · ${esc(n.time)}</p>`).join("");
 
       renderRules(data.rules || []);
+    renderXpCfg(data.xpConfig, data.xpLabels, data.xpDefaults);
       loadAdminSubmissions();
     } catch (err) {
       $("adminPendingList").innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
@@ -2161,6 +2170,45 @@
     if (ok) { loadProfile(); setTimeout(loadAdmin, 1200); }
   }
 
+  /* ---------- ตั้งค่าแต้ม XP ต่อกิจกรรม (Phase 6.8) ---------- */
+  function xpCfgRowHtml(key, label, value, def) {
+    return `<div class="xpcfg-row flex items-center gap-2">
+      <label class="flex-1 min-w-0 text-xs text-slate-600">${esc(label)}</label>
+      <input class="xpcfg-input w-24 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-right focus:outline-none focus:ring-2 focus:ring-emerald-500" type="number" min="0" step="1" max="100000" value="${esc(value)}" data-key="${esc(key)}" data-def="${esc(def)}" />
+      <span class="text-[10px] text-slate-400 w-6">XP</span>
+    </div>`;
+  }
+
+  function renderXpCfg(cfg, labels, defaults) {
+    const wrap = $("adminXpCfg");
+    if (!wrap) return;
+    const lab = labels || {}, def = defaults || {}, c = cfg || {};
+    const keys = Object.keys(lab).length ? Object.keys(lab) : Object.keys(def);
+    wrap.innerHTML = "";
+    if (!keys.length) { wrap.innerHTML = '<p class="text-[11px] text-slate-400">ไม่พบข้อมูลแต้ม XP</p>'; return; }
+    keys.forEach(k => wrap.insertAdjacentHTML("beforeend",
+      xpCfgRowHtml(k, lab[k] || k, (c[k] != null ? c[k] : def[k]), (def[k] != null ? def[k] : 0))));
+  }
+
+  function resetXpCfg() {
+    document.querySelectorAll("#adminXpCfg .xpcfg-input").forEach(inp => { inp.value = inp.dataset.def || 0; });
+    showToast("คืนค่าเริ่มต้นแล้ว — อย่าลืมกดบันทึก", "warn");
+  }
+
+  async function saveXpCfg() {
+    const inputs = Array.from(document.querySelectorAll("#adminXpCfg .xpcfg-input"));
+    if (!inputs.length) { showToast("ไม่พบช่องตั้งค่าแต้ม XP", "warn"); return; }
+    const config = {};
+    inputs.forEach(inp => {
+      let v = Math.round(Number(inp.value));
+      if (isNaN(v) || v < 0) v = Number(inp.dataset.def) || 0;
+      if (v > 100000) v = 100000;
+      config[inp.dataset.key] = v;
+    });
+    const ok = await postAction({ action:"saveXpConfig", config, email:state.user.email, idToken:state.idToken }, "✅ บันทึกแต้ม XP ต่อกิจกรรมแล้ว");
+    if (ok) setTimeout(loadAdmin, 1200);
+  }
+
   async function doExport(type, format) {
     showToast("กำลังเตรียมไฟล์...", "warn");
     try {
@@ -2215,6 +2263,8 @@
     $("adminRoleSend").addEventListener("click", (e) => runBusy(e.currentTarget, adminSetRole));
     $("adminRuleAdd").addEventListener("click", addRuleRow);
     $("adminRuleSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveRules));
+    $("adminXpCfgSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveXpCfg));
+    $("adminXpCfgReset").addEventListener("click", resetXpCfg);
     $("adminRules").addEventListener("click", (e) => {
       const btn = e.target.closest(".rule-remove");
       if (btn) { const r = btn.closest(".rule-row"); if (r) r.remove(); }
