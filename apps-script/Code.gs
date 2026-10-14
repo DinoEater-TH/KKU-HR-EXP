@@ -1,5 +1,5 @@
 /************************************************************************
- * KKU HR Exp — Phase 6.4 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 6.5 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
  * โครงสร้างทั้งหมด (Phase 1-5)
@@ -16,6 +16,7 @@
  *   RPG   : โบนัส Streak (บันทึกต่อเนื่องรายวัน + milestone) (Phase 6.0)
  *   RPG   : Achievements / เหรียญตรา ปลดล็อก + XP (Phase 6.1)
  *   Edit  : เจ้าของแก้ไขข้อความรายการของตัวเองได้ (Phase 6.4)
+ *   Soln  : เสนอแนวทางแก้ไขได้ครั้งเดียว/รายการ + แก้ข้อความที่เสนอได้ (Phase 6.5)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -114,7 +115,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.4", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.5", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -176,6 +177,7 @@ function doPost(e) {
       case "issue":          return handleIssue_(email, data.detail || "", data.files || [], data.category || "issue", data.clientRef);
       case "autoSubmit":     return handleAutoSubmit_(email, data.detail || "", data.files || [], data.clientRef);
       case "addSolution":    return handleAddSolution_(email, data.name || "", data.issueId, data.solution || "");
+      case "editSolution":   return handleEditSolution_(email, data.issueId, data.solution || "");
       case "addFiles":       return handleAddFiles_(email, data.recordType, data.recordId, data.files || []);
       case "addLinks":       return handleAddLinks_(email, data.recordType, data.recordId, data.links || []);
       case "editDetail":     return handleEditDetail_(email, data.recordType, data.recordId, data.detail || "");
@@ -265,13 +267,19 @@ function recordIssue_(email, detail, files, category, clientRef) {
 
 function handleAddSolution_(email, name, issueId, solution) {
   if (!issueId) throw new Error("missing issueId");
+  solution = String(solution || "").trim();
   if (!solution) throw new Error("missing solution");
+  if (solution.length < MIN_DETAIL_CHARS) throw new Error("ข้อความต้องมีอย่างน้อย " + MIN_DETAIL_CHARS + " ตัวอักษร");
 
   var issSheet = getSheet_(SHEETS.ISSUES, HEADERS.ISSUES);
   var row = findRowByHeader_(issSheet, "Issue_ID", issueId);
   if (row === -1) throw new Error("issue not found");
 
   var solSheet = getSheet_(SHEETS.SOLUTIONS, HEADERS.SOLUTIONS);
+  if (findSolutionRow_(solSheet, issueId, email) !== -1) {
+    throw new Error("คุณเสนอแนวทางแก้ไขสำหรับรายการนี้ไปแล้ว — แก้ไขข้อความเดิมได้ที่ปุ่ม ✏️ แก้ไข");
+  }
+
   var ts = nowStr_();
   var sid = "SOL-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_();
   appendByHeaders_(solSheet, HEADERS.SOLUTIONS, {
@@ -285,6 +293,22 @@ function handleAddSolution_(email, name, issueId, solution) {
   var lv = awardXp_(email, XP.SOLUTION, "solution", sid, "");
   evaluateAchievements_(email);
   return json_({ status: "ok", solutionId: sid, time: ts, xp: XP.SOLUTION, totalXp: lv.totalXp });
+}
+
+/* แก้ไขแนวทางแก้ไขของตัวเอง (เสนอได้ครั้งเดียวต่อรายการ แต่แก้ข้อความได้) */
+function handleEditSolution_(email, issueId, solution) {
+  if (!issueId) throw new Error("missing issueId");
+  solution = String(solution || "").trim();
+  if (!solution) throw new Error("ไม่มีข้อความ");
+  if (solution.length < MIN_DETAIL_CHARS) throw new Error("ข้อความต้องมีอย่างน้อย " + MIN_DETAIL_CHARS + " ตัวอักษร");
+  if (solution.length > 5000) throw new Error("ข้อความยาวเกินไป (สูงสุด 5000 ตัวอักษร)");
+
+  var solSheet = getSheet_(SHEETS.SOLUTIONS, HEADERS.SOLUTIONS);
+  var srow = findSolutionRow_(solSheet, issueId, email);
+  if (srow === -1) throw new Error("ไม่พบแนวทางแก้ไขของคุณสำหรับรายการนี้");
+  var map = headerMap_(solSheet);
+  solSheet.getRange(srow, map["Solution_Text"]).setValue(solution);
+  return json_({ status: "ok", issueId: issueId, solution: solution });
 }
 
 function handleAddFiles_(email, recordType, recordId, files) {
@@ -526,7 +550,8 @@ function pendingIssues_(idToken) {
   sols.forEach(function (s) {
     var k = String(s.Issue_ID);
     (byIssue[k] = byIssue[k] || []).push({
-      text: String(s.Solution_Text || ""), by: String(s.Proposer_Name || "เพื่อนร่วมงาน"), time: String(s.Timestamp || "")
+      text: String(s.Solution_Text || ""), by: String(s.Proposer_Name || "เพื่อนร่วมงาน"), time: String(s.Timestamp || ""),
+      mine: !!me && String(s.Proposed_By || "") === String(me)
     });
   });
 
@@ -536,10 +561,15 @@ function pendingIssues_(idToken) {
     var status = String(r.Status || "Pending");
     if (status === "Solved" || status === "Closed" || status === "Void") continue;
     var canResolve = !!me && (admin || String(r.User_Email) === me);
+    var mySolution = null;
+    if (me) {
+      var mineArr = (byIssue[String(r.Issue_ID)] || []).filter(function (x) { return x.mine; });
+      if (mineArr.length) mySolution = { text: mineArr[0].text };
+    }
     list.push({
       id: String(r.Issue_ID || ""), time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
       status: status, files: splitUrls_(r.File_URLs), links: parseLinks_(r.Links), solutions: byIssue[String(r.Issue_ID)] || [],
-      canResolve: canResolve
+      canResolve: canResolve, mySolution: mySolution
     }); // ไม่ส่ง User_Email
   }
   return { status: "ok", count: list.length, issues: list };
@@ -1550,6 +1580,20 @@ function findRowByHeader_(sh, header, value) {
   var col = map[header];
   var vals = sh.getRange(2, col, last - 1, 1).getValues();
   for (var i = 0; i < vals.length; i++) if (String(vals[i][0]) === String(value)) return i + 2;
+  return -1;
+}
+
+/* หาแถวแนวทางแก้ไขของผู้ใช้คนหนึ่งในรายการหนึ่ง (คืนเลขแถว หรือ -1) */
+function findSolutionRow_(sh, issueId, email) {
+  var map = headerMap_(sh);
+  if (!map["Issue_ID"] || !map["Proposed_By"]) return -1;
+  var last = sh.getLastRow();
+  if (last < 2) return -1;
+  var vals = sh.getRange(2, 1, last - 1, sh.getLastColumn()).getValues();
+  for (var i = 0; i < vals.length; i++) {
+    if (String(vals[i][map["Issue_ID"] - 1]) === String(issueId) &&
+        String(vals[i][map["Proposed_By"] - 1] || "") === email) return i + 2;
+  }
   return -1;
 }
 

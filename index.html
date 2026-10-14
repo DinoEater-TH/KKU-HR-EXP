@@ -107,7 +107,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.4</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.5</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -1005,6 +1005,7 @@
       state.boardItems = {}; data.issues.forEach(it => state.boardItems[it.id] = it);
       wrap.innerHTML = data.issues.map(issueCard).join("");
       wrap.querySelectorAll("[data-solve]").forEach(b => b.addEventListener("click", () => runBusy(b, () => submitSolution(b.dataset.solve))));
+      wrap.querySelectorAll("[data-edit-solve]").forEach(b => b.addEventListener("click", () => runBusy(b, () => editSolution(b.dataset.editSolve))));
       wrap.querySelectorAll("[data-resolve]").forEach(b => b.addEventListener("click", () => runBusy(b, () => resolveIssue(b.dataset.resolve))));
     } catch (err) {
       wrap.innerHTML = `<p class="text-center text-sm text-red-500 py-8">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
@@ -1017,8 +1018,21 @@
       : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">รอแก้ไข</span>`;
     const files = it.files.length ? `<div class="mt-2 flex flex-wrap gap-2">${it.files.map((u,i)=>`<a href="${esc(u)}" target="_blank" class="text-[11px] px-2 py-1 rounded-lg bg-slate-100 text-slate-600">📎 ไฟล์ ${i+1}</a>`).join("")}</div>` : "";
     const links = linkBadges(it.links);
-    const sols = it.solutions.length ? `<div class="mt-3 space-y-2">${it.solutions.map(s=>`<div class="bg-emerald-50 rounded-lg p-2.5"><p class="text-[11px] text-emerald-700 font-semibold">💡 ${esc(s.by)} · ${esc(s.time)}</p><p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(s.text)}</p></div>`).join("")}</div>` : "";
+    const sols = it.solutions.length ? `<div class="mt-3 space-y-2">${it.solutions.map(s=>`<div class="bg-emerald-50 rounded-lg p-2.5"><p class="text-[11px] text-emerald-700 font-semibold">💡 ${esc(s.by)}${s.mine ? ' <span class="text-amber-700">(ของฉัน)</span>' : ""} · ${esc(s.time)}</p><p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(s.text)}</p></div>`).join("")}</div>` : "";
     const resolveBtn = it.canResolve ? `<button data-resolve="${esc(it.id)}" class="mt-2 w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold active:scale-95 transition">✅ ยืนยันว่าแก้ไขสำเร็จ (+50 XP)</button>` : "";
+    const solBlock = it.mySolution
+      ? `<details class="mt-3">
+          <summary class="cursor-pointer text-xs font-semibold text-emerald-700 select-none">✏️ แก้ไขแนวทางแก้ไขของฉัน</summary>
+          <textarea id="sol-${esc(it.id)}" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">${esc(it.mySolution.text)}</textarea>
+          <button data-edit-solve="${esc(it.id)}" class="mt-2 w-full py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold active:scale-95 transition">บันทึกการแก้ไข</button>
+          <p class="mt-1 text-[11px] text-slate-400">เสนอได้ครั้งเดียวต่อรายการ — แก้ข้อความเดิมได้</p>
+        </details>`
+      : `<details class="mt-3">
+          <summary class="cursor-pointer text-xs font-semibold text-red-700 select-none">✍️ เสนอแนวทางแก้ไข (+25 XP)</summary>
+          <textarea id="sol-${esc(it.id)}" rows="2" placeholder="พิมพ์แนวทางแก้ไข..." class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
+          <button data-solve="${esc(it.id)}" class="mt-2 w-full py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold active:scale-95 transition">ส่งแนวทางแก้ไข</button>
+          <p class="mt-1 text-[11px] text-slate-400">เสนอได้ครั้งเดียวต่อรายการ</p>
+        </details>`;
     return `
       <div class="card bg-white rounded-2xl shadow-sm p-4">
         <div class="flex items-center justify-between gap-2">
@@ -1027,11 +1041,7 @@
         <p class="mt-2 text-sm text-slate-800 whitespace-pre-wrap">${esc(it.detail)}</p>
         <p class="mt-1 text-[11px] text-slate-400">🕒 ${esc(it.time)} · โดยไม่ระบุตัวตน</p>
         ${files}${links ? `<div class="mt-2 flex flex-wrap gap-2">${links}</div>` : ""}${sols}
-        <details class="mt-3">
-          <summary class="cursor-pointer text-xs font-semibold text-red-700 select-none">✍️ เสนอแนวทางแก้ไข (+25 XP)</summary>
-          <textarea id="sol-${esc(it.id)}" rows="2" placeholder="พิมพ์แนวทางแก้ไข..." class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
-          <button data-solve="${esc(it.id)}" class="mt-2 w-full py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold active:scale-95 transition">ส่งแนวทางแก้ไข</button>
-        </details>
+        ${solBlock}
         ${resolveBtn}
       </div>`;
   }
@@ -1039,9 +1049,17 @@
   async function submitSolution(issueId) {
     const ta = $("sol-" + issueId);
     const text = (ta && ta.value || "").trim();
-    if (!text) { showToast("กรุณาพิมพ์แนวทางแก้ไข", "warn"); return; }
+    if (text.length < 5) { showToast("กรุณาพิมพ์แนวทางแก้ไขอย่างน้อย 5 ตัวอักษร", "warn"); return; }
     const ok = await postAction({ action:"addSolution", issueId, solution:text, email:state.user.email, name:state.user.name, idToken:state.idToken }, "✅ ส่งแนวทางแก้ไขแล้ว (+25 XP)");
     if (ok) { setTimeout(loadBoard, 1400); loadProfile(); }
+  }
+
+  async function editSolution(issueId) {
+    const ta = $("sol-" + issueId);
+    const text = (ta && ta.value || "").trim();
+    if (text.length < 5) { showToast("กรุณาพิมพ์แนวทางแก้ไขอย่างน้อย 5 ตัวอักษร", "warn"); return; }
+    const ok = await postAction({ action:"editSolution", issueId, solution:text, email:state.user.email, idToken:state.idToken }, "✅ แก้ไขแนวทางแก้ไขแล้ว");
+    if (ok) setTimeout(loadBoard, 1200);
   }
 
   async function resolveIssue(issueId) {
