@@ -107,7 +107,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.2</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.4</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -344,6 +344,25 @@
     </div>
   </div>
 
+  <!-- ================= Modal: แก้ไขข้อความรายการ ================= -->
+  <div id="editModal" class="hidden fixed inset-0 z-[76] bg-black/50 flex items-end sm:items-center justify-center sm:p-5">
+    <div class="w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden pop max-h-[92vh] flex flex-col">
+      <div class="p-5 text-center text-white bg-gradient-to-r from-amber-600 to-orange-700">
+        <div class="text-3xl">✏️</div>
+        <h2 class="text-lg font-bold mt-1">แก้ไขข้อความ</h2>
+        <p class="text-[11px] text-white/80 mt-0.5">แก้ไขรายละเอียดของรายการนี้ได้ทันที</p>
+      </div>
+      <div class="p-5 overflow-y-auto">
+        <textarea id="editDetailText" rows="5" placeholder="พิมพ์รายละเอียด..." class="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+        <p class="mt-1 text-[11px] text-slate-400">อย่างน้อย 5 ตัวอักษร · แก้ได้เฉพาะรายการของคุณเอง</p>
+      </div>
+      <div class="p-4 pt-0 flex gap-2">
+        <button id="editCancel" class="flex-1 py-3 rounded-xl bg-slate-200 text-slate-700 font-bold active:scale-[.98] transition">ยกเลิก</button>
+        <button id="editSave" class="flex-[2] py-3 rounded-xl bg-amber-600 text-white font-bold active:scale-[.98] transition">บันทึกการแก้ไข</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= Modal: ยกเลิกรายการ (admin) ================= -->
   <div id="voidModal" class="hidden fixed inset-0 z-[75] bg-black/50 flex items-center justify-center p-5">
     <div class="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden pop">
@@ -391,7 +410,7 @@
   /* ============================================================
      KKU HR Exp — Phase 6.0 (index.html) · RPG: Juice + Streak + Character Card
      ============================================================ */
-  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, adminSubs:[], dashData:null, profileData:null, boardItems:{}, kbItems:{}, historyItems:{}, sound: localStorage.getItem("hrx_sound") !== "0" };
+  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], dashData:null, profileData:null, boardItems:{}, kbItems:{}, historyItems:{}, sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
   const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
 
@@ -1093,6 +1112,7 @@
         const it = state.historyItems[b.dataset.editlinks] || {};
         openLinkModal(b.dataset.linkstype, b.dataset.editlinks, it.links);
       }));
+      wrap.querySelectorAll("[data-editdetail]").forEach(b => b.addEventListener("click", () => openEditModal(b.dataset.edittype, b.dataset.editdetail)));
     } catch (err) {
       wrap.innerHTML = `<p class="text-center text-sm text-red-500 py-8">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }
@@ -1115,7 +1135,8 @@
         <p class="mt-2 text-sm text-slate-800 whitespace-pre-wrap">${esc(it.detail)}</p>
         <div class="mt-2 flex flex-wrap gap-2 items-center">${files}</div>
         ${links ? `<div class="mt-2 flex flex-wrap gap-2">${links}</div>` : ""}
-        <button data-backfill="${esc(it.id)}" data-backfill-type="${it.type}" class="mt-3 w-full py-2 rounded-lg border border-dashed border-red-300 text-red-700 text-xs font-semibold active:scale-95 transition">📎 แนบรูป/ไฟล์เพิ่มเติม</button>
+        <button data-editdetail="${esc(it.id)}" data-edittype="${it.type}" class="mt-3 w-full py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold active:scale-95 transition">✏️ แก้ไขข้อความ</button>
+        <button data-backfill="${esc(it.id)}" data-backfill-type="${it.type}" class="mt-2 w-full py-2 rounded-lg border border-dashed border-red-300 text-red-700 text-xs font-semibold active:scale-95 transition">📎 แนบรูป/ไฟล์เพิ่มเติม</button>
         ${linkBtn}
         ${resolveBtn}
       </div>`;
@@ -1179,6 +1200,28 @@
     if (ok) {
       $("linkModal").classList.add("hidden");
       state.linkCtx = null;
+      setTimeout(() => { if (ctx.type === "issue") { loadBoard(); loadKb(); } loadHistory(); }, 1200);
+    }
+  }
+
+  /* ---------- แก้ไขข้อความรายการ (เจ้าของแก้ของตัวเองได้) ---------- */
+  function openEditModal(type, id) {
+    const it = (state.historyItems || {})[id] || {};
+    state.editCtx = { type, id };
+    $("editDetailText").value = it.detail || "";
+    $("editModal").classList.remove("hidden");
+    setTimeout(() => { try { $("editDetailText").focus(); } catch (e) {} }, 50);
+  }
+
+  async function saveEditDetail() {
+    if (!state.editCtx) return;
+    const detail = $("editDetailText").value.trim();
+    if (detail.length < 5) { showToast("ข้อความต้องมีอย่างน้อย 5 ตัวอักษร", "warn"); return; }
+    const ctx = state.editCtx;
+    const ok = await postAction({ action:"editDetail", recordType:ctx.type, recordId:ctx.id, detail, email:state.user.email, idToken:state.idToken }, "✅ แก้ไขข้อความแล้ว");
+    if (ok) {
+      $("editModal").classList.add("hidden");
+      state.editCtx = null;
       setTimeout(() => { if (ctx.type === "issue") { loadBoard(); loadKb(); } loadHistory(); }, 1200);
     }
   }
@@ -1750,6 +1793,8 @@
     $("linkAddRow").addEventListener("click", addLinkRow);
     $("linkCancel").addEventListener("click", () => { $("linkModal").classList.add("hidden"); state.linkCtx = null; });
     $("linkSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveLinks));
+    $("editCancel").addEventListener("click", () => { $("editModal").classList.add("hidden"); state.editCtx = null; });
+    $("editSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveEditDetail));
     $("linkRows").addEventListener("click", (e) => {
       const btn = e.target.closest(".link-remove");
       if (btn) { const r = btn.closest(".link-row"); if (r) r.remove(); }

@@ -1,5 +1,5 @@
 /************************************************************************
- * KKU HR Exp — Phase 6.1 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 6.4 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
  * โครงสร้างทั้งหมด (Phase 1-5)
@@ -15,6 +15,7 @@
  *   Dash  : แดชบอร์ดผู้ใช้ + จัดอันดับ + ดูข้อมูลรายบุคคล (admin) (Phase 5.2)
  *   RPG   : โบนัส Streak (บันทึกต่อเนื่องรายวัน + milestone) (Phase 6.0)
  *   RPG   : Achievements / เหรียญตรา ปลดล็อก + XP (Phase 6.1)
+ *   Edit  : เจ้าของแก้ไขข้อความรายการของตัวเองได้ (Phase 6.4)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -113,7 +114,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.1", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.4", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -177,6 +178,7 @@ function doPost(e) {
       case "addSolution":    return handleAddSolution_(email, data.name || "", data.issueId, data.solution || "");
       case "addFiles":       return handleAddFiles_(email, data.recordType, data.recordId, data.files || []);
       case "addLinks":       return handleAddLinks_(email, data.recordType, data.recordId, data.links || []);
+      case "editDetail":     return handleEditDetail_(email, data.recordType, data.recordId, data.detail || "");
       case "resolveIssue":   return handleResolveIssue_(email, data.issueId);
       case "likeArticle":    return handleLikeArticle_(email, data.issueId);
       case "ackNotification":return handleAckNotification_(email, data.notifIds || []);
@@ -330,6 +332,31 @@ function handleAddLinks_(email, recordType, recordId, links) {
 
   sh.getRange(row, col).setValue(serializeLinks_(clean));
   return json_({ status: "ok", id: recordId, count: clean.length, links: clean });
+}
+
+/* แก้ไขข้อความ (Detail) ของรายการตัวเอง — เจ้าของรายการเท่านั้น */
+function handleEditDetail_(email, recordType, recordId, detail) {
+  if (!recordId) throw new Error("missing recordId");
+  detail = String(detail || "").trim();
+  if (!detail) throw new Error("ไม่มีข้อความ");
+  if (detail.length < MIN_DETAIL_CHARS) throw new Error("ข้อความต้องมีอย่างน้อย " + MIN_DETAIL_CHARS + " ตัวอักษร");
+  if (detail.length > 5000) throw new Error("ข้อความยาวเกินไป (สูงสุด 5000 ตัวอักษร)");
+
+  var sh, idHeader;
+  if (recordType === "issue") { sh = getSheet_(SHEETS.ISSUES, HEADERS.ISSUES); idHeader = "Issue_ID"; }
+  else { sh = getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS); idHeader = "Log_ID"; }
+
+  var row = findRowByHeader_(sh, idHeader, recordId);
+  if (row === -1) throw new Error("record not found");
+  assertOwner_(sh, row, "User_Email", email);
+
+  var map = headerMap_(sh);
+  var status = String(sh.getRange(row, map["Status"]).getValue() || "");
+  if (status === "Void") throw new Error("รายการนี้ถูกยกเลิกแล้ว แก้ไขไม่ได้");
+
+  var oldDetail = String(sh.getRange(row, map["Detail"]).getValue() || "");
+  sh.getRange(row, map["Detail"]).setValue(detail);
+  return json_({ status: "ok", id: recordId, type: recordType === "issue" ? "issue" : "work", detail: detail, previous: oldDetail });
 }
 
 function handleResolveIssue_(email, issueId) {
