@@ -1,5 +1,5 @@
 /************************************************************************
- * KKU HR Exp — Phase 6.13 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 6.14 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
  * โครงสร้างทั้งหมด (Phase 1-5)
@@ -18,6 +18,7 @@
  *   Edit  : เจ้าของแก้ไขข้อความรายการของตัวเองได้ (Phase 6.4)
  *   Soln  : เสนอแนวทางแก้ไขได้ครั้งเดียว/รายการ + แก้ข้อความที่เสนอได้ (Phase 6.5)
  *   Back  : บันทึกงานย้อนหลังได้ (ระบุวันที่/เวลา) — ย้อนหลังเกิน 3 เดือนไม่ได้ XP (Phase 6.13)
+ *   Dedupe: ซ่อนวิธีแก้ไขที่ซ้ำ/ใกล้เคียงกันในบอร์ดและคลังองค์ความรู้ (Phase 6.14)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -249,7 +250,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.13", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.14", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -290,7 +291,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.13" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.14" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -452,6 +453,19 @@ function handleAddSolution_(email, name, issueId, solution) {
   var solSheet = getSheet_(SHEETS.SOLUTIONS, HEADERS.SOLUTIONS);
   if (findSolutionRow_(solSheet, issueId, email) !== -1) {
     throw new Error("คุณเสนอแนวทางแก้ไขสำหรับรายการนี้ไปแล้ว — แก้ไขข้อความเดิมได้ที่ปุ่ม ✏️ แก้ไข");
+  }
+
+  // กันวิธีแก้ไขที่ซ้ำ/ใกล้เคียงกับที่มีผู้เสนอไว้แล้ว (Phase 6.14)
+  var normNew = normalizeText_(solution);
+  var existed = readObjects_(solSheet, HEADERS.SOLUTIONS);
+  for (var i = 0; i < existed.length; i++) {
+    if (String(existed[i].Issue_ID) !== String(issueId)) continue;
+    if (solutionRemoved_(existed[i])) continue;
+    var n = normalizeText_(String(existed[i].Solution_Text || ""));
+    if (!n) continue;
+    if (n === normNew || textSimilarity_(normNew, n) >= DUP_SIMILARITY) {
+      throw new Error("มีผู้เสนอแนวทางแก้ไขที่ใกล้เคียงกันแล้ว ลองเสนอวิธีที่แตกต่างออกไป");
+    }
   }
 
   var ts = nowStr_();
@@ -747,7 +761,7 @@ function pendingIssues_(idToken) {
     }
     list.push({
       id: String(r.Issue_ID || ""), time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
-      status: status, files: fileMetaList_(r), links: parseLinks_(r.Links), solutions: byIssue[String(r.Issue_ID)] || [],
+      status: status, files: fileMetaList_(r), links: parseLinks_(r.Links), solutions: dedupeSolutionsByText_(byIssue[String(r.Issue_ID)] || [], function (x) { return x.text; }),
       canResolve: canResolve, mySolution: mySolution
     }); // ไม่ส่ง User_Email
   }
@@ -811,7 +825,7 @@ function knowledgeBase_(idToken, emailParam) {
     var likeList = likes.filter(function (l) { return String(l.Issue_ID) === id; });
     list.push({
       id: id, time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
-      files: fileMetaList_(r), links: parseLinks_(r.Links), solutions: byIssue[id] || [],
+      files: fileMetaList_(r), links: parseLinks_(r.Links), solutions: dedupeSolutionsByText_(byIssue[id] || [], function (x) { return x.text; }),
       solver: String(r.Solved_By || ""), likeCount: likeList.length,
       likedByMe: !!me && likeList.some(function (l) { return String(l.User_Email) === me; })
     });
@@ -1735,6 +1749,23 @@ function textSimilarity_(a, b) {
     union += Math.max(x, y);
   });
   return union ? inter / union : 0;
+}
+
+/* ซ่อนวิธีแก้ไขที่ซ้ำ/ใกล้เคียงกัน (เทียบข้อความ — เก็บอันแรกไว้) (Phase 6.14) */
+function dedupeSolutionsByText_(items, getText) {
+  var kept = [];
+  (items || []).forEach(function (it) {
+    var n = normalizeText_(getText(it));
+    if (n) {
+      for (var i = 0; i < kept.length; i++) {
+        var kn = normalizeText_(getText(kept[i]));
+        if (!kn) continue;
+        if (kn === n || textSimilarity_(n, kn) >= DUP_SIMILARITY) return; // ซ้ำ → ข้าม
+      }
+    }
+    kept.push(it);
+  });
+  return kept;
 }
 
 /* แปลง "yyyy-MM-dd HH:mm:ss" (เวลาไทย) เป็น Date (Bangkok = UTC+7) */

@@ -126,7 +126,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.13"
+      FRONT_PHASE      : "6.14"
     };
   </script>
 
@@ -149,7 +149,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.13</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.14</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -462,7 +462,7 @@
           </div>
         </section>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.13</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.14</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -672,7 +672,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.13 (index.html) · backdated work logs (no XP if over 3 months)
+     KKU HR Exp — Phase 6.14 (index.html) · hide duplicate/similar solutions in board & KB
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -1576,10 +1576,46 @@
       </div>`;
   }
 
+  /* ---------- ตรวจวิธีแก้ไขซ้ำ/ใกล้เคียง (Phase 6.14) ---------- */
+  const DUP_SIMILARITY = 0.85;
+  function normText_(s) {
+    return String(s || "").toLowerCase().replace(/[^\u0E00-\u0E7Fa-zA-Z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  }
+  function bigrams_(s) {
+    const out = [];
+    for (let i = 0; i < s.length - 1; i++) out.push(s.substr(i, 2));
+    return out;
+  }
+  function textSim_(a, b) {
+    const ga = bigrams_(a), gb = bigrams_(b);
+    if (!ga.length && !gb.length) return 1;
+    if (!ga.length || !gb.length) return 0;
+    const ca = {}, cb = {}, keys = {};
+    for (const g of ga) { ca[g] = (ca[g] || 0) + 1; keys[g] = 1; }
+    for (const g of gb) { cb[g] = (cb[g] || 0) + 1; keys[g] = 1; }
+    let inter = 0, union = 0;
+    Object.keys(keys).forEach(k => { const x = ca[k] || 0, y = cb[k] || 0; inter += Math.min(x, y); union += Math.max(x, y); });
+    return union ? inter / union : 0;
+  }
+  function findSimilarSolution_(issueId, text, excludeMine) {
+    const it = state.boardItems && state.boardItems[issueId];
+    if (!it || !it.solutions) return null;
+    const n = normText_(text);
+    if (!n) return null;
+    for (const s of it.solutions) {
+      if (excludeMine && s.mine) continue;
+      const sn = normText_(s.text);
+      if (!sn) continue;
+      if (sn === n || textSim_(n, sn) >= DUP_SIMILARITY) return s;
+    }
+    return null;
+  }
+
   async function submitSolution(issueId) {
     const ta = $("sol-" + issueId);
     const text = (ta && ta.value || "").trim();
     if (text.length < 5) { showToast("กรุณาพิมพ์แนวทางแก้ไขอย่างน้อย 5 ตัวอักษร", "warn"); return; }
+    if (findSimilarSolution_(issueId, text, false)) { showToast("มีผู้เสนอวิธีนี้หรือวิธีที่ใกล้เคียงกันอยู่แล้ว ลองเสนอวิธีที่แตกต่างออกไป", "warn"); return; }
     const ok = await postAction({ action:"addSolution", issueId, solution:text, email:state.user.email, name:state.user.name, idToken:state.idToken }, "✅ ส่งแนวทางแก้ไขแล้ว (+25 XP)");
     if (ok) { setTimeout(loadBoard, 1400); loadProfile(); }
   }
@@ -1588,6 +1624,7 @@
     const ta = $("sol-" + issueId);
     const text = (ta && ta.value || "").trim();
     if (text.length < 5) { showToast("กรุณาพิมพ์แนวทางแก้ไขอย่างน้อย 5 ตัวอักษร", "warn"); return; }
+    if (findSimilarSolution_(issueId, text, true)) { showToast("วิธีนี้ใกล้เคียงกับที่มีอยู่ในรายการ ลองแก้ให้แตกต่างออกไป", "warn"); return; }
     const ok = await postAction({ action:"editSolution", issueId, solution:text, email:state.user.email, idToken:state.idToken }, "✅ แก้ไขแนวทางแก้ไขแล้ว");
     if (ok) setTimeout(loadBoard, 1200);
   }
