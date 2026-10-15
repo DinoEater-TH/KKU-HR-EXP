@@ -118,7 +118,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.8.3"
+      FRONT_PHASE      : "6.10"
     };
   </script>
 
@@ -141,7 +141,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.8.3</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.10</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -359,6 +359,22 @@
         </div>
 
         <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-1">🏅 จัดการเหรียญตรา / ความสำเร็จ</h3>
+          <p class="text-[11px] text-slate-400 mb-2">เพิ่ม/แก้ไข/ลบเหรียญตราได้ • กำหนดเงื่อนไข ค่าเป้าหมาย และแต้ม XP • มีผลทันทีกับทุกคน</p>
+          <div id="adminAchCfg" class="space-y-2"></div>
+          <button id="adminAchAdd" class="mt-2 w-full py-2 rounded-xl border border-dashed border-amber-300 text-amber-700 text-sm font-semibold active:scale-95 transition">＋ เพิ่มเหรียญตรา</button>
+          <button id="adminAchSave" class="mt-2 w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกเหรียญตรา</button>
+          <button id="adminAchReset" class="mt-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">↺ คืนค่าเริ่มต้น</button>
+          <p class="text-[10px] text-slate-400 mt-2">หมายเหตุ: เหรียญที่ผู้ใช้ปลดล็อกไปแล้วจะยังอยู่ แม้จะลบหรือแก้เงื่อนไขภายหลัง</p>
+        </div>
+
+        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-1">📚 จัดการคลังองค์ความรู้ (Knowledge Base)</h3>
+          <p class="text-[11px] text-slate-400 mb-2">รายการที่อนุมัติขึ้นคลังแล้ว • ลบออกจากคลังได้ (ไม่กระทบ XP) • เฉพาะแอดมิน</p>
+          <div id="adminKbList" class="space-y-2"></div>
+        </div>
+
+        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
           <h3 class="text-sm font-bold text-slate-700 mb-2">⭐ มอบ XP พิเศษ (Bonus)</h3>
           <select id="adminUserSelect" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2"></select>
           <div class="flex gap-2 mb-2">
@@ -391,7 +407,7 @@
           <p class="text-[11px] text-slate-400 mt-2">ไฟล์เรียงวันที่-เวลา ใหม่→เก่า พร้อมชื่อผู้บันทึก หมวดหมู่ (AI) สถานะ และลิงก์ไฟล์แนบ</p>
         </div>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.8.3</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.10</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -601,12 +617,12 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.8.3 (index.html) · PWA + bottom nav + header XP + floating search
+     KKU HR Exp — Phase 6.10 (index.html) · admin achievements config + soft-delete + KB management
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
   let userSearchTimer = null;
-  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
+  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", reject:"รายการถูกตีกลับ (รอส่งใหม่)", remove:"รายการถูกลบโดยแอดมิน", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -1556,13 +1572,36 @@
 
   function historyCard(it) {
     const isWork = it.type === "work";
-    const badge = isWork
-      ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">บันทึกงาน</span>`
-      : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">ปัญหา · ${esc(it.status || "Pending")}</span>`;
+    const isSolution = it.type === "solution";
+    const removed = !!it.removed;
+    let badge;
+    if (isWork) badge = `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">บันทึกงาน</span>`;
+    else if (isSolution) badge = `<span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold">💡 ข้อเสนอแนะ</span>`;
+    else badge = `<span class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">ปัญหา · ${esc(it.status || "Pending")}</span>`;
+
+    const removedBox = removed
+      ? `<div class="mt-2 rounded-xl bg-slate-100 border border-slate-300 p-2.5"><p class="text-[11px] font-bold text-slate-700">🗑️ รายการนี้ถูกลบโดยแอดมิน</p><p class="text-sm text-slate-600 mt-0.5 whitespace-pre-wrap">${esc(it.removeReason || "")}</p><p class="text-[10px] text-slate-400 mt-1">โดย ${esc(it.removedBy || "")}${it.removedAt ? " · " + esc(it.removedAt) : ""}</p></div>`
+      : "";
+    const kbRemovedBox = (!isWork && !isSolution && it.kbRemoved)
+      ? `<div class="mt-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5"><p class="text-[11px] font-bold text-amber-700">📚 รายการนี้ถูกนำออกจากคลังองค์ความรู้</p>${it.kbRemoveReason ? `<p class="text-sm text-amber-700 mt-0.5 whitespace-pre-wrap">${esc(it.kbRemoveReason)}</p>` : ""}</div>`
+      : "";
     const rejected = it.rejected ? `<div class="mt-2 rounded-xl bg-red-50 border border-red-200 p-2.5"><p class="text-[11px] font-bold text-red-700">⛔ ถูกตีกลับ — โปรดแก้ไขแล้วส่งใหม่ที่แท็บ 📤 รอส่ง</p><p class="text-sm text-red-700 mt-0.5 whitespace-pre-wrap">${esc(it.rejectReason)}</p></div>` : "";
-    const files = it.files.length ? fileBadges(it.files) : `<span class="text-[11px] text-slate-400">ยังไม่มีไฟล์แนบ</span>`;
+    const files = (it.files && it.files.length) ? fileBadges(it.files) : `<span class="text-[11px] text-slate-400">ยังไม่มีไฟล์แนบ</span>`;
     const links = linkBadges(it.links);
     const linkCount = (it.links && it.links.length) || 0;
+
+    if (isSolution || removed) {
+      return `
+      <div class="card bg-white rounded-2xl shadow-sm p-4 ${removed ? "opacity-80" : ""}">
+        <div class="flex items-center justify-between gap-2">${badge}<span class="text-[11px] text-slate-400">🕒 ${esc(it.time)}</span></div>
+        <p class="mt-2 text-sm text-slate-800 whitespace-pre-wrap">${esc(it.detail)}</p>
+        ${isSolution ? `<p class="text-[11px] text-slate-400 mt-1">สำหรับรายการ #${esc(it.issueId || "")}</p>` : ""}
+        ${removedBox}${kbRemovedBox}${rejected}
+        ${(!isSolution && it.files && it.files.length) ? `<div class="mt-2 flex flex-wrap gap-2 items-center">${files}</div>` : ""}
+        ${(!isSolution && links) ? `<div class="mt-2 flex flex-wrap gap-2">${links}</div>` : ""}
+      </div>`;
+    }
+
     const linkBtn = `<button data-editlinks="${esc(it.id)}" data-linkstype="${it.type}" class="mt-2 w-full py-2 rounded-lg border ${linkCount ? "border-blue-200" : "border-dashed border-blue-300"} text-blue-700 text-xs font-semibold active:scale-95 transition">${linkCount ? "🔗 แก้ไขลิงก์ (" + linkCount + ")" : "🔗 วางลิงก์ข้อมูลเพิ่มเติม"}</button>`;
     const resolveBtn = (!isWork && it.status !== "Solved")
       ? `<button data-resolve="${esc(it.id)}" class="mt-2 w-full py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold active:scale-95 transition">✅ ยืนยันว่าแก้ไขสำเร็จ (+50 XP)</button>` : "";
@@ -1570,7 +1609,7 @@
       <div class="card bg-white rounded-2xl shadow-sm p-4">
         <div class="flex items-center justify-between gap-2">${badge}<span class="text-[11px] text-slate-400">🕒 ${esc(it.time)}</span></div>
         <p class="mt-2 text-sm text-slate-800 whitespace-pre-wrap">${esc(it.detail)}</p>
-        ${rejected}
+        ${rejected}${kbRemovedBox}
         <div class="mt-2 flex flex-wrap gap-2 items-center">${files}</div>
         ${links ? `<div class="mt-2 flex flex-wrap gap-2">${links}</div>` : ""}
         <button data-editdetail="${esc(it.id)}" data-edittype="${it.type}" class="mt-3 w-full py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold active:scale-95 transition">✏️ แก้ไขข้อความ</button>
@@ -2015,8 +2054,27 @@
     renderXpCfg(data.xpConfig, data.xpLabels, data.xpDefaults);
     renderStreakCfg(data.streakConfig, data.streakDefaults, data.streakDays);
       loadAdminSubmissions();
+      loadAchievementsCfg();
+      loadAdminKb();
     } catch (err) {
       $("adminPendingList").innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+    }
+  }
+
+  async function loadAchievementsCfg() {
+    const wrap = $("adminAchCfg");
+    if (!wrap) return;
+    wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">กำลังโหลด...</p>`;
+    try {
+      const data = await apiGet({ action:"achievementsConfig", idToken: state.idToken });
+      if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
+      ACH_TYPES = data.types || [];
+      ACH_LABELS = data.typeLabels || {};
+      ACH_RARITIES = data.rarities || ["bronze", "silver", "gold", "platinum"];
+      ACH_DEFAULTS = data.defaults || [];
+      renderAchCfg(data.list || []);
+    } catch (err) {
+      wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-3">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }
   }
 
@@ -2046,21 +2104,24 @@
         return;
       }
       wrap.innerHTML = items.map(it => `
-        <div class="rounded-xl border ${it.voided ? "border-red-100 bg-red-50/50" : (it.rejected ? "border-orange-100 bg-orange-50/50" : "border-slate-100")} p-3">
+        <div class="rounded-xl border ${it.removed ? "border-slate-300 bg-slate-50" : (it.voided ? "border-red-100 bg-red-50/50" : (it.rejected ? "border-orange-100 bg-orange-50/50" : "border-slate-100"))} p-3">
           <div class="flex justify-between items-start gap-2">
             <div class="min-w-0">
               <span class="text-[10px] font-mono text-slate-400">#${esc(it.id)}</span>
               <span class="text-[10px] ${it.type === "work" ? "text-emerald-600" : "text-amber-700"} font-bold ml-1">${it.type === "work" ? "📋 งาน" : "🛠️ ปัญหา"}</span>
+              ${it.removed ? '<span class="text-[10px] bg-slate-700 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกลบ</span>' : ""}
               ${it.voided ? '<span class="text-[10px] bg-red-600 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกยกเลิก</span>' : ""}
               ${it.rejected ? '<span class="text-[10px] bg-orange-600 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกตีกลับ</span>' : ""}
               <p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(it.detail)}</p>
               <p class="text-[11px] text-slate-400 mt-1">👤 ${esc(it.name || it.user)} · <span class="font-mono">${esc(it.user)}</span> · 🕒 ${esc(it.time)}</p>
+              ${it.removed ? `<p class="text-[11px] text-slate-600 mt-1">เหตุผลลบ: ${esc(it.removeReason)} · โดย ${esc(it.removedBy)} · ${esc(it.removedAt)}</p>` : ""}
               ${it.voided ? `<p class="text-[11px] text-red-600 mt-1">เหตุผล: ${esc(it.voidReason)} · โดย ${esc(it.voidedBy)} · ${esc(it.voidedAt)}</p>` : ""}
               ${it.rejected ? `<p class="text-[11px] text-orange-600 mt-1">เหตุผลตีกลับ: ${esc(it.rejectReason)}</p>` : ""}
             </div>
-            ${(it.voided || it.rejected) ? "" : `<div class="shrink-0 flex flex-col gap-1.5">
+            ${(it.removed || it.voided || it.rejected) ? "" : `<div class="shrink-0 flex flex-col gap-1.5">
               <button data-void="${esc(it.type)}:${esc(it.id)}" class="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold border border-red-200 active:scale-95 transition">ยกเลิก</button>
               <button data-reject="${esc(it.type)}:${esc(it.id)}" class="px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 text-xs font-bold border border-orange-200 active:scale-95 transition">ตีกลับ</button>
+              <button data-remove="${esc(it.type)}:${esc(it.id)}" class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบ</button>
             </div>`}
           </div>
         </div>`).join("") +
@@ -2074,6 +2135,10 @@
         const [t, id] = b.dataset.reject.split(":");
         b.addEventListener("click", () => openRejectModal(t, id));
       });
+      wrap.querySelectorAll("[data-remove]").forEach(b => {
+        const [t, id] = b.dataset.remove.split(":");
+        b.addEventListener("click", () => openRemoveModal(t, id));
+      });
     } catch (err) {
       wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }
@@ -2085,42 +2150,61 @@
     return {};
   }
 
-  function openRecordActionModal(mode, type, id) {
-    const it = _findRecord(type, id);
+  function openRecordActionModal(mode, type, id, opts) {
+    opts = opts || {};
+    const it = opts.detail != null ? { detail: opts.detail } : _findRecord(type, id);
     const isReject = mode === "reject";
-    $("voidHead").className = "p-5 text-center text-white bg-gradient-to-r " + (isReject ? "from-orange-500 to-orange-700" : "from-red-600 to-red-800");
-    $("voidIcon").textContent = isReject ? "↩️" : "🗑️";
-    $("voidTitle").textContent = isReject ? "ตีกลับรายการ" : "ยกเลิกรายการ";
+    const isRemove = mode === "remove";
+    const kind = opts.kind || type;
+    const headCls = isReject ? "from-orange-500 to-orange-700" : (isRemove ? "from-slate-600 to-slate-800" : "from-red-600 to-red-800");
+    $("voidHead").className = "p-5 text-center text-white bg-gradient-to-r " + headCls;
+    $("voidIcon").textContent = isReject ? "↩️" : (isRemove ? "🗑️" : "🚫");
+    $("voidTitle").textContent = isReject ? "ตีกลับรายการ" : (isRemove ? "ลบรายการ (ซอฟต์)" : "ยกเลิกรายการ");
     $("voidSub").textContent = isReject
       ? "XP ของรายการนี้จะถูกหักคืน และรายการจะไปอยู่ในหน้าต่าง 📤 รอส่งของผู้ใช้ พร้อมเหตุผล เพื่อให้แก้ไขแล้วส่งใหม่"
-      : "XP ของรายการนี้จะถูกหักคืน และผู้ใช้จะเห็นว่าโดนยกเลิก";
-    $("voidConfirm").textContent = isReject ? "↩️ ยืนยันตีกลับ" : "⛔ ยืนยันยกเลิก";
+      : (isRemove
+        ? (kind === "kb"
+          ? "รายการจะถูกซ่อนออกจากคลังองค์ความรู้ (XP ไม่เปลี่ยน) และยังเก็บข้อมูลไว้ในชีตเพื่อกู้คืนได้"
+          : "XP ของรายการนี้จะถูกหักคืน รายการจะถูกซ่อนจากทุกที่ และผู้ใช้จะเห็นสถานะ 'ถูกลบ' ในประวัติของตัวเอง")
+        : "XP ของรายการนี้จะถูกหักคืน และผู้ใช้จะเห็นว่าโดนยกเลิก");
+    $("voidConfirm").textContent = isReject ? "↩️ ยืนยันตีกลับ" : (isRemove ? "🗑️ ยืนยันลบ" : "⛔ ยืนยันยกเลิก");
     $("voidPreview").textContent = `#${id}\n${it.detail || ""}`;
     $("voidReason").value = "";
-    $("voidReason").placeholder = isReject ? "เช่น ข้อมูลไม่ตรงกับงาน / รายละเอียดไม่ชัดเจน..." : "เช่น ข้อมูลไม่ครบ / ยกเลิกจริง / ทุจริต...";
-    state.voidCtx = { type, id, mode: isReject ? "reject" : "void" };
+    $("voidReason").placeholder = isReject
+      ? "เช่น ข้อมูลไม่ตรงกับงาน / รายละเอียดไม่ชัดเจน..."
+      : (isRemove ? "เช่น ข้อมูลซ้ำ / ไม่เหมาะสม / พ้นสภาพ..." : "เช่น ข้อมูลไม่ครบ / ยกเลิกจริง / ทุจริต...");
+    state.voidCtx = { type, id, kind, mode: isReject ? "reject" : (isRemove ? "remove" : "void") };
     $("voidModal").classList.remove("hidden");
     setTimeout(() => $("voidReason").focus(), 50);
   }
 
   function openVoidModal(type, id) { openRecordActionModal("void", type, id); }
   function openRejectModal(type, id) { openRecordActionModal("reject", type, id); }
+  function openRemoveModal(kind, id, detail) { openRecordActionModal("remove", kind, id, { kind, detail }); }
 
   async function confirmVoid() {
     const ctx = state.voidCtx;
     if (!ctx) return;
     const reason = $("voidReason").value.trim();
     const isReject = ctx.mode === "reject";
-    if (!reason) { showToast(isReject ? "กรุณากรอกเหตุผลที่ตีกลับ" : "กรุณากรอกเหตุผลที่ยกเลิก", "warn"); return; }
+    const isRemove = ctx.mode === "remove";
+    if (!reason) {
+      showToast(isReject ? "กรุณากรอกเหตุผลที่ตีกลับ" : (isRemove ? "กรุณากรอกเหตุผลที่ลบ" : "กรุณากรอกเหตุผลที่ยกเลิก"), "warn");
+      return;
+    }
     const ok = await postAction({
-      action: isReject ? "adminRejectRecord" : "voidRecord",
-      recordType: ctx.type, recordId: ctx.id, reason, email: state.user.email, idToken: state.idToken
-    }, isReject ? "↩️ ตีกลับรายการแล้ว (หัก XP คืน · ผู้ใช้เห็นที่ 📤 รอส่ง)" : "⛔ ยกเลิกรายการแล้ว (หัก XP คืน)");
+      action: isReject ? "adminRejectRecord" : (isRemove ? "adminRemove" : "voidRecord"),
+      recordType: ctx.type, recordId: ctx.id, kind: ctx.kind, reason,
+      email: state.user.email, idToken: state.idToken
+    }, isReject
+      ? "↩️ ตีกลับรายการแล้ว (หัก XP คืน · ผู้ใช้เห็นที่ 📤 รอส่ง)"
+      : (isRemove ? "🗑️ ลบรายการแล้ว (ซอฟต์)" : "⛔ ยกเลิกรายการแล้ว (หัก XP คืน)"));
     if (ok) {
       $("voidModal").classList.add("hidden");
       state.voidCtx = null;
       loadAdminSubmissions();
       loadAdmin();
+      if (isRemove && ctx.kind === "kb") loadKb();
       if (!$("userModal").classList.contains("hidden")) openUserDetail(state.userRecordEmail);
     }
   }
@@ -2391,8 +2475,9 @@
               <option value="all">ทั้งหมด</option>
               <option value="work">📋 บันทึกงาน</option>
               <option value="issue">🛠️ ปัญหา</option>
+              <option value="solution">💡 ข้อเสนอแนะ</option>
             </select>
-            <label class="flex items-center gap-1 text-[11px] text-slate-500"><input id="userRecVoided" type="checkbox" class="w-3.5 h-3.5" /> แสดงที่ถูกยกเลิก</label>
+            <label class="flex items-center gap-1 text-[11px] text-slate-500"><input id="userRecVoided" type="checkbox" class="w-3.5 h-3.5" /> แสดงที่ถูกยกเลิก/ลบ</label>
           </div>
           <div id="userRecList" class="space-y-2"></div>
         </div>`;
@@ -2411,43 +2496,63 @@
     const type = $("userRecFilter").value;
     const incVoid = $("userRecVoided").checked;
     const all = state.userRecords || [];
-    let items = all.filter(it => (type === "all" || it.type === type) && (incVoid || !it.voided));
+    let items = all.filter(it => (type === "all" || it.type === type) && (incVoid || (!it.voided && !it.removed)));
     $("userRecCount").textContent = items.length + " / " + all.length + " รายการ";
     if (!items.length) {
       listEl.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">ไม่พบรายการ</p>`;
       return;
     }
     listEl.innerHTML = items.map(it => {
+      const isSolution = it.type === "solution";
       const filesHtml = (it.files && it.files.length) ? `<div class="mt-1.5">${fileBadges(it.files)}</div>` : "";
       const linksHtml = (it.links && it.links.length) ? `<div class="mt-1.5 flex flex-wrap gap-1.5">${linkBadges(it.links)}</div>` : "";
-      const statusHtml = (it.type === "issue" && it.status && !it.voided && !it.rejected)
+      const statusHtml = (it.type === "issue" && it.status && !it.voided && !it.rejected && !it.removed)
         ? `<p class="text-[10px] text-slate-400 mt-0.5">สถานะ: ${esc(it.status)}${it.solvedBy ? " · แก้โดย " + esc(it.solvedBy) : ""}</p>` : "";
       const voidHtml = it.voided
         ? `<p class="text-[10px] text-red-600 mt-0.5">⛔ ยกเลิก: ${esc(it.voidReason)} · โดย ${esc(it.voidedBy)} · ${esc(it.voidedAt)}</p>` : "";
+      const removedHtml = it.removed
+        ? `<p class="text-[10px] text-slate-600 mt-0.5">🗑️ ลบ: ${esc(it.removeReason)} · โดย ${esc(it.removedBy)} · ${esc(it.removedAt)}</p>` : "";
+      const kbRemovedHtml = it.kbRemoved
+        ? `<p class="text-[10px] text-amber-700 mt-0.5">📚 ออกจากคลังองค์ความรู้: ${esc(it.kbRemoveReason)} · โดย ${esc(it.kbRemovedBy)}</p>` : "";
       const rejectHtml = it.rejected
         ? `<p class="text-[10px] text-orange-600 mt-0.5">↩️ ตีกลับ: ${esc(it.rejectReason)} · โดย ${esc(it.rejectedBy)} · ${esc(it.rejectedAt)}</p>` : "";
-      const tone = it.voided ? "border-red-100 bg-red-50/50" : (it.rejected ? "border-orange-100 bg-orange-50/50" : "border-slate-100");
-      const actionBtns = (!it.voided && !it.rejected)
-        ? `<div class="flex gap-2 mt-2">
-             <button data-uedit="${esc(it.id)}" data-uedit-type="${it.type}" class="flex-1 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold active:scale-95 transition">✏️ แก้ไข</button>
-             <button data-ureject="${esc(it.id)}" data-ureject-type="${it.type}" class="flex-1 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-bold active:scale-95 transition">↩️ ตีกลับ</button>
-           </div>` : "";
+      const tone = it.removed ? "border-slate-300 bg-slate-50" : (it.voided ? "border-red-100 bg-red-50/50" : (it.rejected ? "border-orange-100 bg-orange-50/50" : "border-slate-100"));
+      const typeBadge = it.type === "work" ? "📋 งาน" : (isSolution ? "💡 ข้อเสนอแนะ" : "🛠️ ปัญหา");
+      const typeCls = it.type === "work" ? "text-emerald-600" : (isSolution ? "text-indigo-600" : "text-amber-700");
+      const actionBtns = (!it.voided && !it.rejected && !it.removed)
+        ? (isSolution
+          ? `<div class="flex gap-2 mt-2">
+               <button data-uremove="solution:${esc(it.id)}" class="flex-1 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบ</button>
+             </div>`
+          : `<div class="flex gap-2 mt-2">
+               <button data-uedit="${esc(it.id)}" data-uedit-type="${it.type}" class="flex-1 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold active:scale-95 transition">✏️ แก้ไข</button>
+               <button data-ureject="${esc(it.id)}" data-ureject-type="${it.type}" class="flex-1 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-bold active:scale-95 transition">↩️ ตีกลับ</button>
+               <button data-uremove="${esc(it.type)}:${esc(it.id)}" class="flex-1 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบ</button>
+             </div>`)
+        : "";
       return `<div class="rounded-xl border ${tone} p-2.5">
         <div class="flex justify-between items-start gap-2">
           <span class="text-[10px] font-mono text-slate-400">#${esc(it.id)}
-            <span class="${it.type === "work" ? "text-emerald-600" : "text-amber-700"} font-bold ml-1">${it.type === "work" ? "📋 งาน" : "🛠️ ปัญหา"}</span>
+            <span class="${typeCls} font-bold ml-1">${typeBadge}</span>
+            ${it.removed ? '<span class="text-[10px] bg-slate-700 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกลบ</span>' : ""}
             ${it.voided ? '<span class="text-[10px] bg-red-600 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกยกเลิก</span>' : ""}
             ${it.rejected ? '<span class="text-[10px] bg-orange-600 text-white font-bold rounded px-1.5 py-0.5 ml-1">ถูกตีกลับ</span>' : ""}
           </span>
           <span class="text-[10px] text-slate-400 shrink-0">🕒 ${esc(it.time)}</span>
         </div>
         <p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(it.detail)}</p>
-        ${statusHtml}${voidHtml}${rejectHtml}${filesHtml}${linksHtml}
+        ${isSolution ? `<p class="text-[10px] text-slate-400 mt-0.5">สำหรับรายการ #${esc(it.issueId || "")}</p>` : ""}
+        ${statusHtml}${removedHtml}${voidHtml}${rejectHtml}${kbRemovedHtml}${filesHtml}${linksHtml}
         ${actionBtns}
       </div>`;
     }).join("");
     listEl.querySelectorAll("[data-uedit]").forEach(b => b.addEventListener("click", () => openAdminEditModal(b.dataset.ueditType, b.dataset.uedit)));
     listEl.querySelectorAll("[data-ureject]").forEach(b => b.addEventListener("click", () => openRejectModal(b.dataset.urejectType, b.dataset.ureject)));
+    listEl.querySelectorAll("[data-uremove]").forEach(b => b.addEventListener("click", () => {
+      const [k, id] = b.dataset.uremove.split(":");
+      const rec = (state.userRecords || []).find(x => x.id === id && (x.type === k || k === "solution"));
+      openRemoveModal(k, id, rec ? rec.detail : "");
+    }));
   }
 
   async function adminSendNotif() {
@@ -2589,6 +2694,93 @@
     if (ok) setTimeout(loadAdmin, 1200);
   }
 
+  /* ---------- จัดการเหรียญตรา (Phase 6.10: แอดมินแก้ไขได้) ---------- */
+  let ACH_TYPES = [], ACH_LABELS = {}, ACH_RARITIES = [], ACH_DEFAULTS = [];
+
+  function achCfgRowHtml(a) {
+    const types = ACH_TYPES.map(t => `<option value="${esc(t)}" ${a.type === t ? "selected" : ""}>${esc(ACH_LABELS[t] || t)}</option>`).join("");
+    const rar = ACH_RARITIES.map(r => `<option value="${esc(r)}" ${a.rarity === r ? "selected" : ""}>${esc(r)}</option>`).join("");
+    return `<div class="ach-row rounded-xl border border-amber-100 bg-amber-50/40 p-2.5 space-y-2">
+      <div class="flex gap-2 items-center">
+        <input class="ach-icon w-12 rounded-lg border border-slate-200 bg-white px-2 py-2 text-center text-lg" maxlength="4" placeholder="🏅" value="${esc(a.icon || "🏅")}" />
+        <input class="ach-name flex-1 min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs" placeholder="ชื่อเหรียญ" data-id="${esc(a.id || "")}" value="${esc(a.name || "")}" />
+        <button type="button" class="ach-remove w-9 h-9 rounded-lg bg-red-50 text-red-600 font-bold shrink-0 active:scale-95 transition">×</button>
+      </div>
+      <input class="ach-desc w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs" placeholder="คำอธิบายสั้น ๆ" value="${esc(a.desc || "")}" />
+      <div class="flex gap-2 items-center">
+        <select class="ach-type flex-1 min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs">${types}</select>
+        <input class="ach-goal w-20 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-right" type="number" min="1" step="1" placeholder="เป้า" value="${esc(a.goal || 1)}" title="ค่าเป้าหมาย" />
+        <select class="ach-rarity w-24 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs">${rar}</select>
+        <input class="ach-xp w-20 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-right" type="number" min="0" step="1" placeholder="XP" value="${esc(a.xp || 0)}" title="แต้ม XP" />
+      </div>
+      <p class="text-[10px] text-slate-400">เป้า = ค่าเป้าหมาย · XP = แต้มที่ได้เมื่อปลดล็อก · <span class="font-mono">id: ${esc(a.id || "(ใหม่)")}</span></p>
+    </div>`;
+  }
+
+  function renderAchCfg(list) {
+    const wrap = $("adminAchCfg");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    const arr = (list && list.length) ? list : (ACH_DEFAULTS || []);
+    if (!arr.length) { wrap.innerHTML = '<p class="text-[11px] text-slate-400">ไม่พบข้อมูลเหรียญตรา</p>'; return; }
+    arr.forEach(a => wrap.insertAdjacentHTML("beforeend", achCfgRowHtml(a)));
+  }
+
+  function addAchRow() {
+    $("adminAchCfg").insertAdjacentHTML("beforeend", achCfgRowHtml({ id:"", name:"", desc:"", icon:"🏅", type: ACH_TYPES[0] || "work_count", goal:1, xp:10, rarity:"bronze" }));
+    showToast("เพิ่มเหรียญใหม่ — กรอกข้อมูลแล้วกดบันทึก", "warn");
+  }
+
+  function resetAchCfg() { renderAchCfg(ACH_DEFAULTS || []); showToast("คืนค่าเริ่มต้นเหรียญตราแล้ว — อย่าลืมกดบันทึก", "warn"); }
+
+  async function saveAchCfg() {
+    const rows = Array.from($("adminAchCfg").querySelectorAll(".ach-row"));
+    if (!rows.length) { showToast("ต้องมีเหรียญตราอย่างน้อย 1 รายการ", "warn"); return; }
+    const list = rows.map(r => ({
+      id: (r.querySelector(".ach-name").dataset.id || ""),
+      name: r.querySelector(".ach-name").value.trim(),
+      desc: r.querySelector(".ach-desc").value.trim(),
+      icon: r.querySelector(".ach-icon").value.trim() || "🏅",
+      type: r.querySelector(".ach-type").value,
+      goal: Math.max(1, Math.round(Number(r.querySelector(".ach-goal").value) || 1)),
+      xp: Math.max(0, Math.round(Number(r.querySelector(".ach-xp").value) || 0)),
+      rarity: r.querySelector(".ach-rarity").value
+    }));
+    if (list.some(a => !a.name)) { showToast("กรุณากรอกชื่อเหรียญทุกรายการ", "warn"); return; }
+    const ok = await postAction({ action:"saveAchievements", list, email:state.user.email, idToken:state.idToken }, "✅ บันทึกเหรียญตราแล้ว");
+    if (ok) setTimeout(loadAdmin, 1200);
+  }
+
+  /* ---------- จัดการคลังองค์ความรู้ (Phase 6.10) ---------- */
+  async function loadAdminKb() {
+    const wrap = $("adminKbList");
+    if (!wrap) return;
+    wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">กำลังโหลด...</p>`;
+    try {
+      const data = await apiGet({ action:"knowledgeBase", idToken: state.idToken });
+      if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
+      const items = data.articles || [];
+      if (!items.length) { wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">ยังไม่มีรายการในคลัง</p>`; return; }
+      wrap.innerHTML = items.map(it => `
+        <div class="rounded-xl border border-slate-100 p-3">
+          <div class="flex justify-between items-start gap-2">
+            <div class="min-w-0">
+              <p class="text-sm text-slate-700 whitespace-pre-wrap">${esc(it.detail)}</p>
+              <p class="text-[11px] text-slate-400 mt-1">🕒 ${esc(it.time || "")}${it.solver ? " · ✅ " + esc(it.solver) : ""} · ❤️ ${esc(it.likeCount || 0)}</p>
+            </div>
+            <button data-kbremove="${esc(it.id)}" class="shrink-0 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบ</button>
+          </div>
+        </div>`).join("");
+      wrap.querySelectorAll("[data-kbremove]").forEach(b => b.addEventListener("click", () => {
+        const id = b.dataset.kbremove;
+        const rec = items.find(x => String(x.id) === String(id));
+        openRemoveModal("kb", id, rec ? rec.detail : "");
+      }));
+    } catch (err) {
+      wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-3">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+    }
+  }
+
   async function doExport(type, format) {
     showToast("กำลังเตรียมไฟล์...", "warn");
     try {
@@ -2662,6 +2854,13 @@
     $("adminXpCfgReset").addEventListener("click", resetXpCfg);
     $("adminStreakSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveStreakCfg));
     $("adminStreakReset").addEventListener("click", resetStreakCfg);
+    $("adminAchAdd").addEventListener("click", addAchRow);
+    $("adminAchSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveAchCfg));
+    $("adminAchReset").addEventListener("click", resetAchCfg);
+    $("adminAchCfg").addEventListener("click", (e) => {
+      const btn = e.target.closest(".ach-remove");
+      if (btn) { const r = btn.closest(".ach-row"); if (r) r.remove(); }
+    });
     $("adminRules").addEventListener("click", (e) => {
       const btn = e.target.closest(".rule-remove");
       if (btn) { const r = btn.closest(".rule-row"); if (r) r.remove(); }
