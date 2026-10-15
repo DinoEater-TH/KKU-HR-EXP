@@ -142,17 +142,30 @@
   <section id="appView" class="hidden min-h-screen pb-28">
 
     <header class="sticky top-0 z-40 bg-gradient-to-r from-red-800 to-red-900 text-white shadow-md">
-      <div class="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
-        <img id="userAvatar" alt="avatar" class="w-10 h-10 rounded-full border-2 border-white/70 bg-white/20" />
-        <div class="flex-1 min-w-0">
-          <p id="userName" class="font-semibold leading-tight truncate">—</p>
-          <p id="userEmail" class="text-[11px] text-white/80 truncate">—</p>
+      <div class="max-w-lg mx-auto px-4 pt-3 pb-2.5">
+        <div class="flex items-center gap-3">
+          <img id="userAvatar" alt="avatar" class="w-10 h-10 rounded-full border-2 border-white/70 bg-white/20" />
+          <div class="flex-1 min-w-0">
+            <p id="userName" class="font-semibold leading-tight truncate">—</p>
+            <p id="userEmail" class="text-[11px] text-white/80 truncate">—</p>
+          </div>
+          <div id="headerLevel" class="text-center leading-tight px-2.5 py-1 rounded-full bg-white/15">
+            <span class="block text-[10px] text-white/70">LEVEL</span>
+            <span id="headerLevelNum" class="font-bold text-sm">-</span>
+          </div>
+          <button id="logoutBtn" class="text-xs bg-white/15 hover:bg-white/25 active:scale-95 transition px-2.5 py-2 rounded-full">ออก</button>
         </div>
-        <div id="headerLevel" class="text-center leading-tight px-2.5 py-1 rounded-full bg-white/15">
-          <span class="block text-[10px] text-white/70">LEVEL</span>
-          <span id="headerLevelNum" class="font-bold text-sm">-</span>
+
+        <!-- ขีดค่า XP ใต้รูป/ชื่อ/อีเมล -->
+        <div id="headerXp" class="hidden mt-2.5">
+          <div class="flex items-center justify-between text-[10px] text-white/75 font-tech mb-1">
+            <span id="headerXpText">0 XP</span>
+            <span id="headerXpNext">—</span>
+          </div>
+          <div class="h-2 rounded-full bg-black/25 overflow-hidden">
+            <div id="headerXpFill" class="h-full rounded-full bg-gradient-to-r from-amber-300 to-amber-500 transition-all duration-700" style="width:0%"></div>
+          </div>
         </div>
-        <button id="logoutBtn" class="text-xs bg-white/15 hover:bg-white/25 active:scale-95 transition px-2.5 py-2 rounded-full">ออก</button>
       </div>
     </header>
 
@@ -579,7 +592,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.8.3 (index.html) · PWA + bottom nav + IndexedDB cache
+     KKU HR Exp — Phase 6.8.3 (index.html) · PWA + bottom nav + header XP bar
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -960,6 +973,7 @@
     $("appView").classList.add("hidden");
     $("loginView").classList.remove("hidden");
     $("loginError").classList.add("hidden");
+    $("headerXp").classList.add("hidden");
   }
 
   /* ---------- ส่งข้อมูล (fire-and-forget) ---------- */
@@ -1799,6 +1813,7 @@
       $("sheetBtnAdmin").classList.toggle("hidden", !state.isAdmin);
       if (!state.isAdmin && state.currentTab === "admin") switchTab("dashboard");
       $("headerLevelNum").textContent = "Lv " + data.level;
+      updateHeaderXp(data.minXp, data.nextXp, data.totalXp);
       checkLevelUp(data.level, data.title);
 
       let pct = 100, nextLabel = "ระดับสูงสุดแล้ว 🏆";
@@ -2144,6 +2159,19 @@
     </div>`;
   }
 
+  /* อัปเดตขีดค่า XP ในแถบด้านบน (ใต้รูป/ชื่อ/อีเมล) */
+  function updateHeaderXp(minXp, nextXp, totalXp) {
+    const box = $("headerXp"), fill = $("headerXpFill"), txt = $("headerXpText"), nxt = $("headerXpNext");
+    if (!box) return;
+    if (totalXp == null) { box.classList.add("hidden"); return; }
+    const hasNext = nextXp != null;
+    const pct = hasNext ? Math.min(100, Math.max(2, Math.round((totalXp - minXp) / ((nextXp - minXp) || 1) * 100))) : 100;
+    box.classList.remove("hidden");
+    if (fill) fill.style.width = pct + "%";
+    if (txt) txt.textContent = Number(totalXp).toLocaleString("th-TH") + " XP";
+    if (nxt) nxt.textContent = hasNext ? ("อีก " + Math.max(0, nextXp - totalXp) + " XP") : "สูงสุดแล้ว";
+  }
+
   function progressHtml(minXp, nextXp, totalXp, colorA, colorB) {
     const range = nextXp ? (nextXp - minXp) : 1;
     const pct = nextXp ? Math.min(100, Math.max(2, Math.round((totalXp - minXp) / range * 100))) : 100;
@@ -2175,6 +2203,7 @@
       const d = await apiGet({ action:"dashboard", idToken:state.idToken, email:state.user.email });
       if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
       state.dashData = d;
+      updateHeaderXp(d.minXp, d.nextXp, d.totalXp);
 
       const nextNote = d.nextTitle ? `· เติมอีก ${Math.max(0, d.nextXp - d.totalXp)} XP ถึง ${esc(d.nextTitle)}` : "· ระดับสูงสุดแล้ว";
       $("dashHero").innerHTML = `
