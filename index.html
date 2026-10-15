@@ -101,6 +101,12 @@
     .nav-dot { position:absolute; top:7px; right:calc(50% - 16px); width:8px; height:8px; border-radius:9999px; background:#ef4444; box-shadow:0 0 0 2px #fff; }
     .sheet-item { display:flex; align-items:center; gap:12px; width:100%; padding:13px 14px; border-radius:14px; text-align:left; font-size:15px; font-weight:600; color:#334155; background:transparent; border:0; -webkit-user-select:none; user-select:none; }
     .sheet-item:active { background:#f1f5f9; }
+
+    /* ปุ่มค้นหา ลอยมุมขวาบน ใต้แถบแดง */
+    #searchFab { position: fixed; right: 12px; top: calc(var(--hrx-header-h, 62px) + 8px); z-index: 45; width: 44px; height: 44px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; background:#fff; color:#b91c1c; font-size:19px; border:1px solid #e2e8f0; box-shadow:0 4px 14px rgba(15,23,42,.18); transition: transform .1s, opacity .2s; }
+    #searchFab:active { transform: scale(.9); }
+    #searchFab.hidden { display:none; }
+    #appView main { padding-top: 3.75rem; }
   </style>
 </head>
 
@@ -168,6 +174,9 @@
         </div>
       </div>
     </header>
+
+    <!-- ปุ่มค้นหา ลอยมุมขวาบน ใต้แถบแดง -->
+    <button id="searchFab" title="ค้นหา" aria-label="ค้นหา">🔍</button>
 
     <main class="max-w-lg mx-auto px-4 pt-4">
 
@@ -592,7 +601,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.8.3 (index.html) · PWA + bottom nav + header XP bar
+     KKU HR Exp — Phase 6.8.3 (index.html) · PWA + bottom nav + header XP + floating search
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -950,6 +959,7 @@
     $("loginView").classList.add("hidden");
     $("appView").classList.remove("hidden");
     switchTab("dashboard");
+    syncHeaderH();
     loadProfile().then(() => prefetchAll());  // อัปเดต Level + ดาวน์โหลดข้อมูลลงเครื่อง
     refreshResendBadge();
     checkNotifications();
@@ -1279,9 +1289,16 @@
   function openNavSheet() { const s = $("navSheet"); if (s) s.classList.remove("hidden"); }
   function closeNavSheet() { const s = $("navSheet"); if (s) s.classList.add("hidden"); }
 
+  /* จำความสูงจริงของแถบแดง → ใช้จัดตำแหน่งปุ่มค้นหาลอย (ให้อยู่ใต้แถบเสมอ) */
+  function syncHeaderH() {
+    const h = document.querySelector("#appView > header");
+    if (h) document.documentElement.style.setProperty("--hrx-header-h", h.offsetHeight + "px");
+  }
+
   function switchTab(tab) {
     if (tab === "admin" && !state.isAdmin) { showToast("เฉพาะแอดมินเท่านั้น", "warn"); return; }
     state.currentTab = tab;
+    const fab = $("searchFab"); if (fab) fab.classList.toggle("hidden", tab === "search");
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
     $("tab-" + tab).classList.remove("hidden");
     highlightNav(tab);
@@ -2622,6 +2639,16 @@
     $("searchGo").addEventListener("click", (e) => runBusy(e.currentTarget, () => loadSearch()));
     $("searchInput").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => runSearch($("searchInput").value), 300); });
     $("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runSearch($("searchInput").value); } });
+
+    /* ปุ่มค้นหาลอยใต้แถบแดง: จำความสูงแถบ + กดแล้วเปิดแท็บค้นหาและโฟกัสช่องพิมพ์ */
+    syncHeaderH();
+    const appHdr = document.querySelector("#appView > header");
+    if (window.ResizeObserver && appHdr) { try { new ResizeObserver(syncHeaderH).observe(appHdr); } catch (e) {} }
+    window.addEventListener("resize", syncHeaderH);
+    $("searchFab").addEventListener("click", () => {
+      if (state.currentTab !== "search") switchTab("search");
+      setTimeout(() => { try { $("searchInput").focus(); } catch (e) {} }, 250);
+    });
     $("refreshHistory").addEventListener("click", (e) => runBusy(e.currentTarget, loadHistory));
     $("logoutBtn").addEventListener("click", (e) => runBusy(e.currentTarget, logout));
     $("saveModalClose").addEventListener("click", () => $("saveModal").classList.add("hidden"));
