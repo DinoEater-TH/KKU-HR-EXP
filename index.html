@@ -579,7 +579,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.8.3 (index.html) · PWA + bottom nav + admin bonuses
+     KKU HR Exp — Phase 6.8.3 (index.html) · PWA + bottom nav + IndexedDB cache
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -924,7 +924,8 @@
     localStorage.setItem("hrx_token", state.idToken);
     try { $("loginAutoMsg").classList.add("hidden"); } catch (e) {}
     sendToServer({ action:"login", email:state.user.email, name:state.user.name, idToken:state.idToken });
-    enterApp();
+    requestPersistentStorage();
+    startApp();
   }
 
   function loginError(msg) { const e = $("loginError"); e.textContent = msg; e.classList.remove("hidden"); }
@@ -941,6 +942,12 @@
     checkNotifications();
     updateSyncBar();
     checkStatus();
+  }
+
+  /* เข้าแอปหลังโหลดแคชจาก IndexedDB เข้าหน่วยความจำเป็นที่เรียบร้อย (เปิดมาเห็นข้อมูลทันที/ออฟไลน์ได้) */
+  async function startApp() {
+    try { await cacheInit(cacheNs()); } catch (e) {}
+    enterApp();
   }
 
   function logout() {
@@ -994,23 +1001,107 @@
   }
 
   /* ---------- แคชข้อมูลในเครื่อง (offline snapshot) ---------- */
+  /* ---------- แคชในเครื่อง: IndexedDB (ข้อมูลเยอะ/เก็บถาวร) + สำเนาในหน่วยความจำ ---------- */
   function cacheNs() { return "hrx_cache_" + (((state.user && state.user.email) || "anon").toLowerCase()); }
-  function cacheAll() { try { return JSON.parse(localStorage.getItem(cacheNs())) || {}; } catch (e) { return {}; } }
-  function cacheRead(key) { const all = cacheAll(); return all[key] ? all[key].data : null; }
+
+  let _idb = null, _memNs = null, _mem = {};
+  function hrxIdb() {
+    return new Promise((resolve) => {
+      if (_idb) return resolve(_idb);
+      try {
+        const req = indexedDB.open("hrx_db", 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("cache")) db.createObjectStore("cache", { keyPath: "k" });
+        };
+        req.onsuccess = () => { _idb = req.result; resolve(_idb); };
+        req.onerror = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+  }
+  function idbRows() {
+    return hrxIdb().then(db => new Promise(res => {
+      if (!db) return res([]);
+      try {
+        const q = db.transaction("cache", "readonly").objectStore("cache").getAll();
+        q.onsuccess = () => res(q.result || []);
+        q.onerror = () => res([]);
+      } catch (e) { res([]); }
+    }));
+  }
+  function idbPut(k, t, data) {
+    hrxIdb().then(db => {
+      if (!db) return;
+      try { db.transaction("cache", "readwrite").objectStore("cache").put({ k: k, t: t, data: data }); } catch (e) {}
+    });
+  }
+  function idbDelNs(ns) {
+    hrxIdb().then(db => {
+      if (!db) return;
+      try {
+        const st = db.transaction("cache", "readwrite").objectStore("cache");
+        const q = st.openCursor();
+        q.onsuccess = (e) => {
+          const c = e.target.result; if (!c) return;
+          if (typeof c.key === "string" && c.key.indexOf(ns + "|") === 0) c.delete();
+          c.continue();
+        };
+      } catch (e) {}
+    });
+  }
+
+  /* โหลดแคชของผู้ใช้นี้จาก IndexedDB เข้าหน่วยความจำ (เรียกตอนเข้าแอป) + ย้ายแคชเดิมจาก localStorage ให้ด้วย */
+  function cacheInit(ns) {
+    ns = ns || cacheNs();
+    _memNs = ns; _mem = {};
+    return idbRows().then(rows => {
+      rows.forEach(r => {
+        if (r && typeof r.k === "string" && r.k.indexOf(ns + "|") === 0) _mem[r.k.slice(ns.length + 1)] = { t: r.t || 0, data: r.data };
+      });
+      try {
+        const legacy = localStorage.getItem(ns);
+        if (legacy) {
+          const obj = JSON.parse(legacy) || {};
+          Object.keys(obj).forEach(k => {
+            if (!_mem[k] && obj[k]) { _mem[k] = obj[k]; idbPut(ns + "|" + k, obj[k].t || Date.now(), obj[k].data); }
+          });
+          localStorage.removeItem(ns);
+        }
+      } catch (e) {}
+    }).catch(() => {});
+  }
+
+  function cacheAll() { return _mem || {}; }
+  function cacheRead(key) { return (_mem && _mem[key] !== undefined && _mem[key] !== null) ? _mem[key].data : null; }
   function cacheWrite(key, data) {
     if (!key) return;
-    try {
-      const all = cacheAll();
-      all[key] = { t: Date.now(), data: data };
-      localStorage.setItem(cacheNs(), JSON.stringify(all));
-    } catch (e) { /* พื้นที่เต็ม — ข้ามไป */ }
+    const ns = _memNs || cacheNs();
+    const t = Date.now();
+    _mem[key] = { t: t, data: data };
+    idbPut(ns + "|" + key, t, data);
   }
   function cacheNewestTime() {
-    const all = cacheAll(); let newest = 0;
-    Object.keys(all).forEach(k => { if (all[k] && all[k].t > newest) newest = all[k].t; });
+    let newest = 0;
+    Object.keys(_mem || {}).forEach(k => { if (_mem[k] && _mem[k].t > newest) newest = _mem[k].t; });
     return newest;
   }
-  function clearCache() { try { localStorage.removeItem(cacheNs()); } catch (e) {} }
+  function clearCache() {
+    const ns = _memNs || cacheNs();
+    _mem = {};
+    idbDelNs(ns);
+    try { localStorage.removeItem(ns); } catch (e) {}
+  }
+
+  /* ขอสิทธิ์ให้ระบบไม่ลบข้อมูลในเครื่องทิ้ง (persistent storage) */
+  function requestPersistentStorage() {
+    try {
+      if (navigator.storage && navigator.storage.persist) {
+        (navigator.storage.persisted ? navigator.storage.persisted() : Promise.resolve(false))
+          .then(p => { if (!p) navigator.storage.persist(); })
+          .catch(() => {});
+      }
+    } catch (e) {}
+  }
   function updateSyncBar() {
     const el = $("syncText"); if (!el) return;
     const t = cacheNewestTime();
@@ -2589,7 +2680,8 @@
         state.user = u;
         if (savedToken && tokenValid(savedToken)) {
           state.idToken = savedToken;   // ยังไม่หมดอายุ → เข้าแอปทันที (ใช้แคชในเครื่องได้ด้วย)
-          enterApp();
+          requestPersistentStorage();
+          startApp();
         } else {
           state.idToken = null;         // หมดอายุ → โชว์หน้า login + One Tap เข้าสู่ระบบอัตโนมัติ
           $("loginAutoMsg").textContent = "🔁 กำลังเข้าสู่ระบบอัตโนมัติจากครั้งก่อน...";
