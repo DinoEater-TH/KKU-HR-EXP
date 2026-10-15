@@ -156,7 +156,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.18"
+      FRONT_PHASE      : "6.19"
     };
   </script>
 
@@ -179,7 +179,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.18</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.19</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -518,7 +518,7 @@
           </div>
         </section>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.18</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.19</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -633,7 +633,7 @@
       </div>
       <div id="voidPreview" class="p-5 pb-0 text-sm text-slate-700 whitespace-pre-wrap max-h-[30vh] overflow-y-auto"></div>
       <div class="p-5">
-        <label class="text-xs font-semibold text-slate-600">เหตุผลที่ยกเลิก (บังคับ)</label>
+        <label id="voidReasonLabel" class="text-xs font-semibold text-slate-600">เหตุผลที่ยกเลิก (บังคับ)</label>
         <textarea id="voidReason" rows="3" placeholder="เช่น ข้อมูลไม่ครบ / ยกเลิกจริง / ทุจริต..." class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
       </div>
       <div class="p-4 pt-0 flex gap-2">
@@ -728,7 +728,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.18 (index.html) · Phase 2 Smart Work Capture: คำแนะนำงาน/ปัญหา · สถานะการส่ง 6 แบบ · กันกดซ้ำ · ไม่ล้างข้อมูลจนยืนยันสำเร็จ · ไฟล์แนบมีสถานะประมวลผล
+     KKU HR Exp — Phase 6.19 (index.html) · Phase 2 Smart Work Capture: คำแนะนำงาน/ปัญหา · สถานะการส่ง 6 แบบ · กันกดซ้ำ · ไม่ล้างข้อมูลจนยืนยันสำเร็จ · ไฟล์แนบมีสถานะประมวลผล · ผู้ใช้แก้ไข/ลบรายการงาน–ปัญหาของตัวเองจากประวัติได้ (ลบ = หัก XP คืน)
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], submitting:false, fileBusy:0, currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -1864,6 +1864,7 @@
         openLinkModal(b.dataset.linkstype, b.dataset.editlinks, it.links);
       }));
       wrap.querySelectorAll("[data-editdetail]").forEach(b => b.addEventListener("click", () => openEditModal(b.dataset.edittype, b.dataset.editdetail)));
+      wrap.querySelectorAll("[data-delmy]").forEach(b => b.addEventListener("click", () => openRecordActionModal("selfdel", b.dataset.delmyType, b.dataset.delmy)));
     } catch (err) {
       wrap.innerHTML = `<p class="text-center text-sm text-red-500 py-8">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }
@@ -1915,6 +1916,7 @@
         <button data-backfill="${esc(it.id)}" data-backfill-type="${it.type}" class="mt-2 w-full py-2 rounded-lg border border-dashed border-red-300 text-red-700 text-xs font-semibold active:scale-95 transition">📎 แนบรูป/ไฟล์เพิ่มเติม</button>
         ${linkBtn}
         ${resolveBtn}
+        <button data-delmy="${esc(it.id)}" data-delmy-type="${it.type}" class="mt-2 w-full py-2 rounded-lg border border-red-200 bg-red-50 text-red-700 text-xs font-semibold active:scale-95 transition">🗑️ ลบรายการนี้ (หัก XP คืน)</button>
       </div>`;
   }
 
@@ -2458,30 +2460,38 @@
 
   function openRecordActionModal(mode, type, id, opts) {
     opts = opts || {};
-    const it = opts.detail != null ? { detail: opts.detail } : _findRecord(type, id);
+    const isSelfDel = mode === "selfdel";
+    const it = isSelfDel
+      ? (state.historyItems[id] || {})
+      : (opts.detail != null ? { detail: opts.detail } : _findRecord(type, id));
     const isReject = mode === "reject";
     const isRemove = mode === "remove";
     const kind = opts.kind || type;
     const headCls = isReject ? "from-orange-500 to-orange-700" : (isRemove ? "from-slate-600 to-slate-800" : "from-red-600 to-red-800");
     $("voidHead").className = "p-5 text-center text-white bg-gradient-to-r " + headCls;
-    $("voidIcon").textContent = isReject ? "↩️" : (isRemove ? "🗑️" : "🚫");
-    $("voidTitle").textContent = isReject ? "ตีกลับรายการ" : (isRemove ? "ลบรายการ (ซอฟต์)" : "ยกเลิกรายการ");
-    $("voidSub").textContent = isReject
-      ? "XP ของรายการนี้จะถูกหักคืน และรายการจะไปอยู่ในหน้าต่าง 📤 รอส่งของผู้ใช้ พร้อมเหตุผล เพื่อให้แก้ไขแล้วส่งใหม่"
-      : (isRemove
-        ? (kind === "kb"
-          ? "รายการจะถูกซ่อนออกจากคลังองค์ความรู้ (XP ไม่เปลี่ยน) และยังเก็บข้อมูลไว้ในชีตเพื่อกู้คืนได้"
-          : (kind === "solution"
-            ? "ข้อเสนอแนะนี้จะถูกซ่อน และ XP ทั้งหมดที่เกี่ยวข้อง (ค่าข้อเสนอ + ค่าถูกใจ) จะถูกหักคืนจากเจ้าของ · กู้คืนได้ภายหลัง"
-            : "XP ของรายการนี้จะถูกหักคืน รายการจะถูกซ่อนจากทุกที่ และผู้ใช้จะเห็นสถานะ 'ถูกลบ' ในประวัติของตัวเอง"))
-        : "XP ของรายการนี้จะถูกหักคืน และผู้ใช้จะเห็นว่าโดนยกเลิก");
-    $("voidConfirm").textContent = isReject ? "↩️ ยืนยันตีกลับ" : (isRemove ? "🗑️ ยืนยันลบ" : "⛔ ยืนยันยกเลิก");
+    $("voidIcon").textContent = isSelfDel ? "🗑️" : (isReject ? "↩️" : (isRemove ? "🗑️" : "🚫"));
+    $("voidTitle").textContent = isSelfDel ? "ลบรายการของฉัน" : (isReject ? "ตีกลับรายการ" : (isRemove ? "ลบรายการ (ซอฟต์)" : "ยกเลิกรายการ"));
+    $("voidSub").textContent = isSelfDel
+      ? "XP ที่รายการนี้เคยให้จะถูกหักคืนจากบัญชีคุณ และรายการจะถูกซ่อนจากประวัติ · แอดมินกู้คืนได้"
+      : (isReject
+        ? "XP ของรายการนี้จะถูกหักคืน และรายการจะไปอยู่ในหน้าต่าง 📤 รอส่งของผู้ใช้ พร้อมเหตุผล เพื่อให้แก้ไขแล้วส่งใหม่"
+        : (isRemove
+          ? (kind === "kb"
+            ? "รายการจะถูกซ่อนออกจากคลังองค์ความรู้ (XP ไม่เปลี่ยน) และยังเก็บข้อมูลไว้ในชีตเพื่อกู้คืนได้"
+            : (kind === "solution"
+              ? "ข้อเสนอแนะนี้จะถูกซ่อน และ XP ทั้งหมดที่เกี่ยวข้อง (ค่าข้อเสนอ + ค่าถูกใจ) จะถูกหักคืนจากเจ้าของ · กู้คืนได้ภายหลัง"
+              : "XP ของรายการนี้จะถูกหักคืน รายการจะถูกซ่อนจากทุกที่ และผู้ใช้จะเห็นสถานะ 'ถูกลบ' ในประวัติของตัวเอง"))
+          : "XP ของรายการนี้จะถูกหักคืน และผู้ใช้จะเห็นว่าโดนยกเลิก"));
+    $("voidConfirm").textContent = isSelfDel ? "🗑️ ยืนยันลบรายการ" : (isReject ? "↩️ ยืนยันตีกลับ" : (isRemove ? "🗑️ ยืนยันลบ" : "⛔ ยืนยันยกเลิก"));
     $("voidPreview").textContent = `#${id}\n${it.detail || ""}`;
+    $("voidReasonLabel").textContent = isSelfDel ? "เหตุผล (ไม่บังคับ)" : "เหตุผลที่ยกเลิก (บังคับ)";
     $("voidReason").value = "";
-    $("voidReason").placeholder = isReject
-      ? "เช่น ข้อมูลไม่ตรงกับงาน / รายละเอียดไม่ชัดเจน..."
-      : (isRemove ? "เช่น ข้อมูลซ้ำ / ไม่เหมาะสม / พ้นสภาพ..." : "เช่น ข้อมูลไม่ครบ / ยกเลิกจริง / ทุจริต...");
-    state.voidCtx = { type, id, kind, mode: isReject ? "reject" : (isRemove ? "remove" : "void") };
+    $("voidReason").placeholder = isSelfDel
+      ? "เช่น บันทึกซ้ำ / ลงผิดรายการ (เว้นว่างได้)..."
+      : (isReject
+        ? "เช่น ข้อมูลไม่ตรงกับงาน / รายละเอียดไม่ชัดเจน..."
+        : (isRemove ? "เช่น ข้อมูลซ้ำ / ไม่เหมาะสม / พ้นสภาพ..." : "เช่น ข้อมูลไม่ครบ / ยกเลิกจริง / ทุจริต..."));
+    state.voidCtx = { type, id, kind, mode: isSelfDel ? "selfdel" : (isReject ? "reject" : (isRemove ? "remove" : "void")) };
     $("voidModal").classList.remove("hidden");
     setTimeout(() => $("voidReason").focus(), 50);
   }
@@ -2508,26 +2518,37 @@
     const ctx = state.voidCtx;
     if (!ctx) return;
     const reason = $("voidReason").value.trim();
+    const isSelfDel = ctx.mode === "selfdel";
     const isReject = ctx.mode === "reject";
     const isRemove = ctx.mode === "remove";
-    if (!reason) {
+    if (!reason && !isSelfDel) {
       showToast(isReject ? "กรุณากรอกเหตุผลที่ตีกลับ" : (isRemove ? "กรุณากรอกเหตุผลที่ลบ" : "กรุณากรอกเหตุผลที่ยกเลิก"), "warn");
       return;
     }
     const ok = await postAction({
-      action: isReject ? "adminRejectRecord" : (isRemove ? "adminRemove" : "voidRecord"),
+      action: isSelfDel ? "deleteMyRecord" : (isReject ? "adminRejectRecord" : (isRemove ? "adminRemove" : "voidRecord")),
       recordType: ctx.type, recordId: ctx.id, kind: ctx.kind, reason,
       email: state.user.email, idToken: state.idToken
-    }, isReject
-      ? "↩️ ตีกลับรายการแล้ว (หัก XP คืน · ผู้ใช้เห็นที่ 📤 รอส่ง)"
-      : (isRemove ? "🗑️ ลบรายการแล้ว (ซอฟต์)" : "⛔ ยกเลิกรายการแล้ว (หัก XP คืน)"));
+    }, isSelfDel
+      ? "🗑️ ลบรายการแล้ว (หัก XP คืน)"
+      : (isReject
+        ? "↩️ ตีกลับรายการแล้ว (หัก XP คืน · ผู้ใช้เห็นที่ 📤 รอส่ง)"
+        : (isRemove ? "🗑️ ลบรายการแล้ว (ซอฟต์)" : "⛔ ยกเลิกรายการแล้ว (หัก XP คืน)")));
     if (ok) {
       $("voidModal").classList.add("hidden");
       state.voidCtx = null;
-      loadAdminSubmissions();
-      loadAdmin();
-      if (isRemove && (ctx.kind === "kb" || ctx.kind === "solution")) loadKb();
-      if (!$("userModal").classList.contains("hidden")) openUserDetail(state.userRecordEmail);
+      if (isSelfDel) {
+        loadHistory();
+        loadProfile();
+        if (state.currentTab === "dashboard") loadDashboard();
+        if (state.currentTab === "resend") loadResend();
+        if (state.isAdmin) loadAdmin();
+      } else {
+        loadAdminSubmissions();
+        loadAdmin();
+        if (isRemove && (ctx.kind === "kb" || ctx.kind === "solution")) loadKb();
+        if (!$("userModal").classList.contains("hidden")) openUserDetail(state.userRecordEmail);
+      }
     }
   }
 

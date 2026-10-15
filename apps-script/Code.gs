@@ -293,7 +293,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.17" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.19" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -330,6 +330,7 @@ function doPost(e) {
       case "addFiles":       return handleAddFiles_(email, data.recordType, data.recordId, data.files || []);
       case "addLinks":       return handleAddLinks_(email, data.recordType, data.recordId, data.links || []);
       case "editDetail":     return handleEditDetail_(email, data.recordType, data.recordId, data.detail || "");
+      case "deleteMyRecord": return handleDeleteMyRecord_(email, data.recordType, data.recordId, data.reason || "");
       case "resolveIssue":   return handleResolveIssue_(email, data.issueId);
       case "likeSolution":   return handleLikeSolution_(email, data.solutionId);
       case "likeArticle":    return handleLikeArticle_(email, data.issueId);
@@ -1911,6 +1912,55 @@ function handleVoidRecord_(adminEmail, recordType, recordId, reason) {
   if (map["Removed_XP"]) sh.getRange(row, map["Removed_XP"]).setValue(reversed);
   logAudit_(adminEmail, "void", type, recordId, reason, { owner: owner, reversedXp: reversed });
   return json_({ status: "ok", type: type, id: recordId, reversedXp: reversed, message: "ยกเลิกรายการเรียบร้อย" });
+}
+
+/* ======================================================================
+ * [7d-0] ผู้ใช้ "ลบ" งาน/ปัญหาของตัวเองจากหน้าประวัติ (Phase 6.19)
+ *   - อนุญาตเฉพาะเจ้าของรายการ (ตรวจจาก idToken ที่ doPost verify แล้ว)
+ *   - ซอฟต์ดีลีต: Status="Removed" + เก็บเหตุผล/ผู้ลบ/เวลา + Prev_Status (แอดมินกู้คืนได้)
+ *   - "หัก XP คืน" ที่รายการนี้เคยได้ (คิดจากยอดสุทธิ กันหักซ้ำ; ถ้าเคยถูกตีกลับแล้วจะไม่หักซ้ำ)
+ *   - ถ้าเป็นปัญหาที่เคยขึ้นคลังองค์ความรู้ จะซ่อนออกจากคลังด้วย (กู้คืนได้ที่แผงคลัง)
+ * ==================================================================== */
+function handleDeleteMyRecord_(email, recordType, recordId, reason) {
+  if (!recordId) throw new Error("ไม่พบรหัสรายการ");
+  var type = (String(recordType) === "issue") ? "issue" : "work";
+  var sh = type === "issue"
+    ? getSheet_(SHEETS.ISSUES, HEADERS.ISSUES)
+    : getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS);
+  var idHeader = type === "issue" ? "Issue_ID" : "Log_ID";
+
+  var row = findRowByHeader_(sh, idHeader, recordId);
+  if (row === -1) throw new Error("ไม่พบรายการนี้ (อาจถูกลบจากชีตไปแล้ว)");
+  assertOwner_(sh, row, "User_Email", email);
+
+  var map = headerMap_(sh);
+  var cur = String(sh.getRange(row, map["Status"]).getValue() || "");
+  if (cur === "Removed") throw new Error("รายการนี้ถูกลบไปแล้ว");
+  if (cur === "Void") throw new Error("รายการนี้ถูกยกเลิกแล้ว");
+
+  reason = String(reason || "").trim() || "ผู้ใช้ลบรายการเอง";
+  var ts = nowStr_();
+  if (map["Prev_Status"]) sh.getRange(row, map["Prev_Status"]).setValue(cur);
+  sh.getRange(row, map["Status"]).setValue("Removed");
+  if (map["Remove_Reason"]) sh.getRange(row, map["Remove_Reason"]).setValue(reason.slice(0, 200));
+  if (map["Removed_By"])    sh.getRange(row, map["Removed_By"]).setValue(email);
+  if (map["Removed_At"])    sh.getRange(row, map["Removed_At"]).setValue(ts);
+
+  // ปัญหาที่เคยขึ้นคลังองค์ความรู้ → ซ่อนออกจากคลังด้วย (แอดมินกู้คืนได้)
+  if (type === "issue" && map["KB_Approved"] && isTruthy_(sh.getRange(row, map["KB_Approved"]).getValue())) {
+    sh.getRange(row, map["KB_Approved"]).setValue(false);
+    if (map["KB_Remove_Reason"]) sh.getRange(row, map["KB_Remove_Reason"]).setValue(reason.slice(0, 200));
+    if (map["KB_Removed_By"])    sh.getRange(row, map["KB_Removed_By"]).setValue(email);
+    if (map["KB_Removed_At"])    sh.getRange(row, map["KB_Removed_At"]).setValue(ts);
+  }
+
+  var reversed = reverseXpForRecord_(email, recordId, reason, "remove");
+  if (map["Removed_XP"]) sh.getRange(row, map["Removed_XP"]).setValue(reversed);
+  logAudit_(email, "remove_self", type, recordId, reason, { owner: email, reversedXp: reversed });
+  return json_({
+    status: "ok", type: type, id: recordId, reversedXp: reversed,
+    message: reversed > 0 ? ("ลบรายการแล้ว (หักคืน " + reversed + " XP)") : "ลบรายการแล้ว"
+  });
 }
 
 /* หัก XP คืนสำหรับ record: เพิ่มแถว XP_History (Amount ติดลบ) + ลด Total_XP + recompute Level
