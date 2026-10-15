@@ -76,9 +76,52 @@ function handleSaveXpConfig_(adminEmail, config) {
   return json_({ status: "ok", config: clean, message: "บันทึกแต้ม XP แล้ว" });
 }
 
-/* ---- RPG: โบนัส Streak (มาบันทึกต่อเนื่อง) ---- */
-var STREAK_BONUS_DAILY = 5;                                  // โบนัสเมื่อบันทึกครั้งแรกของวัน
-var STREAK_MILESTONES  = { 3: 15, 7: 40, 14: 100, 30: 300 }; // โบนัสพิเศษเมื่อติดต่อกันครบ N วัน
+/* ---- RPG: โบนัส Streak (มาบันทึกต่อเนื่อง) — แอดมินกำหนดได้เอง (Phase 6.8.3) ---- */
+var STREAK_BONUS_DAILY       = 5;                                  // ค่าเริ่มต้น: โบนัสเมื่อบันทึกครั้งแรกของวัน
+var STREAK_MILESTONES        = { 3: 15, 7: 40, 14: 100, 30: 300 }; // ค่าเริ่มต้น: โบนัสพิเศษเมื่อติดต่อกันครบ N วัน
+var STREAK_CONFIG_PROP       = "STREAK_CONFIG";                    // เก็บ JSON: {daily:5, milestones:{3:15,...}}
+var STREAK_MILESTONE_DAYS    = [3, 7, 14, 30];
+
+/* อ่านโบนัสสตรีคที่แอดมินตั้งไว้ (merge กับค่าเริ่มต้น) */
+function getStreakConfig_() {
+  var cfg = { daily: STREAK_BONUS_DAILY, milestones: {} };
+  STREAK_MILESTONE_DAYS.forEach(function (d) { cfg.milestones[String(d)] = STREAK_MILESTONES[d]; });
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty(STREAK_CONFIG_PROP);
+    if (raw) {
+      var o = JSON.parse(raw) || {};
+      var dv = Number(o.daily);
+      if (!isNaN(dv) && dv >= 0) cfg.daily = Math.min(XP_MAX_POINTS, Math.round(dv));
+      var m = o.milestones || {};
+      STREAK_MILESTONE_DAYS.forEach(function (d) {
+        var v = Number(m[String(d)]);
+        if (!isNaN(v) && v >= 0) cfg.milestones[String(d)] = Math.min(XP_MAX_POINTS, Math.round(v));
+      });
+    }
+  } catch (e) {}
+  return cfg;
+}
+
+/* แอดมินบันทึกโบนัสสตรีค */
+function handleSaveStreakConfig_(adminEmail, config) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  var dv = Number(config && config.daily);
+  if (isNaN(dv) || dv < 0) dv = STREAK_BONUS_DAILY;
+  var out = { daily: Math.min(XP_MAX_POINTS, Math.round(dv)), milestones: {} };
+  STREAK_MILESTONE_DAYS.forEach(function (d) {
+    var v = Number(config && config.milestones ? config.milestones[String(d)] : NaN);
+    if (isNaN(v) || v < 0) v = STREAK_MILESTONES[d];
+    out.milestones[String(d)] = Math.min(XP_MAX_POINTS, Math.round(v));
+  });
+  PropertiesService.getScriptProperties().setProperty(STREAK_CONFIG_PROP, JSON.stringify(out));
+  return json_({ status: "ok", config: out, message: "บันทึกโบนัสสตรีคแล้ว" });
+}
+
+/* ค่าเริ่มต้นสำหรับปุ่ม "คืนค่าเริ่มต้น" ฝั่งหน้าเว็บ */
+function streakConfigDefaults_() {
+  var ms = {}; STREAK_MILESTONE_DAYS.forEach(function (d) { ms[String(d)] = STREAK_MILESTONES[d]; });
+  return { daily: STREAK_BONUS_DAILY, milestones: ms };
+}
 
 /* ---- RPG: Achievements / เหรียญตรา (Phase 6.1) ----
  * type อ้างอิงค่าจาก achievementStats_() : work_count | issue_count | solution_count |
@@ -155,7 +198,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.8", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.8.3", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -176,6 +219,8 @@ function doGet(e) {
         return output_(myRejected_(p.idToken), cb);
       case "xpConfig":
         return output_({ status: "ok", config: getXpConfig_(), labels: XP_LABELS, defaults: XP_DEFAULTS }, cb);
+      case "streakConfig":
+        return output_({ status: "ok", config: getStreakConfig_(), defaults: streakConfigDefaults_(), days: STREAK_MILESTONE_DAYS }, cb);
       case "activeNotifications":
         return output_(activeNotifications_(p.idToken), cb);
       case "submitResult":
@@ -238,6 +283,8 @@ function doPost(e) {
         return handleSaveXpRules_(email, data.rules || []);
       case "saveXpConfig":
         return handleSaveXpConfig_(email, data.config || {});
+      case "saveStreakConfig":
+        return handleSaveStreakConfig_(email, data.config || {});
       case "voidRecord":
         return handleVoidRecord_(email, data.recordType, data.recordId, data.reason || "");
       case "adminEditRecord":
@@ -823,9 +870,10 @@ function applyStreakBonus_(email, clientRef) {
   });
   if (gotToday) return { awarded: 0, streak: streakStats_(email).current };
   var st = streakStats_(email);
-  var bonus = STREAK_BONUS_DAILY + (STREAK_MILESTONES[st.current] || 0);
+  var cfg = getStreakConfig_();
+  var bonus = cfg.daily + (cfg.milestones[String(st.current)] || 0);
   awardXp_(email, bonus, "streak", today, clientRef || "");
-  return { awarded: bonus, streak: st.current, milestone: STREAK_MILESTONES[st.current] || 0 };
+  return { awarded: bonus, streak: st.current, milestone: cfg.milestones[String(st.current)] || 0 };
 }
 
 /* ======================================================================
@@ -1190,8 +1238,12 @@ function adminOverview_(idToken) {
   var xpDefaults = {};
   Object.keys(XP_DEFAULTS).forEach(function (k) { xpDefaults[k] = XP_DEFAULTS[k]; });
 
+  var streakCfg = getStreakConfig_();
+  var streakDefaults = streakConfigDefaults_();
+
   return { status: "ok", pendingApprovals: pending, users: users, notifications: notifs, rules: rules,
-           xpConfig: xpConfig, xpLabels: xpLabels, xpDefaults: xpDefaults };
+           xpConfig: xpConfig, xpLabels: xpLabels, xpDefaults: xpDefaults,
+           streakConfig: streakCfg, streakDefaults: streakDefaults, streakDays: STREAK_MILESTONE_DAYS };
 }
 
 /* รายการส่งข้อมูลทั้งหมด (งาน/ปัญหา) สำหรับแอดมิน ตรวจสอบ + ยกเลิก */

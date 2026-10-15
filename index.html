@@ -85,7 +85,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.8"
+      FRONT_PHASE      : "6.8.3"
     };
   </script>
 
@@ -314,6 +314,14 @@
         </div>
 
         <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-1">🔥 ตั้งค่าโบนัสสตรีค (Streak Bonus)</h3>
+          <p class="text-[11px] text-slate-400 mb-2">โบนัสเมื่อบันทึกงาน/แจ้งปัญหาต่อเนื่อง • ครั้งแรกของวัน + โบนัสพิเศษเมื่อครบ N วัน • มีผลกับการบันทึกครั้งถัดไป (เพดาน 100,000)</p>
+          <div id="adminStreakCfg" class="space-y-2"></div>
+          <button id="adminStreakSave" class="mt-2 w-full py-2.5 rounded-xl bg-pink-700 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกโบนัสสตรีค</button>
+          <button id="adminStreakReset" class="mt-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">↺ คืนค่าเริ่มต้น</button>
+        </div>
+
+        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
           <h3 class="text-sm font-bold text-slate-700 mb-2">⭐ มอบ XP พิเศษ (Bonus)</h3>
           <select id="adminUserSelect" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2"></select>
           <div class="flex gap-2 mb-2">
@@ -346,7 +354,7 @@
           <p class="text-[11px] text-slate-400 mt-2">ไฟล์เรียงวันที่-เวลา ใหม่→เก่า พร้อมชื่อผู้บันทึก หมวดหมู่ (AI) สถานะ และลิงก์ไฟล์แนบ</p>
         </div>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.8</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.8.3</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -525,7 +533,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.8 (index.html) · Admin tools + system status indicator
+     KKU HR Exp — Phase 6.8.3 (index.html) · Admin: configurable XP & streak bonuses
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -1820,6 +1828,7 @@
 
       renderRules(data.rules || []);
     renderXpCfg(data.xpConfig, data.xpLabels, data.xpDefaults);
+    renderStreakCfg(data.streakConfig, data.streakDefaults, data.streakDays);
       loadAdminSubmissions();
     } catch (err) {
       $("adminPendingList").innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
@@ -2339,6 +2348,48 @@
     if (ok) setTimeout(loadAdmin, 1200);
   }
 
+  /* ---------- โบนัสสตรีค (แอดมินกำหนดได้) ---------- */
+  function streakCfgRowHtml(kind, key, label, value, def) {
+    return `<div class="flex items-center gap-2">
+      <label class="flex-1 min-w-0 text-xs text-slate-600">${esc(label)}</label>
+      <input class="streakcfg-input w-24 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-right focus:outline-none focus:ring-2 focus:ring-pink-500" type="number" min="0" step="1" max="100000" value="${esc(value)}" data-kind="${esc(kind)}" data-key="${esc(key)}" data-def="${esc(def)}" />
+      <span class="text-[10px] text-slate-400 w-6">XP</span>
+    </div>`;
+  }
+
+  function renderStreakCfg(cfg, defaults, days) {
+    const wrap = $("adminStreakCfg");
+    if (!wrap) return;
+    const c = cfg || {}, d = defaults || {}, dm = d.milestones || {};
+    const list = (days && days.length ? days : [3, 7, 14, 30]);
+    wrap.innerHTML = "";
+    wrap.insertAdjacentHTML("beforeend", streakCfgRowHtml("daily", "daily", "🌅 โบนัสรายวัน (ครั้งแรกของวัน)", (c.daily != null ? c.daily : (d.daily || 0)), (d.daily != null ? d.daily : 0)));
+    list.forEach(k => {
+      const cv = (c.milestones && c.milestones[String(k)] != null) ? c.milestones[String(k)] : (dm[String(k)] != null ? dm[String(k)] : 0);
+      wrap.insertAdjacentHTML("beforeend", streakCfgRowHtml("milestone", String(k), `🏆 ติดต่อกันครบ ${k} วัน`, cv, (dm[String(k)] != null ? dm[String(k)] : 0)));
+    });
+  }
+
+  function resetStreakCfg() {
+    document.querySelectorAll("#adminStreakCfg .streakcfg-input").forEach(inp => { inp.value = inp.dataset.def || 0; });
+    showToast("คืนค่าเริ่มต้นโบนัสสตรีคแล้ว — อย่าลืมกดบันทึก", "warn");
+  }
+
+  async function saveStreakCfg() {
+    const inputs = Array.from(document.querySelectorAll("#adminStreakCfg .streakcfg-input"));
+    if (!inputs.length) { showToast("ไม่พบช่องตั้งค่าโบนัสสตรีค", "warn"); return; }
+    const config = { daily: 0, milestones: {} };
+    inputs.forEach(inp => {
+      let v = Math.round(Number(inp.value));
+      if (isNaN(v) || v < 0) v = Number(inp.dataset.def) || 0;
+      if (v > 100000) v = 100000;
+      if (inp.dataset.kind === "daily") config.daily = v;
+      else config.milestones[inp.dataset.key] = v;
+    });
+    const ok = await postAction({ action:"saveStreakConfig", config, email:state.user.email, idToken:state.idToken }, "✅ บันทึกโบนัสสตรีคแล้ว");
+    if (ok) setTimeout(loadAdmin, 1200);
+  }
+
   async function doExport(type, format) {
     showToast("กำลังเตรียมไฟล์...", "warn");
     try {
@@ -2398,6 +2449,8 @@
     $("adminRuleSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveRules));
     $("adminXpCfgSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveXpCfg));
     $("adminXpCfgReset").addEventListener("click", resetXpCfg);
+    $("adminStreakSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveStreakCfg));
+    $("adminStreakReset").addEventListener("click", resetStreakCfg);
     $("adminRules").addEventListener("click", (e) => {
       const btn = e.target.closest(".rule-remove");
       if (btn) { const r = btn.closest(".rule-row"); if (r) r.remove(); }
