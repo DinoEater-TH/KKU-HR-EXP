@@ -107,6 +107,14 @@
     #searchFab:active { transform: scale(.9); }
     #searchFab.hidden { display:none; }
     #appView main { padding-top: 3.75rem; }
+
+    /* Sub-tabs ในหน้าแอดมิน */
+    #adminSubNav { display:flex; gap:6px; overflow-x:auto; padding:2px 2px 8px; margin:-2px -2px 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+    #adminSubNav::-webkit-scrollbar { display:none; }
+    .asub-btn { flex:0 0 auto; padding:7px 12px; border-radius:9999px; border:1px solid #e2e8f0; background:#fff; color:#475569; font-size:12px; font-weight:700; white-space:nowrap; -webkit-user-select:none; user-select:none; transition: background .15s, color .15s, border-color .15s, transform .1s; }
+    .asub-btn:active { transform: scale(.94); }
+    .asub-btn.active { background:#b91c1c; border-color:#b91c1c; color:#fff; }
+    .admin-sub.hidden { display:none; }
   </style>
 </head>
 
@@ -118,7 +126,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.11"
+      FRONT_PHASE      : "6.12"
     };
   </script>
 
@@ -141,7 +149,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.11</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.12</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -287,134 +295,161 @@
 
       <!-- ===== แอดมิน (Admin Panel) ===== -->
       <div id="tab-admin" class="tab-panel hidden fade-in">
-        <div class="bg-white rounded-2xl shadow-sm p-4">
-          <div class="flex justify-between items-center gap-2">
-            <h3 class="text-sm font-bold text-slate-700">👥 จัดการผู้ใช้</h3>
-            <span id="userMgmtCount" class="text-[11px] text-slate-400"></span>
+        <div id="adminSubNav">
+          <button class="asub-btn active" data-asub="overview">📊 ภาพรวม</button>
+          <button class="asub-btn" data-asub="users">👥 ผู้ใช้</button>
+          <button class="asub-btn" data-asub="records">🧾 รายการ</button>
+          <button class="asub-btn" data-asub="settings">⚙️ ตั้งค่า</button>
+          <button class="asub-btn" data-asub="audit">🕘 ประวัติ</button>
+          <button class="asub-btn" data-asub="misc">📢 อื่นๆ</button>
+        </div>
+
+        <!-- ===== หมวด: ภาพรวม ===== -->
+        <section class="admin-sub" data-sub="overview">
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-2">✅ รออนุมัติขึ้นคลังองค์ความรู้</h3>
+            <div id="adminPendingList" class="space-y-2"></div>
           </div>
-          <p class="text-[11px] text-slate-400 mb-2">รายชื่อสมาชิก · อีเมล · XP · ลำดับ ranking · รายละเอียดการบันทึกทั้งหมด • เฉพาะแอดมิน</p>
-          <div class="flex gap-2 mb-2">
-            <input id="userMgmtSearch" placeholder="🔍 ค้นหา ชื่อ / อีเมล..." class="flex-1 min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            <select id="userMgmtSort" class="shrink-0 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs">
-              <option value="rank">อันดับ</option>
-              <option value="xp">XP สูงสุด</option>
-              <option value="records">บันทึกมากสุด</option>
-              <option value="name">ชื่อ (ก-ฮ)</option>
-            </select>
+        </section>
+
+        <!-- ===== หมวด: ผู้ใช้ ===== -->
+        <section class="admin-sub hidden" data-sub="users">
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <div class="flex justify-between items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-700">👥 จัดการผู้ใช้</h3>
+              <span id="userMgmtCount" class="text-[11px] text-slate-400"></span>
+            </div>
+            <p class="text-[11px] text-slate-400 mb-2">รายชื่อสมาชิก · อีเมล · XP · ลำดับ ranking · รายละเอียดการบันทึกทั้งหมด • เฉพาะแอดมิน</p>
+            <div class="flex gap-2 mb-2">
+              <input id="userMgmtSearch" placeholder="🔍 ค้นหา ชื่อ / อีเมล..." class="flex-1 min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <select id="userMgmtSort" class="shrink-0 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs">
+                <option value="rank">อันดับ</option>
+                <option value="xp">XP สูงสุด</option>
+                <option value="records">บันทึกมากสุด</option>
+                <option value="name">ชื่อ (ก-ฮ)</option>
+              </select>
+            </div>
+            <div id="userMgmtList" class="space-y-1.5 max-h-[420px] overflow-y-auto"></div>
           </div>
-          <div id="userMgmtList" class="space-y-1.5 max-h-[420px] overflow-y-auto"></div>
-        </div>
 
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-2">📢 ส่งประกาศแจ้งเตือน</h3>
-          <p class="text-[11px] text-slate-400 mb-2">ข้อความจะเด้งบังหน้าจอผู้ใช้ทุกคน จนกว่าจะกดรับทราบ</p>
-          <textarea id="adminNotifMsg" rows="3" placeholder="พิมพ์ข้อความประกาศ..."
-            class="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
-          <button id="adminNotifSend" class="mt-2 w-full py-2.5 rounded-xl bg-red-700 text-white text-sm font-bold active:scale-95 transition">ส่งประกาศ</button>
-          <div id="adminNotifRecent" class="mt-3 space-y-1"></div>
-        </div>
+          <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-2">⭐ มอบ XP พิเศษ (Bonus)</h3>
+            <select id="adminUserSelect" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2"></select>
+            <div class="flex gap-2 mb-2">
+              <input id="bonusAmount" type="number" placeholder="จำนวน XP" class="w-28 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm" />
+              <input id="bonusReason" placeholder="เหตุผล" class="flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm" />
+            </div>
+            <button id="adminBonusSend" class="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold active:scale-95 transition">มอบ XP</button>
 
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-2">✅ รออนุมัติขึ้นคลังองค์ความรู้</h3>
-          <div id="adminPendingList" class="space-y-2"></div>
-        </div>
+            <hr class="my-4 border-slate-100" />
 
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-1">🧾 รายการส่งข้อมูล (ตรวจสอบ / ยกเลิก)</h3>
-          <p class="text-[11px] text-slate-400 mb-2">ดูล่าสุด 200 รายการ • กดยกเลิกเพื่อตัด XP คืน (บันทึกเหตุผลไว้ตรวจสอบ)</p>
-          <div class="flex gap-2 mb-2 items-center">
-            <select id="subFilterType" class="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs">
-              <option value="all">ทั้งหมด</option>
-              <option value="work">📋 บันทึกงาน</option>
-              <option value="issue">🛠️ ปัญหา</option>
-            </select>
-            <label class="flex items-center gap-1 text-[11px] text-slate-500"><input id="subIncludeVoided" type="checkbox" class="w-3.5 h-3.5" /> แสดงที่ยกเลิก/ลบ</label>
+            <h3 class="text-sm font-bold text-slate-700 mb-2">🔑 จัดการสิทธิ์ผู้ใช้ (Role)</h3>
+            <div class="flex gap-2">
+              <select id="roleUserSelect" class="flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm"></select>
+              <select id="roleValue" class="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm">
+                <option value="User">User</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </div>
+            <button id="adminRoleSend" class="mt-2 w-full py-2.5 rounded-xl bg-slate-800 text-white text-sm font-bold active:scale-95 transition">บันทึกสิทธิ์</button>
           </div>
-          <input id="subSearch" placeholder="🔍 ค้นหา รายละเอียด / ชื่อ / อีเมล..." class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-red-500" />
-          <div id="adminSubmissionsList" class="space-y-2"></div>
-        </div>
+        </section>
 
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-1">🎚️ ตั้งค่าระดับขั้น & XP (Level Setup)</h3>
-          <p class="text-[11px] text-slate-400 mb-2">แก้ชื่อยศและเกณฑ์ XP • เพิ่ม/ลบระดับได้ (ระบบเรียงตาม XP ให้อัตโนมัติ และอัปเดต Level ผู้ใช้ทุกคนเมื่อบันทึก)</p>
-          <div id="adminRules" class="space-y-2"></div>
-          <button id="adminRuleAdd" class="mt-2 w-full py-2 rounded-xl border border-dashed border-indigo-300 text-indigo-700 text-sm font-semibold active:scale-95 transition">＋ เพิ่มระดับ</button>
-          <button id="adminRuleSave" class="mt-2 w-full py-2.5 rounded-xl bg-indigo-700 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกการตั้งค่า Level & XP</button>
-        </div>
-
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-1">🎯 ตั้งค่าแต้ม XP ต่อกิจกรรม</h3>
-          <p class="text-[11px] text-slate-400 mb-2">กำหนดว่าแต่ละกิจกรรมได้กี่แต้ม • มีผลกับการบันทึกครั้งถัดไป (ย้อนหลังไม่เปลี่ยน)</p>
-          <div id="adminXpCfg" class="space-y-2"></div>
-          <button id="adminXpCfgSave" class="mt-2 w-full py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกแต้ม XP</button>
-          <button id="adminXpCfgReset" class="mt-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">↺ คืนค่าเริ่มต้น</button>
-        </div>
-
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-1">🔥 ตั้งค่าโบนัสสตรีค (Streak Bonus)</h3>
-          <p class="text-[11px] text-slate-400 mb-2">โบนัสเมื่อบันทึกงาน/แจ้งปัญหาต่อเนื่อง • ครั้งแรกของวัน + โบนัสพิเศษเมื่อครบ N วัน • มีผลกับการบันทึกครั้งถัดไป (เพดาน 100,000)</p>
-          <div id="adminStreakCfg" class="space-y-2"></div>
-          <button id="adminStreakSave" class="mt-2 w-full py-2.5 rounded-xl bg-pink-700 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกโบนัสสตรีค</button>
-          <button id="adminStreakReset" class="mt-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">↺ คืนค่าเริ่มต้น</button>
-        </div>
-
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-1">🏅 จัดการเหรียญตรา / ความสำเร็จ</h3>
-          <p class="text-[11px] text-slate-400 mb-2">เพิ่ม/แก้ไข/ลบเหรียญตราได้ • กำหนดเงื่อนไข ค่าเป้าหมาย และแต้ม XP • มีผลทันทีกับทุกคน</p>
-          <div id="adminAchCfg" class="space-y-2"></div>
-          <button id="adminAchAdd" class="mt-2 w-full py-2 rounded-xl border border-dashed border-amber-300 text-amber-700 text-sm font-semibold active:scale-95 transition">＋ เพิ่มเหรียญตรา</button>
-          <button id="adminAchSave" class="mt-2 w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกเหรียญตรา</button>
-          <button id="adminAchReset" class="mt-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">↺ คืนค่าเริ่มต้น</button>
-          <p class="text-[10px] text-slate-400 mt-2">หมายเหตุ: เหรียญที่ผู้ใช้ปลดล็อกไปแล้วจะยังอยู่ แม้จะลบหรือแก้เงื่อนไขภายหลัง</p>
-        </div>
-
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-1">📚 จัดการคลังองค์ความรู้ (Knowledge Base)</h3>
-          <p class="text-[11px] text-slate-400 mb-2">รายการที่อนุมัติขึ้นคลังแล้ว • ลบออกจากคลังได้ (ไม่กระทบ XP) • เฉพาะแอดมิน</p>
-          <div id="adminKbList" class="space-y-2"></div>
-        </div>
-
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-1">🧾 ประวัติการจัดการ (Audit Log)</h3>
-          <p class="text-[11px] text-slate-400 mb-2">การลบ / ยกเลิก / ตีกลับ / กู้คืน โดยแอดมิน · เรียงใหม่→เก่า • เฉพาะแอดมิน</p>
-          <button id="adminAuditRefresh" class="mb-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">🔄 โหลดประวัติล่าสุด</button>
-          <div id="adminAuditList" class="space-y-2 max-h-[420px] overflow-y-auto"></div>
-        </div>
-
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-2">⭐ มอบ XP พิเศษ (Bonus)</h3>
-          <select id="adminUserSelect" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2"></select>
-          <div class="flex gap-2 mb-2">
-            <input id="bonusAmount" type="number" placeholder="จำนวน XP" class="w-28 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm" />
-            <input id="bonusReason" placeholder="เหตุผล" class="flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm" />
+        <!-- ===== หมวด: รายการ ===== -->
+        <section class="admin-sub hidden" data-sub="records">
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-1">🧾 รายการส่งข้อมูล (ตรวจสอบ / ยกเลิก)</h3>
+            <p class="text-[11px] text-slate-400 mb-2">ดูล่าสุด 200 รายการ • กดยกเลิกเพื่อตัด XP คืน (บันทึกเหตุผลไว้ตรวจสอบ)</p>
+            <div class="flex gap-2 mb-2 items-center">
+              <select id="subFilterType" class="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs">
+                <option value="all">ทั้งหมด</option>
+                <option value="work">📋 บันทึกงาน</option>
+                <option value="issue">🛠️ ปัญหา</option>
+              </select>
+              <label class="flex items-center gap-1 text-[11px] text-slate-500"><input id="subIncludeVoided" type="checkbox" class="w-3.5 h-3.5" /> แสดงที่ยกเลิก/ลบ</label>
+            </div>
+            <input id="subSearch" placeholder="🔍 ค้นหา รายละเอียด / ชื่อ / อีเมล..." class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-red-500" />
+            <div id="adminSubmissionsList" class="space-y-2"></div>
           </div>
-          <button id="adminBonusSend" class="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold active:scale-95 transition">มอบ XP</button>
 
-          <hr class="my-4 border-slate-100" />
-
-          <h3 class="text-sm font-bold text-slate-700 mb-2">🔑 จัดการสิทธิ์ผู้ใช้ (Role)</h3>
-          <div class="flex gap-2">
-            <select id="roleUserSelect" class="flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm"></select>
-            <select id="roleValue" class="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm">
-              <option value="User">User</option>
-              <option value="Admin">Admin</option>
-            </select>
+          <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-1">📚 จัดการคลังองค์ความรู้ (Knowledge Base)</h3>
+            <p class="text-[11px] text-slate-400 mb-2">รายการที่อนุมัติขึ้นคลังแล้ว • ลบออกจากคลังได้ (ไม่กระทบ XP) • เฉพาะแอดมิน</p>
+            <div id="adminKbList" class="space-y-2"></div>
           </div>
-          <button id="adminRoleSend" class="mt-2 w-full py-2.5 rounded-xl bg-slate-800 text-white text-sm font-bold active:scale-95 transition">บันทึกสิทธิ์</button>
-        </div>
+        </section>
 
-        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
-          <h3 class="text-sm font-bold text-slate-700 mb-2">📥 Export ข้อมูล</h3>
-          <div class="grid grid-cols-2 gap-2">
-            <button data-export="worklogs" data-format="xlsx" class="export-btn py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold active:scale-95 transition">บันทึกงาน (Excel)</button>
-            <button data-export="worklogs" data-format="csv" class="export-btn py-2.5 rounded-xl bg-emerald-700 text-white text-xs font-bold active:scale-95 transition">บันทึกงาน (CSV)</button>
-            <button data-export="issues" data-format="xlsx" class="export-btn py-2.5 rounded-xl bg-red-600 text-white text-xs font-bold active:scale-95 transition">ปัญหา (Excel)</button>
-            <button data-export="issues" data-format="csv" class="export-btn py-2.5 rounded-xl bg-red-700 text-white text-xs font-bold active:scale-95 transition">ปัญหา (CSV)</button>
+        <!-- ===== หมวด: ตั้งค่า ===== -->
+        <section class="admin-sub hidden" data-sub="settings">
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-1">🎚️ ตั้งค่าระดับขั้น & XP (Level Setup)</h3>
+            <p class="text-[11px] text-slate-400 mb-2">แก้ชื่อยศและเกณฑ์ XP • เพิ่ม/ลบระดับได้ (ระบบเรียงตาม XP ให้อัตโนมัติ และอัปเดต Level ผู้ใช้ทุกคนเมื่อบันทึก)</p>
+            <div id="adminRules" class="space-y-2"></div>
+            <button id="adminRuleAdd" class="mt-2 w-full py-2 rounded-xl border border-dashed border-indigo-300 text-indigo-700 text-sm font-semibold active:scale-95 transition">＋ เพิ่มระดับ</button>
+            <button id="adminRuleSave" class="mt-2 w-full py-2.5 rounded-xl bg-indigo-700 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกการตั้งค่า Level & XP</button>
           </div>
-          <p class="text-[11px] text-slate-400 mt-2">ไฟล์เรียงวันที่-เวลา ใหม่→เก่า พร้อมชื่อผู้บันทึก หมวดหมู่ (AI) สถานะ และลิงก์ไฟล์แนบ</p>
-        </div>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.11</p>
+          <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-1">🎯 ตั้งค่าแต้ม XP ต่อกิจกรรม</h3>
+            <p class="text-[11px] text-slate-400 mb-2">กำหนดว่าแต่ละกิจกรรมได้กี่แต้ม • มีผลกับการบันทึกครั้งถัดไป (ย้อนหลังไม่เปลี่ยน)</p>
+            <div id="adminXpCfg" class="space-y-2"></div>
+            <button id="adminXpCfgSave" class="mt-2 w-full py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกแต้ม XP</button>
+            <button id="adminXpCfgReset" class="mt-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">↺ คืนค่าเริ่มต้น</button>
+          </div>
+
+          <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-1">🔥 ตั้งค่าโบนัสสตรีค (Streak Bonus)</h3>
+            <p class="text-[11px] text-slate-400 mb-2">โบนัสเมื่อบันทึกงาน/แจ้งปัญหาต่อเนื่อง • ครั้งแรกของวัน + โบนัสพิเศษเมื่อครบ N วัน • มีผลกับการบันทึกครั้งถัดไป (เพดาน 100,000)</p>
+            <div id="adminStreakCfg" class="space-y-2"></div>
+            <button id="adminStreakSave" class="mt-2 w-full py-2.5 rounded-xl bg-pink-700 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกโบนัสสตรีค</button>
+            <button id="adminStreakReset" class="mt-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">↺ คืนค่าเริ่มต้น</button>
+          </div>
+
+          <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-1">🏅 จัดการเหรียญตรา / ความสำเร็จ</h3>
+            <p class="text-[11px] text-slate-400 mb-2">เพิ่ม/แก้ไข/ลบเหรียญตราได้ • กำหนดเงื่อนไข ค่าเป้าหมาย และแต้ม XP • มีผลทันทีกับทุกคน</p>
+            <div id="adminAchCfg" class="space-y-2"></div>
+            <button id="adminAchAdd" class="mt-2 w-full py-2 rounded-xl border border-dashed border-amber-300 text-amber-700 text-sm font-semibold active:scale-95 transition">＋ เพิ่มเหรียญตรา</button>
+            <button id="adminAchSave" class="mt-2 w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกเหรียญตรา</button>
+            <button id="adminAchReset" class="mt-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">↺ คืนค่าเริ่มต้น</button>
+            <p class="text-[10px] text-slate-400 mt-2">หมายเหตุ: เหรียญที่ผู้ใช้ปลดล็อกไปแล้วจะยังอยู่ แม้จะลบหรือแก้เงื่อนไขภายหลัง</p>
+          </div>
+        </section>
+
+        <!-- ===== หมวด: ประวัติ ===== -->
+        <section class="admin-sub hidden" data-sub="audit">
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-1">🧾 ประวัติการจัดการ (Audit Log)</h3>
+            <p class="text-[11px] text-slate-400 mb-2">การลบ / ยกเลิก / ตีกลับ / กู้คืน โดยแอดมิน · เรียงใหม่→เก่า • เฉพาะแอดมิน</p>
+            <button id="adminAuditRefresh" class="mb-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">🔄 โหลดประวัติล่าสุด</button>
+            <div id="adminAuditList" class="space-y-2 max-h-[420px] overflow-y-auto"></div>
+          </div>
+        </section>
+
+        <!-- ===== หมวด: อื่นๆ ===== -->
+        <section class="admin-sub hidden" data-sub="misc">
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-2">📢 ส่งประกาศแจ้งเตือน</h3>
+            <p class="text-[11px] text-slate-400 mb-2">ข้อความจะเด้งบังหน้าจอผู้ใช้ทุกคน จนกว่าจะกดรับทราบ</p>
+            <textarea id="adminNotifMsg" rows="3" placeholder="พิมพ์ข้อความประกาศ..."
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
+            <button id="adminNotifSend" class="mt-2 w-full py-2.5 rounded-xl bg-red-700 text-white text-sm font-bold active:scale-95 transition">ส่งประกาศ</button>
+            <div id="adminNotifRecent" class="mt-3 space-y-1"></div>
+          </div>
+
+          <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+            <h3 class="text-sm font-bold text-slate-700 mb-2">📥 Export ข้อมูล</h3>
+            <div class="grid grid-cols-2 gap-2">
+              <button data-export="worklogs" data-format="xlsx" class="export-btn py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold active:scale-95 transition">บันทึกงาน (Excel)</button>
+              <button data-export="worklogs" data-format="csv" class="export-btn py-2.5 rounded-xl bg-emerald-700 text-white text-xs font-bold active:scale-95 transition">บันทึกงาน (CSV)</button>
+              <button data-export="issues" data-format="xlsx" class="export-btn py-2.5 rounded-xl bg-red-600 text-white text-xs font-bold active:scale-95 transition">ปัญหา (Excel)</button>
+              <button data-export="issues" data-format="csv" class="export-btn py-2.5 rounded-xl bg-red-700 text-white text-xs font-bold active:scale-95 transition">ปัญหา (CSV)</button>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-2">ไฟล์เรียงวันที่-เวลา ใหม่→เก่า พร้อมชื่อผู้บันทึก หมวดหมู่ (AI) สถานะ และลิงก์ไฟล์แนบ</p>
+          </div>
+        </section>
+
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.12</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -624,7 +659,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.11 (index.html) · restore (undo) + audit log + admin achievements/KB management
+     KKU HR Exp — Phase 6.12 (index.html) · admin panel sub-tabs + restore (undo) + audit log
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -1334,7 +1369,15 @@
     if (tab === "history") loadHistory();
     if (tab === "resend") loadResend();
     if (tab === "profile") loadProfile();
-    if (tab === "admin") loadAdmin();
+    if (tab === "admin") { switchAdminSub("overview"); loadAdmin(); }
+  }
+
+  /* ---------- Admin sub-tabs ---------- */
+  function switchAdminSub(name) {
+    document.querySelectorAll("#adminSubNav .asub-btn").forEach(b =>
+      b.classList.toggle("active", b.dataset.asub === name));
+    document.querySelectorAll("#tab-admin .admin-sub").forEach(s =>
+      s.classList.toggle("hidden", s.dataset.sub !== name));
   }
 
   function renderModeButtons() {
@@ -2935,6 +2978,10 @@
       if (btn) { const r = btn.closest(".ach-row"); if (r) r.remove(); }
     });
     $("adminAuditRefresh").addEventListener("click", (e) => runBusy(e.currentTarget, loadAuditLog));
+    $("adminSubNav").addEventListener("click", (e) => {
+      const btn = e.target.closest(".asub-btn");
+      if (btn) switchAdminSub(btn.dataset.asub);
+    });
     $("adminRules").addEventListener("click", (e) => {
       const btn = e.target.closest(".rule-remove");
       if (btn) { const r = btn.closest(".rule-row"); if (r) r.remove(); }
