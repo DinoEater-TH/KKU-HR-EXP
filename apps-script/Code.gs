@@ -1,5 +1,5 @@
 /************************************************************************
- * KKU HR Exp — Phase 6.5 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 6.13 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
  * โครงสร้างทั้งหมด (Phase 1-5)
@@ -17,6 +17,7 @@
  *   RPG   : Achievements / เหรียญตรา ปลดล็อก + XP (Phase 6.1)
  *   Edit  : เจ้าของแก้ไขข้อความรายการของตัวเองได้ (Phase 6.4)
  *   Soln  : เสนอแนวทางแก้ไขได้ครั้งเดียว/รายการ + แก้ข้อความที่เสนอได้ (Phase 6.5)
+ *   Back  : บันทึกงานย้อนหลังได้ (ระบุวันที่/เวลา) — ย้อนหลังเกิน 3 เดือนไม่ได้ XP (Phase 6.13)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -219,7 +220,7 @@ var SHEETS = {
 
 var HEADERS = {
   USERS:         ["Email", "Full_Name", "Total_XP", "Level", "Last_Login", "Role"],
-  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "File_Meta", "Category", "Client_Ref", "Links", "Status", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At", "Remove_Reason", "Removed_By", "Removed_At", "Prev_Status", "Removed_XP"],
+  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "File_Meta", "Category", "Client_Ref", "Links", "Status", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At", "Remove_Reason", "Removed_By", "Removed_At", "Prev_Status", "Removed_XP", "Backdated", "Submitted_At"],
   ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "File_Meta", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At", "Remove_Reason", "Removed_By", "Removed_At", "KB_Remove_Reason", "KB_Removed_By", "KB_Removed_At", "Prev_Status", "Removed_XP"],
   SOLUTIONS:     ["Solution_ID", "Issue_ID", "Timestamp", "Solution_Text", "Proposed_By", "Proposer_Name", "Status", "Remove_Reason", "Removed_By", "Removed_At", "Prev_Status", "Removed_XP"],
   XP_HISTORY:    ["XP_ID", "Timestamp", "User_Email", "Amount", "Reason", "Ref_ID", "Client_Ref"],
@@ -248,7 +249,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.11", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.13", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -289,7 +290,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.11" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.13" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -318,9 +319,9 @@ function doPost(e) {
 
     switch (data.action) {
       case "login":          return handleLogin_(email, data.name || "");
-      case "workLog":        return handleWorkLog_(email, data.detail || "", data.files || [], data.category || "work", data.clientRef);
+      case "workLog":        return handleWorkLog_(email, data.detail || "", data.files || [], data.category || "work", data.clientRef, data.logDate, data.logTime);
       case "issue":          return handleIssue_(email, data.detail || "", data.files || [], data.category || "issue", data.clientRef);
-      case "autoSubmit":     return handleAutoSubmit_(email, data.detail || "", data.files || [], data.clientRef);
+      case "autoSubmit":     return handleAutoSubmit_(email, data.detail || "", data.files || [], data.clientRef, data.logDate, data.logTime);
       case "addSolution":    return handleAddSolution_(email, data.name || "", data.issueId, data.solution || "");
       case "editSolution":   return handleEditSolution_(email, data.issueId, data.solution || "");
       case "addFiles":       return handleAddFiles_(email, data.recordType, data.recordId, data.files || []);
@@ -380,9 +381,10 @@ function handleLogin_(email, name) {
   return json_({ status: "ok", email: email, time: ts, isAdmin: isAdmin_(email) });
 }
 
-function handleWorkLog_(email, detail, files, category, clientRef) {
+function handleWorkLog_(email, detail, files, category, clientRef, logDate, logTime) {
+  var logTs = resolveLogDate_(logDate, logTime);
   validateAndAssess_(email, detail, clientRef);
-  return recordWork_(email, detail, files, category || "work", clientRef);
+  return recordWork_(email, detail, files, category || "work", clientRef, logTs);
 }
 
 function handleIssue_(email, detail, files, category, clientRef) {
@@ -390,28 +392,33 @@ function handleIssue_(email, detail, files, category, clientRef) {
   return recordIssue_(email, detail, files, category || "issue", clientRef);
 }
 
-function handleAutoSubmit_(email, detail, files, clientRef) {
+function handleAutoSubmit_(email, detail, files, clientRef, logDate, logTime) {
+  var logTs = resolveLogDate_(logDate, logTime);
   var a = validateAndAssess_(email, detail, clientRef);
   if (a.category === "issue") return recordIssue_(email, detail, files, "issue", clientRef);
-  return recordWork_(email, detail, files, "work", clientRef);
+  return recordWork_(email, detail, files, "work", clientRef, logTs);
 }
 
-function recordWork_(email, detail, files, category, clientRef) {
+function recordWork_(email, detail, files, category, clientRef, logTs) {
   var sh = getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS);
-  var ts = nowStr_();
+  var backdated = !!logTs;
+  var ts = logTs || nowStr_();
+  var submittedAt = nowStr_();
   var infos = uploadFiles_(files);
   var urls = infos.map(function (fi) { return fi.url; });
   var id = "LOG-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_();
   appendByHeaders_(sh, HEADERS.WORK_LOGS, {
     Log_ID: id, Timestamp: ts, User_Email: email, Detail: detail,
     File_URLs: urls.join("\n"), File_Meta: urls.length ? JSON.stringify(infos) : "",
-    Category: category, Client_Ref: clientRef || ""
+    Category: category, Client_Ref: clientRef || "",
+    Backdated: backdated ? "TRUE" : "", Submitted_At: submittedAt
   });
-  var xpWork = getXpConfig_().WORK_LOG;
+  var eligible = backdateEligibleForXp_(logTs);
+  var xpWork = eligible ? getXpConfig_().WORK_LOG : 0;
   var lv = awardXp_(email, xpWork, "work_log", id, clientRef);
-  var st = applyStreakBonus_(email, clientRef);
+  var st = eligible ? applyStreakBonus_(email, clientRef) : { awarded: 0, streak: streakStats_(email).current };
   evaluateAchievements_(email);
-  return json_({ status: "ok", type: "work", id: id, time: ts, files: urls.length, xp: xpWork, totalXp: lv.totalXp + st.awarded, streakBonus: st.awarded, streakDays: st.streak });
+  return json_({ status: "ok", type: "work", id: id, time: ts, files: urls.length, xp: xpWork, backdated: backdated, noXp: !eligible, totalXp: lv.totalXp + st.awarded, streakBonus: st.awarded, streakDays: st.streak });
 }
 
 function recordIssue_(email, detail, files, category, clientRef) {
@@ -897,6 +904,50 @@ function shiftYmd_(s, n) {
   return Utilities.formatDate(d, "UTC", "yyyy-MM-dd");
 }
 
+/* ======================================================================
+ * [5c-2] บันทึกงานย้อนหลัง (Phase 6.13)
+ *   ผู้ใช้ระบุวันที่ทำงานย้อนหลังได้ (ระบุเวลาไม่บังคับ)
+ *   ถ้าย้อนหลังเกิน 3 เดือน จะไม่ได้รับ XP
+ * ==================================================================== */
+var BACKDATE_NO_XP_MONTHS = 3;
+
+/* แปลง logDate (yyyy-MM-dd) + logTime (HH:mm, ไม่บังคับ) → เก็บเป็น Timestamp ของงาน
+   คืนค่า null ถ้าไม่ระบุ (แปลว่าบันทึกปกติ = ตอนนี้) */
+function resolveLogDate_(logDate, logTime) {
+  var s = String(logDate || "").trim();
+  if (!s) return null;
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) throw new Error("รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น ปี-เดือน-วัน)");
+  var y = +m[1], mo = +m[2], da = +m[3];
+  var dt = new Date(Date.UTC(y, mo - 1, da));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== da) {
+    throw new Error("วันที่ไม่ถูกต้อง");
+  }
+  var today = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd");
+  if (s > today) throw new Error("ระบุวันในอนาคตไม่ได้");
+  var out = s;
+  var t = /^(\d{1,2}):(\d{2})/.exec(String(logTime || ""));
+  if (t) {
+    var hh = +t[1], mi = +t[2];
+    if (hh > 23 || mi > 59) throw new Error("เวลาไม่ถูกต้อง");
+    out = s + " " + pad2_(hh) + ":" + pad2_(mi) + ":00";
+  }
+  return out;
+}
+
+/* งานย้อนหลังวันนี้ ได้ XP หรือยัง? (ย้อนหลังเกิน BACKDATE_NO_XP_MONTHS เดือน → ไม่ได้) */
+function backdateEligibleForXp_(logTs) {
+  if (!logTs) return true;
+  var today = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd");
+  var y = +today.substring(0, 4), mo = +today.substring(5, 7), da = +today.substring(8, 10);
+  var cy = y, cmo = mo - BACKDATE_NO_XP_MONTHS;
+  while (cmo < 1) { cmo += 12; cy -= 1; }
+  var daysInMonth = new Date(Date.UTC(cy, cmo, 0)).getUTCDate();
+  var cda = Math.min(da, daysInMonth);
+  var cutoff = cy + "-" + pad2_(cmo) + "-" + pad2_(cda);
+  return String(logTs).substring(0, 10) >= cutoff;
+}
+
 /* วันที่ที่มีกิจกรรม (work_log / issue) ของผู้ใช้ เรียงจากเก่า → ใหม่ */
 function activeDaysFor_(email) {
   var set = {};
@@ -1286,10 +1337,11 @@ function submitResult_(clientRef, idToken) {
 
   var timestamp = String(xpRow.Timestamp || "");
   var category = reason;
+  var backdated = false;
   if (type === "work") {
     var w = readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
       .filter(function (r) { return String(r.Log_ID) === refId; })[0];
-    if (w) { timestamp = String(w.Timestamp); category = String(w.Category || "work"); }
+    if (w) { timestamp = String(w.Timestamp); category = String(w.Category || "work"); backdated = String(w.Backdated || "") === "TRUE"; }
   } else {
     var it = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
       .filter(function (r) { return String(r.Issue_ID) === refId; })[0];
@@ -1307,7 +1359,7 @@ function submitResult_(clientRef, idToken) {
 
   return {
     status: "ok", found: true, type: type, category: category, refId: refId,
-    amount: Number(xpRow.Amount || 0), timestamp: timestamp,
+    amount: Number(xpRow.Amount || 0), timestamp: timestamp, backdated: backdated,
     totalXp: totalXp, level: lv.level, title: lv.title, nextXp: lv.nextMinXp,
     streakBonus: streakBonus, streakDays: streakBonus ? streakStats_(email).current : 0
   };
@@ -2287,6 +2339,7 @@ function formatLinks_(v) {
 
 function nowStr_() { return Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd HH:mm:ss"); }
 function rand3_() { return Math.floor(Math.random() * 900 + 100); }
+function pad2_(n) { n = Number(n) || 0; return (n < 10 ? "0" : "") + n; }
 
 function json_(obj) { return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON); }
 function output_(obj, callback) {

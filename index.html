@@ -126,7 +126,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.12"
+      FRONT_PHASE      : "6.13"
     };
   </script>
 
@@ -149,7 +149,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.12</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.13</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -231,6 +231,19 @@
               </label>
             </div>
             <div id="preview" class="mt-3 grid grid-cols-4 gap-2"></div>
+          </div>
+
+          <div id="backdateCard" class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input id="backdateToggle" type="checkbox" class="w-4 h-4" /> 🕓 บันทึกงานย้อนหลัง
+            </label>
+            <div id="backdateBox" class="hidden mt-3">
+              <div class="flex gap-2">
+                <input id="logDate" type="date" class="flex-1 min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+                <input id="logTime" type="time" class="w-32 shrink-0 rounded-xl border border-slate-200 bg-white p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1.5">ระบุแค่วันที่ก็ได้ (เวลาไม่บังคับ) · <b>ย้อนหลังเกิน 3 เดือนจะไม่ได้รับ XP</b></p>
+            </div>
           </div>
 
           <button id="submitBtn" class="mt-4 w-full py-3.5 rounded-xl bg-gradient-to-r from-red-700 to-red-900 text-white font-bold shadow-lg active:scale-[.98] transition flex items-center justify-center gap-2">
@@ -449,7 +462,7 @@
           </div>
         </section>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.12</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.13</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -659,7 +672,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.12 (index.html) · admin panel sub-tabs + restore (undo) + audit log
+     KKU HR Exp — Phase 6.13 (index.html) · backdated work logs (no XP if over 3 months)
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -1385,6 +1398,29 @@
       const active = b.dataset.mode === state.mode;
       b.className = "mode-btn py-2 rounded-xl text-xs font-semibold " + (active ? "bg-red-700 text-white shadow" : "bg-slate-100 text-slate-600");
     });
+    const bdCard = $("backdateCard");
+    if (bdCard) {
+      const isIssue = state.mode === "issue";
+      bdCard.classList.toggle("hidden", isIssue);
+      if (isIssue) resetBackdate();
+    }
+  }
+
+  /* ---------- บันทึกงานย้อนหลัง (Phase 6.13) ---------- */
+  function resetBackdate() {
+    const t = $("backdateToggle"), b = $("backdateBox"), d = $("logDate"), tm = $("logTime");
+    if (t) t.checked = false;
+    if (b) b.classList.add("hidden");
+    if (d) d.value = "";
+    if (tm) tm.value = "";
+  }
+  function toggleBackdateBox() {
+    const on = $("backdateToggle").checked;
+    $("backdateBox").classList.toggle("hidden", !on);
+    if (on && $("logDate")) {
+      const d = new Date();
+      $("logDate").max = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
   }
 
   /* ---------- Submit + Modal สรุป ---------- */
@@ -1398,20 +1434,29 @@
 
     const action = state.mode === "auto" ? "autoSubmit" : (state.mode === "issue" ? "issue" : "workLog");
     const clientRef = "C" + Date.now() + Math.floor(Math.random()*1000);
+    const payload = { action, email:state.user.email, name:state.user.name, detail, files:state.attachments, idToken:state.idToken, clientRef };
+    if (action === "workLog" || action === "autoSubmit") {
+      if ($("backdateToggle") && $("backdateToggle").checked) {
+        const ld = $("logDate").value;
+        if (!ld) { showToast("กรุณาเลือกวันที่ย้อนหลัง", "warn"); return; }
+        payload.logDate = ld;
+        payload.logTime = $("logTime").value || "";
+      }
+    }
     try {
-      await sendToServer({ action, email:state.user.email, name:state.user.name, detail, files:state.attachments, idToken:state.idToken, clientRef });
+      await sendToServer(payload);
       const result = await pollResult(clientRef);
       if (result && result.rejected) {
         showSaveModal(detail, result);
         return;
       }
-      $("detail").value = ""; state.attachments = []; renderPreviews();
+      $("detail").value = ""; state.attachments = []; renderPreviews(); resetBackdate();
       showSaveModal(detail, result);
       loadProfile();
       loadAchievements();
       if (state.currentTab === "dashboard") loadDashboard();
       if (state.currentTab === "admin" && state.isAdmin) loadAdmin();
-      if (result) {
+      if (result && result.amount > 0) {
         showXpFloat("+" + result.amount + " XP", "#00e5ff");
         playChime("gain");
         if (result.streakBonus > 0) {
@@ -1458,13 +1503,16 @@
       body.innerHTML = `
         <div class="rounded-xl bg-slate-50 p-3 text-slate-600 whitespace-pre-wrap">${esc(detail)}</div>
         <div class="flex justify-between"><span class="text-slate-400">หมวดหมู่ (AI วิเคราะห์)</span><span class="font-semibold">${isWork ? "บันทึกงาน (Work Log)" : "ปัญหา (Issue)"}</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">วัน-เวลา (Auto)</span><span class="font-semibold">${esc(r.timestamp)}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">${r.backdated ? "วันที่ทำงาน (ย้อนหลัง)" : "วัน-เวลา (Auto)"}</span><span class="font-semibold">${esc(r.timestamp)}</span></div>
         <div class="flex justify-between"><span class="text-slate-400">รหัสอ้างอิง</span><span class="font-mono text-xs">${esc(r.refId)}</span></div>
-        <div class="mt-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-center">
+        ${r.amount > 0 ? `<div class="mt-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-center">
           <p class="text-amber-700 font-bold text-lg">⭐ +${r.amount} XP</p>
           <p class="text-[11px] text-amber-600 mt-0.5">รวม ${r.totalXp} XP · Level ${r.level} (${esc(r.title)})</p>
           ${r.streakBonus > 0 ? `<p class="mt-2 inline-block rounded-lg bg-pink-100 border border-pink-300 text-pink-700 font-bold text-sm px-3 py-1">🔥 โบนัสสตรีค +${r.streakBonus} XP · ${r.streakDays} วันติด</p>` : ""}
-        </div>`;
+        </div>` : (isWork ? `<div class="mt-2 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+          <p class="text-slate-500 font-semibold text-sm">🕓 บันทึกย้อนหลังเกิน 3 เดือน</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">บันทึกสำเร็จ แต่ไม่ได้รับ XP · รวม ${r.totalXp} XP</p>
+        </div>` : "")}`;
     } else {
       head.className = "p-5 text-center text-white bg-gradient-to-r from-slate-600 to-slate-700";
       $("saveModalIcon").textContent = "⏳";
@@ -2941,6 +2989,7 @@
     $("navMoreBtn").addEventListener("click", openNavSheet);
     $("navSheetBackdrop").addEventListener("click", closeNavSheet);
     document.querySelectorAll(".mode-btn").forEach(b => b.addEventListener("click", () => { state.mode = b.dataset.mode; renderModeButtons(); }));
+    $("backdateToggle").addEventListener("change", toggleBackdateBox);
     $("submitBtn").addEventListener("click", submit);
     $("refreshBoard").addEventListener("click", (e) => runBusy(e.currentTarget, loadBoard));
     $("refreshKb").addEventListener("click", (e) => runBusy(e.currentTarget, loadKb));
