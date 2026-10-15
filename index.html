@@ -156,7 +156,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.16"
+      FRONT_PHASE      : "6.17"
     };
   </script>
 
@@ -179,7 +179,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.16</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.17</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -501,7 +501,7 @@
           </div>
         </section>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.16</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.17</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -711,7 +711,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.16 (index.html) · กดถูกใจรายข้อเสนอแนะในคลังความรู้ (per-solution like + XP) · UI refresh 6.15
+     KKU HR Exp — Phase 6.17 (index.html) · แอดมินลบข้อเสนอแนะในคลังได้ (คืน XP ครบ) · ยืนยันสำเร็จต้องมี ≥1 ข้อเสนอ + เข้าคลังอัตโนมัติ · UI refresh 6.15
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -1588,7 +1588,12 @@
     const files = fileBadges(it.files);
     const links = linkBadges(it.links);
     const sols = it.solutions.length ? `<div class="mt-3 space-y-2">${it.solutions.map(s=>`<div class="bg-emerald-50 rounded-lg p-2.5"><p class="text-[11px] text-emerald-700 font-semibold">💡 ${esc(s.by)}${s.mine ? ' <span class="text-amber-700">(ของฉัน)</span>' : ""} · ${esc(s.time)}</p><p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(s.text)}</p></div>`).join("")}</div>` : "";
-    const resolveBtn = it.canResolve ? `<button data-resolve="${esc(it.id)}" class="mt-2 w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold active:scale-95 transition">✅ ยืนยันว่าแก้ไขสำเร็จ (+50 XP)</button>` : "";
+    const hasSol = (it.solutions || []).length > 0;
+    const resolveBtn = it.canResolve
+      ? (hasSol
+        ? `<button data-resolve="${esc(it.id)}" class="mt-2 w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold active:scale-95 transition">✅ ยืนยันว่าแก้ไขสำเร็จ (+50 XP)</button>`
+        : `<p class="mt-2 text-center text-[11px] text-amber-600 bg-amber-50 rounded-lg py-2 px-2">ต้องมีแนวทางแก้ไขอย่างน้อย 1 วิธี ก่อนยืนยันว่าแก้ไขสำเร็จได้</p>`)
+      : "";
     const solBlock = it.mySolution
       ? `<details class="mt-3">
           <summary class="cursor-pointer text-xs font-semibold text-emerald-700 select-none">✏️ แก้ไขแนวทางแก้ไขของฉัน</summary>
@@ -1669,7 +1674,7 @@
   }
 
   async function resolveIssue(issueId) {
-    const ok = await postAction({ action:"resolveIssue", issueId, email:state.user.email, idToken:state.idToken }, "✅ ยืนยันแก้ไขสำเร็จ (+50 XP) — รอแอดมินอนุมัติขึ้นคลังองค์ความรู้");
+    const ok = await postAction({ action:"resolveIssue", issueId, email:state.user.email, idToken:state.idToken }, "✅ ยืนยันแก้ไขสำเร็จ (+50 XP) — เข้าคลังองค์ความรู้อัตโนมัติแล้ว");
     if (ok) { setTimeout(() => { loadBoard(); loadKb(); }, 1500); loadProfile(); }
   }
 
@@ -2360,7 +2365,9 @@
       : (isRemove
         ? (kind === "kb"
           ? "รายการจะถูกซ่อนออกจากคลังองค์ความรู้ (XP ไม่เปลี่ยน) และยังเก็บข้อมูลไว้ในชีตเพื่อกู้คืนได้"
-          : "XP ของรายการนี้จะถูกหักคืน รายการจะถูกซ่อนจากทุกที่ และผู้ใช้จะเห็นสถานะ 'ถูกลบ' ในประวัติของตัวเอง")
+          : (kind === "solution"
+            ? "ข้อเสนอแนะนี้จะถูกซ่อน และ XP ทั้งหมดที่เกี่ยวข้อง (ค่าข้อเสนอ + ค่าถูกใจ) จะถูกหักคืนจากเจ้าของ · กู้คืนได้ภายหลัง"
+            : "XP ของรายการนี้จะถูกหักคืน รายการจะถูกซ่อนจากทุกที่ และผู้ใช้จะเห็นสถานะ 'ถูกลบ' ในประวัติของตัวเอง"))
         : "XP ของรายการนี้จะถูกหักคืน และผู้ใช้จะเห็นว่าโดนยกเลิก");
     $("voidConfirm").textContent = isReject ? "↩️ ยืนยันตีกลับ" : (isRemove ? "🗑️ ยืนยันลบ" : "⛔ ยืนยันยกเลิก");
     $("voidPreview").textContent = `#${id}\n${it.detail || ""}`;
@@ -2386,7 +2393,7 @@
     if (ok) {
       loadAdminSubmissions();
       loadAdmin();
-      if (kind === "kb") loadKb();
+      if (kind === "kb" || kind === "solution") loadKb();
       if (!$("userModal").classList.contains("hidden")) openUserDetail(state.userRecordEmail);
     }
   }
@@ -2413,7 +2420,7 @@
       state.voidCtx = null;
       loadAdminSubmissions();
       loadAdmin();
-      if (isRemove && ctx.kind === "kb") loadKb();
+      if (isRemove && (ctx.kind === "kb" || ctx.kind === "solution")) loadKb();
       if (!$("userModal").classList.contains("hidden")) openUserDetail(state.userRecordEmail);
     }
   }
@@ -2986,25 +2993,52 @@
     if (!wrap) return;
     wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">กำลังโหลด...</p>`;
     try {
-      const data = await apiGet({ action:"knowledgeBase", idToken: state.idToken });
+      const data = await apiGet({ action:"knowledgeBase", idToken: state.idToken, includeRemoved: "true" });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       const items = data.articles || [];
       if (!items.length) { wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">ยังไม่มีรายการในคลัง</p>`; return; }
-      wrap.innerHTML = items.map(it => `
+      wrap.innerHTML = items.map(it => {
+        const sols = (it.solutions || []).map(s => {
+          if (s.removed) {
+            return `<div class="rounded-lg bg-slate-100 border border-slate-200 p-2.5 mt-1.5">
+              <p class="text-[11px] text-slate-500 font-semibold">💡 ${esc(s.by)} เสนอ · <span class="text-slate-400">ถูกลบโดยแอดมิน</span></p>
+              <p class="text-sm text-slate-400 line-through mt-1 whitespace-pre-wrap">${esc(s.text)}</p>
+              ${s.removeReason ? `<p class="text-[11px] text-slate-500 mt-1">เหตุผล: ${esc(s.removeReason)} · ${esc(s.removedBy || "")} ${esc(s.removedAt || "")}</p>` : ""}
+              <button data-solrestore="${esc(s.id)}" class="mt-1.5 px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200 active:scale-95 transition">♻️ กู้คืน (คืน XP)</button>
+            </div>`;
+          }
+          return `<div class="rounded-lg bg-white border border-slate-200 p-2.5 mt-1.5">
+            <div class="flex justify-between items-start gap-2">
+              <p class="text-[11px] text-slate-500 font-semibold">💡 ${esc(s.by)} เสนอ · ❤️ ${esc(s.likeCount || 0)}</p>
+              <button data-solremove="${esc(s.id)}" class="shrink-0 px-2.5 py-1 rounded-lg bg-red-50 text-red-600 text-[11px] font-bold border border-red-200 active:scale-95 transition">🗑️ ลบข้อเสนอ</button>
+            </div>
+            <p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(s.text)}</p>
+          </div>`;
+        }).join("");
+        return `
         <div class="rounded-xl border border-slate-100 p-3">
           <div class="flex justify-between items-start gap-2">
             <div class="min-w-0">
               <p class="text-sm text-slate-700 whitespace-pre-wrap">${esc(it.detail)}</p>
               <p class="text-[11px] text-slate-400 mt-1">🕒 ${esc(it.time || "")}${it.solver ? " · ✅ " + esc(it.solver) : ""} · ❤️ ${esc(it.likeCount || 0)}</p>
             </div>
-            <button data-kbremove="${esc(it.id)}" class="shrink-0 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบ</button>
+            <button data-kbremove="${esc(it.id)}" class="shrink-0 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบทั้งรายการ</button>
           </div>
-        </div>`).join("");
+          ${sols ? `<div class="mt-2">${sols}</div>` : `<p class="text-[11px] text-slate-400 mt-2">ไม่มีข้อเสนอแนะ</p>`}
+        </div>`;
+      }).join("");
       wrap.querySelectorAll("[data-kbremove]").forEach(b => b.addEventListener("click", () => {
         const id = b.dataset.kbremove;
         const rec = items.find(x => String(x.id) === String(id));
         openRemoveModal("kb", id, rec ? rec.detail : "");
       }));
+      wrap.querySelectorAll("[data-solremove]").forEach(b => b.addEventListener("click", () => {
+        const sid = b.dataset.solremove;
+        let txt = "";
+        items.some(x => (x.solutions || []).some(s => { if (String(s.id) === String(sid)) { txt = s.text; return true; } return false; }));
+        openRemoveModal("solution", sid, txt);
+      }));
+      wrap.querySelectorAll("[data-solrestore]").forEach(b => b.addEventListener("click", () => confirmRestore("solution", b.dataset.solrestore)));
     } catch (err) {
       wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-3">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }

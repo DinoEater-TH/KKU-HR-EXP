@@ -1,5 +1,5 @@
 /************************************************************************
- * KKU HR Exp — Phase 6.16 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 6.17 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
  * โครงสร้างทั้งหมด (Phase 1-5)
@@ -20,6 +20,7 @@
  *   Back  : บันทึกงานย้อนหลังได้ (ระบุวันที่/เวลา) — ย้อนหลังเกิน 3 เดือนไม่ได้ XP (Phase 6.13)
  *   Dedupe: ซ่อนวิธีแก้ไขที่ซ้ำ/ใกล้เคียงกันในบอร์ดและคลังองค์ความรู้ (Phase 6.14)
  *   Like  : กดถูกใจราย "ข้อเสนอแนะ" (ไม่ใช่รายรายการ) — เจ้าของได้ XP ต่อผู้กด 1 คน (Phase 6.16)
+ *   KB2   : ต้องมีข้อเสนอแนะ ≥1 ก่อนยืนยันสำเร็จ + เข้าคลังอัตโนมัติ + แอดมินลบข้อเสนอแนะได้ (คืน XP ทั้งหมด) (Phase 6.17)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -251,13 +252,13 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.16", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.17", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
         return output_(myHistory_(p.idToken, p.email), cb);
       case "knowledgeBase":
-        return output_(knowledgeBase_(p.idToken, p.email), cb);
+        return output_(knowledgeBase_(p.idToken, p.email, p.includeRemoved), cb);
       case "myProfile":
         return output_(myProfile_(p.idToken, p.email), cb);
       case "dashboard":
@@ -292,7 +293,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.16" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.17" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -585,15 +586,21 @@ function handleResolveIssue_(email, issueId) {
   var owner = String(sh.getRange(row, map["User_Email"]).getValue() || "");
   if (owner !== email && !isAdmin_(email)) throw new Error("ไม่มีสิทธิ์ยืนยันรายการนี้");
 
-  // หาผู้เสนอวิธีแก้ (คนแรก) เพื่อให้เครดิต
+  // ต้องมีแนวทางแก้ไข (ที่ไม่ถูกลบ) อย่างน้อย 1 วิธี ก่อนจึงจะยืนยันได้ (Phase 6.17)
   var sols = readObjects_(getSheet_(SHEETS.SOLUTIONS, HEADERS.SOLUTIONS), HEADERS.SOLUTIONS)
-    .filter(function (s) { return String(s.Issue_ID) === String(issueId); });
-  var solverEmail = sols.length ? String(sols[0].Proposed_By || "") : "";
-  var solverName = sols.length ? String(sols[0].Proposer_Name || "") : "";
-  if (!solverEmail) { solverEmail = email; solverName = ""; }
+    .filter(function (s) { return String(s.Issue_ID) === String(issueId) && !solutionRemoved_(s); });
+  if (!sols.length) throw new Error("ยังไม่มีแนวทางแก้ไข — ต้องมีอย่างน้อย 1 วิธีจึงจะยืนยันว่าแก้ไขสำเร็จได้");
+
+  // หาผู้เสนอวิธีแก้ (คนแรก) เพื่อให้เครดิต
+  var solverEmail = String(sols[0].Proposed_By || "");
+  var solverName = String(sols[0].Proposer_Name || "");
 
   sh.getRange(row, map["Status"]).setValue("Solved");
-  if (map["KB_Approved"]) sh.getRange(row, map["KB_Approved"]).setValue(false);
+  // เคสที่แก้สำเร็จจะเข้าคลังองค์ความรู้อัตโนมัติทันที (Phase 6.17)
+  if (map["KB_Approved"]) sh.getRange(row, map["KB_Approved"]).setValue(true);
+  if (map["KB_Remove_Reason"]) sh.getRange(row, map["KB_Remove_Reason"]).setValue("");
+  if (map["KB_Removed_By"]) sh.getRange(row, map["KB_Removed_By"]).setValue("");
+  if (map["KB_Removed_At"]) sh.getRange(row, map["KB_Removed_At"]).setValue("");
   if (map["Solved_By"]) sh.getRange(row, map["Solved_By"]).setValue(solverName || solverEmail);
   if (map["Solved_By_Email"]) sh.getRange(row, map["Solved_By_Email"]).setValue(solverEmail);
 
@@ -841,17 +848,28 @@ function myHistory_(idToken, emailParam) {
   return { status: "ok", email: email, isAdmin: isAdmin_(email), count: all.length, items: all };
 }
 
-function knowledgeBase_(idToken, emailParam) {
+function knowledgeBase_(idToken, emailParam, includeRemoved) {
   var me = idToken ? verifyIdToken_(idToken).email : null;
+  var admin = me ? isAdmin_(me) : false;
+  var wantRemoved = admin && isTruthy_(includeRemoved);   // แอดมินขอดูข้อเสนอแนะที่ถูกลบด้วย (Phase 6.17)
 
   var iss = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES);
   var sols = readObjects_(getSheet_(SHEETS.SOLUTIONS, HEADERS.SOLUTIONS), HEADERS.SOLUTIONS);
   var likes = readObjects_(getSheet_(SHEETS.LIKES, HEADERS.LIKES), HEADERS.LIKES);
 
   var byIssue = {};
+  var removedByIssue = {};
   sols.forEach(function (s) {
-    if (solutionRemoved_(s)) return;
     var k = String(s.Issue_ID);
+    if (solutionRemoved_(s)) {
+      if (!wantRemoved) return;
+      (removedByIssue[k] = removedByIssue[k] || []).push({
+        id: String(s.Solution_ID || ""), text: String(s.Solution_Text || ""), by: String(s.Proposer_Name || "เพื่อนร่วมงาน"),
+        byEmail: String(s.Proposed_By || ""), removeReason: String(s.Remove_Reason || ""),
+        removedBy: String(s.Removed_By || ""), removedAt: String(s.Removed_At || "")
+      });
+      return;
+    }
     (byIssue[k] = byIssue[k] || []).push({ id: String(s.Solution_ID || ""), text: String(s.Solution_Text || ""), by: String(s.Proposer_Name || "เพื่อนร่วมงาน"), byEmail: String(s.Proposed_By || "") });
   });
 
@@ -863,21 +881,26 @@ function knowledgeBase_(idToken, emailParam) {
     (likesBySol[sid] = likesBySol[sid] || []).push(String(l.User_Email || ""));
   });
 
+  var mapSol = function (x, removed) {
+    var likers = likesBySol[x.id] || [];
+    var o = {
+      id: x.id, text: x.text, by: x.by,
+      mine: !!me && x.byEmail === me,
+      likeCount: likers.length,
+      likedByMe: !!me && likers.indexOf(me) !== -1
+    };
+    if (removed) { o.removed = true; o.removeReason = x.removeReason; o.removedBy = x.removedBy; o.removedAt = x.removedAt; }
+    return o;
+  };
+
   var list = [];
   iss.forEach(function (r) {
     if (isHidden_(r)) return;
     if (String(r.Status) !== "Solved") return;
-    if (!isTruthy_(r.KB_Approved)) return;   // ต้องผ่านการอนุมัติจากแอดมินก่อน
+    if (!isTruthy_(r.KB_Approved)) return;   // ต้องเข้าเกณฑ์คลัง (อนุมัติหรือ auto ตอนยืนยันแก้สำเร็จ)
     var id = String(r.Issue_ID);
-    var solList = dedupeSolutionsByText_(byIssue[id] || [], function (x) { return x.text; }).map(function (x) {
-      var likers = likesBySol[x.id] || [];
-      return {
-        id: x.id, text: x.text, by: x.by,
-        mine: !!me && x.byEmail === me,
-        likeCount: likers.length,
-        likedByMe: !!me && likers.indexOf(me) !== -1
-      };
-    });
+    var solList = dedupeSolutionsByText_(byIssue[id] || [], function (x) { return x.text; }).map(function (x) { return mapSol(x, false); });
+    if (wantRemoved) (removedByIssue[id] || []).forEach(function (x) { solList.push(mapSol(x, true)); });
     var articleLikes = solList.reduce(function (n, s) { return n + s.likeCount; }, 0);
     list.push({
       id: id, time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
@@ -1443,7 +1466,7 @@ function adminOverview_(idToken) {
   if (!isAdmin_(email)) throw new Error("เฉพาะแอดมินเท่านั้น");
 
   var iss = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES);
-  var pending = iss.filter(function (r) { return String(r.Status) === "Solved" && !isTruthy_(r.KB_Approved); })
+  var pending = iss.filter(function (r) { return String(r.Status) === "Solved" && !isTruthy_(r.KB_Approved) && !String(r.KB_Remove_Reason || "").trim(); })
     .map(function (r) {
       return { id: String(r.Issue_ID), time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
                solver: String(r.Solved_By || ""), files: fileMetaList_(r) };
@@ -1892,13 +1915,14 @@ function handleVoidRecord_(adminEmail, recordType, recordId, reason) {
 
 /* หัก XP คืนสำหรับ record: เพิ่มแถว XP_History (Amount ติดลบ) + ลด Total_XP + recompute Level
    คิดจาก "ยอดสุทธิ" ของรายการ (positive จาก work_log/issue, negative จาก void/reject)
-   กันหักซ้ำอัตโนมัติ (ถ้ายอดสุทธิ <= 0 จะไม่หัก) และรองรับหลายรอบ reject→resubmit */
+   กันหักซ้ำอัตโนมัติ (ถ้ายอดสุทธิ <= 0 จะไม่หัก) และรองรับหลายรอบ reject→resubmit
+   หมายเหตุ: "solution" รวมถึง "like_received" ที่ผูกกับ Solution_ID นั้นด้วย (Phase 6.17) */
 function netRecordXp_(recordId) {
   return readObjects_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY)
     .filter(function (h) { return String(h.Ref_ID) === String(recordId); })
     .reduce(function (sum, h) {
       var r = String(h.Reason);
-      if (r === "work_log" || r === "issue" || r === "solution" || r === "void" || r === "reject" || r === "remove" || r === "restore") return sum + Number(h.Amount || 0);
+      if (r === "work_log" || r === "issue" || r === "solution" || r === "like_received" || r === "void" || r === "reject" || r === "remove" || r === "restore") return sum + Number(h.Amount || 0);
       return sum;
     }, 0);
 }
