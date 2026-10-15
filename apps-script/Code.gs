@@ -1,5 +1,5 @@
 /************************************************************************
- * KKU HR Exp — Phase 6.14 Backend  (Google Apps Script: Code.gs)
+ * KKU HR Exp — Phase 6.16 Backend  (Google Apps Script: Code.gs)
  * สำหรับ "นักวิชาการโสตทัศนศึกษา" มหาวิทยาลัยขอนแก่น
  *
  * โครงสร้างทั้งหมด (Phase 1-5)
@@ -8,7 +8,7 @@
  *   API   : doGet (อ่านข้อมูล → JSON) / doPost (เขียนข้อมูล)
  *   AI    : Gemini จำแนกข้อความ + ตรวจความเกี่ยวข้อง (คีย์เก็บใน Script Properties)
  *   Game  : XP / Level / Title ตามตาราง XP_Rules
- *   KB    : คลังองค์ความรู้จากเคสที่แก้สำเร็จ + Like (+5 XP)
+ *   KB    : คลังองค์ความรู้จากเคสที่แก้สำเร็จ + กดถูกใจรายข้อเสนอแนะ (ได้ XP ตามที่แอดมินตั้งค่า)
  *   Notify: ประกาศจาก Admin (บังหน้าจอจนกว่าจะรับทราบ)
  *   Guard : กันสแปม / เนื้อหาซ้ำ / เนื้อหาไม่เกี่ยวกับงาน (Phase 5)
  *   Audit : แอดมินยกเลิกรายการ (Soft-void) หัก XP คืน + audit trail (Phase 5.1)
@@ -19,6 +19,7 @@
  *   Soln  : เสนอแนวทางแก้ไขได้ครั้งเดียว/รายการ + แก้ข้อความที่เสนอได้ (Phase 6.5)
  *   Back  : บันทึกงานย้อนหลังได้ (ระบุวันที่/เวลา) — ย้อนหลังเกิน 3 เดือนไม่ได้ XP (Phase 6.13)
  *   Dedupe: ซ่อนวิธีแก้ไขที่ซ้ำ/ใกล้เคียงกันในบอร์ดและคลังองค์ความรู้ (Phase 6.14)
+ *   Like  : กดถูกใจราย "ข้อเสนอแนะ" (ไม่ใช่รายรายการ) — เจ้าของได้ XP ต่อผู้กด 1 คน (Phase 6.16)
  *
  * ความปลอดภัย: GEMINI_API_KEY และ ADMIN_EMAILS เก็บใน Script Properties เท่านั้น
  ************************************************************************/
@@ -43,7 +44,7 @@ var XP_LABELS = {
   ISSUE:         "🛠️ แจ้งปัญหา (ต่อรายการ)",
   SOLUTION:      "💡 เสนอแนวทางแก้ไขปัญหา",
   RESOLVE:       "✅ ยืนยันว่าแก้ไขสำเร็จ",
-  LIKE_RECEIVED: "❤️ เจ้าของวิธีแก้ได้รับ Like (ต่อครั้ง)"
+  LIKE_RECEIVED: "❤️ เจ้าของข้อเสนอแนะได้รับถูกใจ จากคนอื่น (ต่อครั้ง)"
 };
 var XP_CONFIG_PROP = "XP_CONFIG";   // เก็บ JSON ใน Script Properties
 var XP_MAX_POINTS   = 100000;       // เพดานแต้มต่อกิจกรรม
@@ -226,7 +227,7 @@ var HEADERS = {
   SOLUTIONS:     ["Solution_ID", "Issue_ID", "Timestamp", "Solution_Text", "Proposed_By", "Proposer_Name", "Status", "Remove_Reason", "Removed_By", "Removed_At", "Prev_Status", "Removed_XP"],
   XP_HISTORY:    ["XP_ID", "Timestamp", "User_Email", "Amount", "Reason", "Ref_ID", "Client_Ref"],
   XP_RULES:      ["Level", "Title", "Min_XP"],
-  LIKES:         ["Like_ID", "Issue_ID", "User_Email", "Timestamp"],
+  LIKES:         ["Like_ID", "Solution_ID", "Issue_ID", "User_Email", "Timestamp"],
   NOTIFICATIONS: ["Notif_ID", "Message", "Created_At", "Active"],
   NOTIF_ACKS:    ["Ack_ID", "Notif_ID", "User_Email", "Ack_At"],
   USER_ACHIEVEMENTS: ["UA_ID", "Email", "Ach_ID", "Unlocked_At"],
@@ -250,7 +251,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.14", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.16", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -291,7 +292,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.14" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.16" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -301,7 +302,7 @@ function doGet(e) {
 /* ======================================================================
  * [3] doPost — เขียนข้อมูล
  *   action: login | workLog | issue | autoSubmit | addSolution | addFiles
- *           | resolveIssue | likeArticle | ackNotification
+ *           | resolveIssue | likeSolution | likeArticle | ackNotification
  * ==================================================================== */
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -329,6 +330,7 @@ function doPost(e) {
       case "addLinks":       return handleAddLinks_(email, data.recordType, data.recordId, data.links || []);
       case "editDetail":     return handleEditDetail_(email, data.recordType, data.recordId, data.detail || "");
       case "resolveIssue":   return handleResolveIssue_(email, data.issueId);
+      case "likeSolution":   return handleLikeSolution_(email, data.solutionId);
       case "likeArticle":    return handleLikeArticle_(email, data.issueId);
       case "ackNotification":return handleAckNotification_(email, data.notifIds || []);
       case "approveIssue":   return handleApproveIssue_(email, data.issueId);
@@ -625,6 +627,43 @@ function handleLikeArticle_(email, issueId) {
   return json_({ status: "ok", count: count });
 }
 
+/* กดถูกใจ "ข้อเสนอแนะ" รายข้อ (Phase 6.16)
+ * - 1 คนกดได้ 1 ครั้งต่อข้อเสนอแนะ (กันซ้ำด้วย Solution_ID + email)
+ * - เจ้าของข้อเสนอแนะ (Proposed_By) ได้ XP ตามที่แอดมินตั้งค่า (LIKE_RECEIVED) ต่อผู้กด 1 คน
+ * - กดถูกใจข้อเสนอของตัวเองไม่ได้ (จึงมีแต่ Like จาก "คนอื่น" เท่านั้นที่ให้ XP) */
+function handleLikeSolution_(email, solutionId) {
+  solutionId = String(solutionId || "").trim();
+  if (!solutionId) throw new Error("missing solutionId");
+
+  var solSheet = getSheet_(SHEETS.SOLUTIONS, HEADERS.SOLUTIONS);
+  var srow = findRowByHeader_(solSheet, "Solution_ID", solutionId);
+  if (srow === -1) throw new Error("ไม่พบข้อเสนอแนะนี้");
+  var sObj = readObjects_(solSheet, HEADERS.SOLUTIONS)[srow - 2] || {};
+  if (solutionRemoved_(sObj)) throw new Error("ข้อเสนอแนะนี้ถูกลบไปแล้ว");
+
+  var owner = String(sObj.Proposed_By || "");
+  if (owner && owner === email) throw new Error("กดถูกใจข้อเสนอแนะของตัวเองไม่ได้");
+
+  var lsh = getSheet_(SHEETS.LIKES, HEADERS.LIKES);
+  var likes = readObjects_(lsh, HEADERS.LIKES);
+  var already = likes.some(function (l) { return String(l.Solution_ID) === solutionId && String(l.User_Email) === email; });
+  if (already) throw new Error("คุณกดถูกใจข้อเสนอนี้แล้ว");
+
+  appendByHeaders_(lsh, HEADERS.LIKES, {
+    Like_ID: "LIKE-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_(),
+    Solution_ID: solutionId, Issue_ID: String(sObj.Issue_ID || ""), User_Email: email, Timestamp: nowStr_()
+  });
+
+  // ให้ XP กับเจ้าของข้อเสนอแนะ (เฉพาะ Like จากคนอื่น) ตามค่าที่แอดมินตั้งไว้
+  if (owner && owner !== email) {
+    awardXp_(owner, getXpConfig_().LIKE_RECEIVED, "like_received", solutionId, "");
+    evaluateAchievements_(owner);
+  }
+
+  var count = likes.filter(function (l) { return String(l.Solution_ID) === solutionId; }).length + 1;
+  return json_({ status: "ok", count: count });
+}
+
 function handleAckNotification_(email, notifIds) {
   var sh = getSheet_(SHEETS.NOTIF_ACKS, HEADERS.NOTIF_ACKS);
   var ts = nowStr_();
@@ -813,7 +852,15 @@ function knowledgeBase_(idToken, emailParam) {
   sols.forEach(function (s) {
     if (solutionRemoved_(s)) return;
     var k = String(s.Issue_ID);
-    (byIssue[k] = byIssue[k] || []).push({ id: String(s.Solution_ID || ""), text: String(s.Solution_Text || ""), by: String(s.Proposer_Name || "เพื่อนร่วมงาน") });
+    (byIssue[k] = byIssue[k] || []).push({ id: String(s.Solution_ID || ""), text: String(s.Solution_Text || ""), by: String(s.Proposer_Name || "เพื่อนร่วมงาน"), byEmail: String(s.Proposed_By || "") });
+  });
+
+  // นับถูกใจแยกตาม Solution_ID (Phase 6.16)
+  var likesBySol = {};
+  likes.forEach(function (l) {
+    var sid = String(l.Solution_ID || "");
+    if (!sid) return;
+    (likesBySol[sid] = likesBySol[sid] || []).push(String(l.User_Email || ""));
   });
 
   var list = [];
@@ -822,12 +869,20 @@ function knowledgeBase_(idToken, emailParam) {
     if (String(r.Status) !== "Solved") return;
     if (!isTruthy_(r.KB_Approved)) return;   // ต้องผ่านการอนุมัติจากแอดมินก่อน
     var id = String(r.Issue_ID);
-    var likeList = likes.filter(function (l) { return String(l.Issue_ID) === id; });
+    var solList = dedupeSolutionsByText_(byIssue[id] || [], function (x) { return x.text; }).map(function (x) {
+      var likers = likesBySol[x.id] || [];
+      return {
+        id: x.id, text: x.text, by: x.by,
+        mine: !!me && x.byEmail === me,
+        likeCount: likers.length,
+        likedByMe: !!me && likers.indexOf(me) !== -1
+      };
+    });
+    var articleLikes = solList.reduce(function (n, s) { return n + s.likeCount; }, 0);
     list.push({
       id: id, time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
-      files: fileMetaList_(r), links: parseLinks_(r.Links), solutions: dedupeSolutionsByText_(byIssue[id] || [], function (x) { return x.text; }),
-      solver: String(r.Solved_By || ""), likeCount: likeList.length,
-      likedByMe: !!me && likeList.some(function (l) { return String(l.User_Email) === me; })
+      files: fileMetaList_(r), links: parseLinks_(r.Links), solutions: solList,
+      solver: String(r.Solved_By || ""), likeCount: articleLikes
     });
   });
   list.sort(function (a, b) { return a.time < b.time ? 1 : -1; });
