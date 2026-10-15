@@ -83,6 +83,24 @@
     .confetti-piece { position:absolute; width:8px; height:14px; border-radius:2px; animation: conf 1.3s ease-out forwards; }
     @keyframes streakFlame { 0%,100% { transform: scale(1);} 50% { transform: scale(1.18);} }
     .flame { display:inline-block; animation: streakFlame 1s ease-in-out infinite; }
+
+    /* ===== App-like: safe areas, no bounce, bottom nav ===== */
+    html, body { overscroll-behavior: none; }
+    #loginView { padding-top: calc(env(safe-area-inset-top) + 1rem); }
+    #appView > header { padding-top: env(safe-area-inset-top); }
+    #appView { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+    #bottomNav { padding-bottom: env(safe-area-inset-bottom); }
+    .navsheet-pad { padding-bottom: calc(env(safe-area-inset-bottom) + 14px); }
+    button, .nav-item, .sheet-item { touch-action: manipulation; }
+    .nav-item { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:9px 2px 8px; border:0; background:transparent; color:#94a3b8; font-weight:700; position:relative; -webkit-user-select:none; user-select:none; transition: color .15s, transform .1s; }
+    .nav-item:active { transform: scale(.9); }
+    .nav-item.active { color:#b91c1c; }
+    .nav-item.active .nav-ico { transform: translateY(-1px); }
+    .nav-ico { font-size:19px; line-height:1; }
+    .nav-lbl { font-size:10px; line-height:1; }
+    .nav-dot { position:absolute; top:7px; right:calc(50% - 16px); width:8px; height:8px; border-radius:9999px; background:#ef4444; box-shadow:0 0 0 2px #fff; }
+    .sheet-item { display:flex; align-items:center; gap:12px; width:100%; padding:13px 14px; border-radius:14px; text-align:left; font-size:15px; font-weight:600; color:#334155; background:transparent; border:0; -webkit-user-select:none; user-select:none; }
+    .sheet-item:active { background:#f1f5f9; }
   </style>
 </head>
 
@@ -117,7 +135,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.8</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.8.3</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -135,18 +153,6 @@
           <span id="headerLevelNum" class="font-bold text-sm">-</span>
         </div>
         <button id="logoutBtn" class="text-xs bg-white/15 hover:bg-white/25 active:scale-95 transition px-2.5 py-2 rounded-full">ออก</button>
-      </div>
-
-      <div class="max-w-lg mx-auto px-2 pb-2 flex gap-1.5 overflow-x-auto no-scrollbar">
-        <button data-tab="dashboard" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📊 แดชบอร์ด</button>
-        <button data-tab="work"    class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📝 บันทึก</button>
-        <button data-tab="board"   class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🧩 บอร์ด</button>
-        <button data-tab="kb"      class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📚 ความรู้</button>
-        <button data-tab="search"  class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🔍 ค้นหา</button>
-      <button data-tab="history" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🗂️ ประวัติ</button>
-      <button data-tab="resend" id="tabBtnResend" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📤 รอส่ง</button>
-      <button data-tab="profile" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">👤 โปรไฟล์</button>
-        <button data-tab="admin" id="tabBtnAdmin" class="hidden tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🛡️ แอดมิน</button>
       </div>
     </header>
 
@@ -376,6 +382,34 @@
       </div>
 
     </main>
+
+    <!-- ================= แถบนำทางล่าง (Bottom Nav) ================= -->
+    <nav id="bottomNav" class="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+      <div class="max-w-lg mx-auto grid grid-cols-5">
+        <button data-tab="dashboard" class="nav-item"><span class="nav-ico">📊</span><span class="nav-lbl">หน้าแรก</span></button>
+        <button data-tab="work"      class="nav-item"><span class="nav-ico">📝</span><span class="nav-lbl">บันทึก</span></button>
+        <button data-tab="board"     class="nav-item"><span class="nav-ico">🧩</span><span class="nav-lbl">บอร์ด</span></button>
+        <button data-tab="kb"        class="nav-item"><span class="nav-ico">📚</span><span class="nav-lbl">ความรู้</span></button>
+        <button id="navMoreBtn" class="nav-item"><span class="nav-ico">⋯</span><span class="nav-lbl">เพิ่มเติม</span><span id="navMoreDot" class="nav-dot hidden"></span></button>
+      </div>
+    </nav>
+
+    <!-- ================= ชีต: เมนูเพิ่มเติม ================= -->
+    <div id="navSheet" class="hidden fixed inset-0 z-[75]">
+      <div id="navSheetBackdrop" class="absolute inset-0 bg-black/40 fade-in"></div>
+      <div class="absolute bottom-0 inset-x-0 bg-white rounded-t-3xl shadow-2xl pop">
+        <div class="max-w-lg mx-auto p-3 navsheet-pad">
+          <div class="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200"></div>
+          <div class="space-y-1">
+            <button data-tab="search"  class="tab-btn sheet-item">🔍<span>ค้นหา</span></button>
+            <button data-tab="history" class="tab-btn sheet-item">🗂️<span>ประวัติของฉัน</span></button>
+            <button data-tab="resend"  id="sheetBtnResend" class="tab-btn sheet-item">📤<span>รอส่ง</span></button>
+            <button data-tab="profile" class="tab-btn sheet-item">👤<span>โปรไฟล์</span></button>
+            <button data-tab="admin"   id="sheetBtnAdmin" class="tab-btn sheet-item hidden">🛡️<span>แอดมิน</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ================= Modal: สรุปหลังบันทึก ================= -->
@@ -545,7 +579,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.8.3 (index.html) · Admin: configurable XP & streak bonuses
+     KKU HR Exp — Phase 6.8.3 (index.html) · PWA + bottom nav + admin bonuses
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -1128,15 +1162,26 @@
   }
 
   /* ---------- Tabs ---------- */
+  const PRIMARY_TABS = ["dashboard", "work", "board", "kb"];
+  function highlightNav(tab) {
+    document.querySelectorAll("#bottomNav .nav-item").forEach(b => {
+      const isMore = b.id === "navMoreBtn";
+      const active = isMore ? !PRIMARY_TABS.includes(tab) : b.dataset.tab === tab;
+      b.classList.toggle("active", active);
+      if (active) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+  }
+  function openNavSheet() { const s = $("navSheet"); if (s) s.classList.remove("hidden"); }
+  function closeNavSheet() { const s = $("navSheet"); if (s) s.classList.add("hidden"); }
+
   function switchTab(tab) {
     if (tab === "admin" && !state.isAdmin) { showToast("เฉพาะแอดมินเท่านั้น", "warn"); return; }
     state.currentTab = tab;
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
     $("tab-" + tab).classList.remove("hidden");
-    document.querySelectorAll(".tab-btn").forEach(b => {
-      const active = b.dataset.tab === tab;
-      b.className = "tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold " + (active ? "bg-white text-red-800 shadow" : "bg-white/15 text-white");
-    });
+    highlightNav(tab);
+    closeNavSheet();
+    window.scrollTo({ top: 0, behavior: "smooth" });
     if (tab === "dashboard") loadDashboard();
     if (tab === "board") loadBoard();
     if (tab === "kb") loadKb();
@@ -1491,9 +1536,14 @@
 
   /* ---------- รอส่ง: รายการที่ถูกตีกลับ ---------- */
   function updateResendBadge(n) {
-    const b = $("tabBtnResend");
-    if (!b) return;
-    b.textContent = n > 0 ? "📤 รอส่ง (" + n + ")" : "📤 รอส่ง";
+    const b = $("sheetBtnResend");
+    if (b) {
+      const lbl = b.querySelector("span");
+      if (lbl) lbl.textContent = n > 0 ? "รอส่ง (" + n + ")" : "รอส่ง";
+      else b.textContent = n > 0 ? "📤 รอส่ง (" + n + ")" : "📤 รอส่ง";
+    }
+    const dot = $("navMoreDot");
+    if (dot) dot.classList.toggle("hidden", !(n > 0));
   }
 
   async function refreshResendBadge() {
@@ -1655,7 +1705,7 @@
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       state.profileData = data;
       state.isAdmin = !!data.isAdmin;
-      $("tabBtnAdmin").classList.toggle("hidden", !state.isAdmin);
+      $("sheetBtnAdmin").classList.toggle("hidden", !state.isAdmin);
       if (!state.isAdmin && state.currentTab === "admin") switchTab("dashboard");
       $("headerLevelNum").textContent = "Lv " + data.level;
       checkLevelUp(data.level, data.title);
@@ -2442,7 +2492,9 @@
   window.addEventListener("load", () => {
     if (!configReady()) $("setupWarning").classList.remove("hidden");
 
-    document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+    document.querySelectorAll(".tab-btn, #bottomNav .nav-item[data-tab]").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+    $("navMoreBtn").addEventListener("click", openNavSheet);
+    $("navSheetBackdrop").addEventListener("click", closeNavSheet);
     document.querySelectorAll(".mode-btn").forEach(b => b.addEventListener("click", () => { state.mode = b.dataset.mode; renderModeButtons(); }));
     $("submitBtn").addEventListener("click", submit);
     $("refreshBoard").addEventListener("click", (e) => runBusy(e.currentTarget, loadBoard));

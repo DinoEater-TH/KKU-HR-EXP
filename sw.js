@@ -4,7 +4,7 @@
    - ปล่อยให้ CDN (Tailwind/Google) และ Apps Script API ผ่านเครือข่ายตามปกติ
    - หน้าเว็บ = network-first (ได้เวอร์ชันใหม่เสมอเมื่อออนไลน์, ออฟไลน์ใช้แคช)
    ============================================================ */
-const CACHE = "hrx-shell-v6.8.4";
+const CACHE = "hrx-shell-v6.9.1";
 
 const SHELL = [
   "./",
