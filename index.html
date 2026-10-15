@@ -156,7 +156,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.17"
+      FRONT_PHASE      : "6.18"
     };
   </script>
 
@@ -179,7 +179,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.17</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.18</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -248,19 +248,32 @@
       <!-- ===== บันทึก ===== -->
       <div id="tab-work" class="tab-panel fade-in">
         <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div id="captureHint" class="mb-3 rounded-xl bg-red-50 border border-red-100 p-3">
+            <p class="text-xs font-bold text-red-800">📝 งาน กับ ⚠️ ปัญหา ต่างกันอย่างไร</p>
+            <p class="text-[11px] text-red-900/80 leading-relaxed mt-1">
+              <b>งาน</b> = สิ่งที่คุณลงมือทำ/ให้บริการ (เช่น ตั้งเวที ติดตั้งระบบเสียง)<br>
+              <b>ปัญหา</b> = อุปสรรคหรือสิ่งที่ต้องแก้ไข (เช่น โปรเจกเตอร์เสีย เครื่องค้าง)
+            </p>
+          </div>
+
           <label class="block text-sm font-semibold text-slate-700 mb-2">ประเภท</label>
           <div class="grid grid-cols-3 gap-2 mb-1.5" id="modeGroup">
             <button data-mode="auto"  class="mode-btn py-2 rounded-xl text-xs font-semibold">🤖 AI อัตโนมัติ</button>
             <button data-mode="work"  class="mode-btn py-2 rounded-xl text-xs font-semibold">📝 บันทึกงาน</button>
             <button data-mode="issue" class="mode-btn py-2 rounded-xl text-xs font-semibold">⚠️ แจ้งปัญหา</button>
           </div>
-          <p class="text-[11px] text-slate-400 mb-3">🤖 โหมด AI จะแยกให้อัตโนมัติว่าเป็นงานหรือปัญหา · หรือเลือกเองด้านบนได้</p>
+          <p id="modeHint" class="text-[11px] text-slate-400 mb-3"></p>
+
           <label class="block text-sm font-semibold text-slate-700 mb-2">รายละเอียด</label>
           <textarea id="detail" rows="5" placeholder="พิมพ์รายละเอียดงาน/ปัญหาที่นี่ ระบบ AI จะช่วยแยกประเภทให้..."
             class="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white"></textarea>
+          <p class="text-[11px] text-slate-400 mt-1">อย่างน้อย 5 ตัวอักษร · ยิ่งระบุชัดเจน ระบบยิ่งจำแนกถูกต้อง</p>
 
           <div class="mt-3">
-            <label class="block text-sm font-semibold text-slate-700 mb-2">แนบรูป/ไฟล์ (ไม่บังคับ)</label>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-sm font-semibold text-slate-700">แนบรูป/ไฟล์ (ไม่บังคับ)</label>
+              <span id="attachCount" class="text-[11px] text-slate-400"></span>
+            </div>
             <div class="flex gap-2">
               <label class="flex-1 cursor-pointer text-center text-sm py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-95 transition">
                 📷 ถ่ายรูป<input type="file" accept="image/*" capture="environment" class="hidden attach-input" />
@@ -269,6 +282,7 @@
                 🖼️ เลือกไฟล์<input type="file" multiple class="hidden attach-input" />
               </label>
             </div>
+            <p id="attachStatus" class="hidden text-[11px] mt-1.5"></p>
             <div id="preview" class="mt-3 grid grid-cols-4 gap-2"></div>
           </div>
 
@@ -282,8 +296,11 @@
                 <input id="logTime" type="time" class="w-32 shrink-0 rounded-xl border border-slate-200 bg-white p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
               </div>
               <p class="text-[11px] text-slate-400 mt-1.5">ระบุแค่วันที่ก็ได้ (เวลาไม่บังคับ) · <b>ย้อนหลังเกิน 3 เดือนจะไม่ได้รับ XP</b></p>
+              <p id="backdateSummary" class="hidden mt-1.5 text-[11px] font-semibold text-red-700"></p>
             </div>
           </div>
+
+          <div id="captureStatus" class="hidden mt-3 rounded-xl border px-3 py-2 text-[12px] font-semibold"></div>
 
           <button id="submitBtn" class="mt-4 w-full py-3.5 rounded-xl bg-gradient-to-r from-red-700 to-red-900 text-white font-bold shadow-lg active:scale-[.98] transition flex items-center justify-center gap-2">
             <span class="btn-label">ส่งข้อมูล</span><span class="btn-spin spinner w-4 h-4 hidden"></span>
@@ -501,7 +518,7 @@
           </div>
         </section>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.17</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.18</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -711,9 +728,9 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.17 (index.html) · แอดมินลบข้อเสนอแนะในคลังได้ (คืน XP ครบ) · ยืนยันสำเร็จต้องมี ≥1 ข้อเสนอ + เข้าคลังอัตโนมัติ · UI refresh 6.15
+     KKU HR Exp — Phase 6.18 (index.html) · Phase 2 Smart Work Capture: คำแนะนำงาน/ปัญหา · สถานะการส่ง 6 แบบ · กันกดซ้ำ · ไม่ล้างข้อมูลจนยืนยันสำเร็จ · ไฟล์แนบมีสถานะประมวลผล
      ============================================================ */
-  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
+  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], submitting:false, fileBusy:0, currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
   let userSearchTimer = null;
   const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", reject:"รายการถูกตีกลับ (รอส่งใหม่)", remove:"รายการถูกลบโดยแอดมิน", restore:"กู้คืนรายการ (คืน XP)", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
@@ -1380,10 +1397,72 @@
         : `<span class="text-[10px] text-center px-1 break-all">${esc(f.name)}</span>`;
       const x = document.createElement("button");
       x.textContent = "×";
+      x.type = "button";
+      x.title = "ลบไฟล์นี้";
       x.className = "absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white text-xs leading-5";
       x.onclick = () => { state.attachments.splice(idx, 1); renderPreviews(); };
       div.appendChild(x); wrap.appendChild(div);
     });
+    renderAttachInfo();
+  }
+
+  /* ---------- Phase 2: ตัวช่วยสถานะการบันทึก ---------- */
+  let _capKind = null;
+  function setCaptureStatus(kind, msg) {
+    const el = $("captureStatus");
+    if (!el) return;
+    const map = {
+      ready:   ["bg-slate-50 border-slate-200 text-slate-600", "🟢", "พร้อมบันทึก"],
+      sending: ["bg-blue-50 border-blue-200 text-blue-700",    "⏳", "กำลังบันทึก..."],
+      success: ["bg-emerald-50 border-emerald-200 text-emerald-700", "✅", "บันทึกสำเร็จ"],
+      failed:  ["bg-red-50 border-red-200 text-red-700",       "❌", "บันทึกไม่สำเร็จ"],
+      pending: ["bg-amber-50 border-amber-200 text-amber-700", "🟡", "กำลังประมวลผล (รอผล)"],
+      offline: ["bg-slate-100 border-slate-300 text-slate-600","📴", "ออฟไลน์ — ยังไม่ได้ส่ง"]
+    };
+    const c = map[kind] || map.ready;
+    _capKind = kind;
+    el.className = "mt-3 rounded-xl border px-3 py-2 text-[12px] font-semibold " + c[0];
+    el.textContent = c[1] + " " + (msg || c[2]);
+  }
+  function clearCaptureStatus() {
+    const el = $("captureStatus");
+    if (el) el.classList.add("hidden");
+    _capKind = null;
+  }
+  function setAttachStatus(msg, type) {
+    const el = $("attachStatus");
+    if (!el) return;
+    if (!msg) { el.classList.add("hidden"); el.textContent = ""; return; }
+    el.className = "text-[11px] mt-1.5 " + (type === "error" ? "text-red-600" : type === "busy" ? "text-blue-600" : "text-slate-400");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+  function renderAttachInfo() {
+    const c = $("attachCount");
+    if (!c) return;
+    const n = (state.attachments || []).length;
+    c.textContent = n ? "แนบแล้ว " + n + " ไฟล์" : "";
+  }
+  function fmtThaiDate(iso) {
+    const p = String(iso || "").split("-");
+    return (p.length === 3 && p[0]) ? (p[2] + "/" + p[1] + "/" + p[0]) : String(iso || "");
+  }
+  function updateModeHint() {
+    const el = $("modeHint"); if (!el) return;
+    el.textContent = state.mode === "auto"
+      ? "🤖 โหมด AI: ระบบจะวิเคราะห์จากข้อความว่าเป็นงานหรือปัญหาให้อัตโนมัติ"
+      : state.mode === "work"
+        ? "📝 โหมดบันทึกงาน: บันทึกเป็น “งาน” ทันที (ไม่ผ่านการวิเคราะห์ AI)"
+        : "⚠️ โหมดแจ้งปัญหา: บันทึกเป็น “ปัญหา” ทันที (ไม่ผ่านการวิเคราะห์ AI)";
+  }
+  function updateBackdateSummary() {
+    const el = $("backdateSummary"); if (!el) return;
+    const on = $("backdateToggle") && $("backdateToggle").checked;
+    const d = $("logDate") ? $("logDate").value : "";
+    if (!on || !d) { el.classList.add("hidden"); el.textContent = ""; return; }
+    const t = $("logTime") ? $("logTime").value : "";
+    el.textContent = "📅 จะบันทึกเป็นวันที่ " + fmtThaiDate(d) + (t ? " เวลา " + t + " น." : "") + " (ย้อนหลัง)";
+    el.classList.remove("hidden");
   }
 
   /* ---------- Tabs ---------- */
@@ -1436,6 +1515,7 @@
     document.querySelectorAll(".mode-btn").forEach(b => {
       const active = b.dataset.mode === state.mode;
       b.className = "mode-btn py-2 rounded-xl text-xs font-semibold " + (active ? "bg-red-700 text-white shadow" : "bg-slate-100 text-slate-600");
+      b.setAttribute("aria-pressed", active ? "true" : "false");
     });
     const bdCard = $("backdateCard");
     if (bdCard) {
@@ -1443,6 +1523,7 @@
       bdCard.classList.toggle("hidden", isIssue);
       if (isIssue) resetBackdate();
     }
+    updateModeHint();
   }
 
   /* ---------- บันทึกงานย้อนหลัง (Phase 6.13) ---------- */
@@ -1452,6 +1533,7 @@
     if (b) b.classList.add("hidden");
     if (d) d.value = "";
     if (tm) tm.value = "";
+    updateBackdateSummary();
   }
   function toggleBackdateBox() {
     const on = $("backdateToggle").checked;
@@ -1459,55 +1541,79 @@
     if (on && $("logDate")) {
       const d = new Date();
       $("logDate").max = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      if (!$("logDate").value) $("logDate").value = $("logDate").max;   // ค่าเริ่มต้น = วันนี้ (ลดขั้นตอน)
     }
+    updateBackdateSummary();
   }
 
   /* ---------- Submit + Modal สรุป ---------- */
   async function submit() {
     if (!state.user) return;
-    const detail = $("detail").value.trim();
-    if (!detail) { showToast("กรุณากรอกรายละเอียดก่อนส่ง", "warn"); return; }
+    if (state.submitting) return;                                   // กันกดซ้ำระหว่างส่ง
+    if ((state.fileBusy || 0) > 0) { showToast("⏳ กำลังประมวลผลไฟล์แนบ กรุณารอสักครู่", "warn"); return; }
+
+    const detailEl = $("detail");
+    const detail = detailEl.value.trim();
+    if (!detail) { showToast("กรุณากรอกรายละเอียดก่อนส่ง", "warn"); try { detailEl.focus(); } catch (e) {} return; }
+
+    // ตรวจวันที่ย้อนหลังก่อนเริ่มส่ง (กันปุ่มค้างสถานะกำลังส่ง)
+    const wantsBackdate = (state.mode === "work" || state.mode === "auto") && $("backdateToggle") && $("backdateToggle").checked;
+    if (wantsBackdate && !$("logDate").value) {
+      showToast("กรุณาเลือกวันที่ย้อนหลัง", "warn");
+      setCaptureStatus("ready", "ยังไม่ได้เลือกวันที่สำหรับบันทึกย้อนหลัง");
+      return;
+    }
 
     const btn = $("submitBtn");
-    btn.disabled = true; btn.querySelector(".btn-label").textContent = "กำลังส่ง..."; btn.querySelector(".btn-spin").classList.remove("hidden");
+    state.submitting = true;
+    if (btn) { btn.disabled = true; btn.querySelector(".btn-label").textContent = "กำลังส่ง..."; btn.querySelector(".btn-spin").classList.remove("hidden"); }
+    setCaptureStatus("sending", "กำลังบันทึกข้อมูล...");
 
     const action = state.mode === "auto" ? "autoSubmit" : (state.mode === "issue" ? "issue" : "workLog");
     const clientRef = "C" + Date.now() + Math.floor(Math.random()*1000);
     const payload = { action, email:state.user.email, name:state.user.name, detail, files:state.attachments, idToken:state.idToken, clientRef };
     if (action === "workLog" || action === "autoSubmit") {
       if ($("backdateToggle") && $("backdateToggle").checked) {
-        const ld = $("logDate").value;
-        if (!ld) { showToast("กรุณาเลือกวันที่ย้อนหลัง", "warn"); return; }
-        payload.logDate = ld;
+        payload.logDate = $("logDate").value;
         payload.logTime = $("logTime").value || "";
       }
     }
     try {
       await sendToServer(payload);
       const result = await pollResult(clientRef);
+
       if (result && result.rejected) {
+        // ถูกปฏิเสธ/ซ้ำ/สแปม → คงข้อมูลไว้ให้แก้แล้วลองใหม่
+        setCaptureStatus("failed", "บันทึกไม่สำเร็จ: " + (result.message || "เนื้อหาไม่ผ่านการตรวจสอบ"));
         showSaveModal(detail, result);
         return;
       }
-      $("detail").value = ""; state.attachments = []; renderPreviews(); resetBackdate();
-      showSaveModal(detail, result);
-      loadProfile();
-      loadAchievements();
-      if (state.currentTab === "dashboard") loadDashboard();
-      if (state.currentTab === "admin" && state.isAdmin) loadAdmin();
-      if (result && result.amount > 0) {
-        showXpFloat("+" + result.amount + " XP", "#00e5ff");
-        playChime("gain");
-        if (result.streakBonus > 0) {
-          setTimeout(() => showXpFloat("🔥 +" + result.streakBonus + " XP (" + result.streakDays + " วันติด)", "#ff2e97"), 320);
+      if (result && result.found) {
+        // ได้รับการยืนยันจาก Backend แล้ว จึงล้างฟอร์ม
+        setCaptureStatus("success", "บันทึกสำเร็จ" + (result.amount > 0 ? " (+" + result.amount + " XP)" : ""));
+        detailEl.value = ""; state.attachments = []; renderPreviews(); resetBackdate();
+        showSaveModal(detail, result);
+        loadProfile(); loadAchievements();
+        if (state.currentTab === "dashboard") loadDashboard();
+        if (state.currentTab === "admin" && state.isAdmin) loadAdmin();
+        if (result.amount > 0) {
+          showXpFloat("+" + result.amount + " XP", "#00e5ff"); playChime("gain");
+          if (result.streakBonus > 0) setTimeout(() => showXpFloat("🔥 +" + result.streakBonus + " XP (" + result.streakDays + " วันติด)", "#ff2e97"), 320);
         }
+        return;
       }
+      // ส่งแล้วแต่ยังไม่ได้รับการยืนยัน (Backend ตอบช้า) → คงข้อมูลไว้ ไม่ล้าง
+      setCaptureStatus("pending", "ส่งข้อมูลแล้ว รอผลจากเซิร์ฟเวอร์");
+      showSaveModal(detail, null);
     } catch (err) {
-      showToast(err && err.message === "offline"
-        ? "📴 ออฟไลน์อยู่ กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนส่ง"
-        : "❌ ส่งไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่", "error");
+      const off = err && err.message === "offline";
+      setCaptureStatus(off ? "offline" : "failed", off ? "ออฟไลน์ — ยังไม่ได้ส่ง (ข้อมูลยังอยู่)" : "ส่งไม่สำเร็จ — ข้อมูลยังอยู่ ลองอีกครั้ง");
+      showToast(off
+        ? "📴 ออฟไลน์อยู่ กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนส่ง (ข้อมูลยังอยู่)"
+        : "❌ ส่งไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่ (ข้อมูลยังอยู่)", "error");
     } finally {
-      btn.disabled = false; btn.querySelector(".btn-label").textContent = "ส่งข้อมูล"; btn.querySelector(".btn-spin").classList.add("hidden");
+      state.submitting = false;
+      if (btn) { btn.disabled = false; btn.querySelector(".btn-label").textContent = "ส่งข้อมูล"; btn.querySelector(".btn-spin").classList.add("hidden"); }
     }
   }
 
@@ -1553,12 +1659,12 @@
           <p class="text-[11px] text-slate-400 mt-0.5">บันทึกสำเร็จ แต่ไม่ได้รับ XP · รวม ${r.totalXp} XP</p>
         </div>` : "")}`;
     } else {
-      head.className = "p-5 text-center text-white bg-gradient-to-r from-slate-600 to-slate-700";
+      head.className = "p-5 text-center text-white bg-gradient-to-r from-amber-600 to-amber-700";
       $("saveModalIcon").textContent = "⏳";
-      $("saveModalTitle").textContent = "ส่งข้อมูลแล้ว";
+      $("saveModalTitle").textContent = "ส่งข้อมูลแล้ว (รอผล)";
       body.innerHTML = `
         <div class="rounded-xl bg-slate-50 p-3 text-slate-600 whitespace-pre-wrap">${esc(detail)}</div>
-        <p class="text-[13px] text-slate-500">ระบบกำลังประมวลผลและบันทึกเบื้องหลัง กรุณาตรวจสอบผลได้ที่แท็บ <b>🗂️ ประวัติ</b> (และ Level ที่หน้าโปรไฟล์)</p>`;
+        <p class="text-[13px] text-slate-500">ระบบกำลังประมวลผลและบันทึกเบื้องหลัง · ข้อความของคุณ<b>ยังคงอยู่ในช่องบันทึก</b> กรุณา<b>อย่ากดส่งซ้ำ</b> — ตรวจสอบผลได้ที่แท็บ <b>🗂️ ประวัติ</b> (และ Level ที่หน้าโปรไฟล์)</p>`;
     }
     $("saveModal").classList.remove("hidden");
   }
@@ -3130,6 +3236,9 @@
       setTimeout(() => { try { $("detail").focus(); } catch (e) {} }, 300);
     }));
     $("backdateToggle").addEventListener("change", toggleBackdateBox);
+    $("logDate").addEventListener("change", updateBackdateSummary);
+    $("logTime").addEventListener("change", updateBackdateSummary);
+    $("detail").addEventListener("input", () => { if (_capKind && _capKind !== "sending" && _capKind !== "pending") clearCaptureStatus(); });
     $("submitBtn").addEventListener("click", submit);
     $("refreshBoard").addEventListener("click", (e) => runBusy(e.currentTarget, loadBoard));
     $("refreshKb").addEventListener("click", (e) => runBusy(e.currentTarget, loadKb));
@@ -3232,8 +3341,20 @@
     if (!isStandalone() && isiOS()) $("installBtn").classList.remove("hidden");
 
     document.querySelectorAll(".attach-input").forEach(inp => inp.addEventListener("change", async (e) => {
-      for (const file of Array.from(e.target.files)) { try { state.attachments.push(await prepareFile(file)); } catch (err) { showToast(err.message, "error"); } }
-      e.target.value = ""; renderPreviews();
+      const files = Array.from(e.target.files);
+      e.target.value = "";
+      if (!files.length) return;
+      state.fileBusy = (state.fileBusy || 0) + files.length;
+      setAttachStatus("⏳ กำลังประมวลผล " + files.length + " ไฟล์...", "busy");
+      let fail = 0;
+      for (const file of files) {
+        try { state.attachments.push(await prepareFile(file)); }
+        catch (err) { fail++; showToast(err.message, "error"); }
+        finally { state.fileBusy--; }
+      }
+      renderPreviews();
+      if (fail) { setAttachStatus("แนบไม่สำเร็จ " + fail + " ไฟล์ — ลองใหม่อีกครั้ง", "error"); }
+      else { setAttachStatus("แนบไฟล์เรียบร้อย", "ok"); setTimeout(() => setAttachStatus("", "ok"), 2000); }
     }));
 
     const saved = localStorage.getItem("hrx_user");
