@@ -118,7 +118,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.10"
+      FRONT_PHASE      : "6.11"
     };
   </script>
 
@@ -141,7 +141,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.10</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.11</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -328,7 +328,7 @@
               <option value="work">📋 บันทึกงาน</option>
               <option value="issue">🛠️ ปัญหา</option>
             </select>
-            <label class="flex items-center gap-1 text-[11px] text-slate-500"><input id="subIncludeVoided" type="checkbox" class="w-3.5 h-3.5" /> แสดงที่ยกเลิกแล้ว</label>
+            <label class="flex items-center gap-1 text-[11px] text-slate-500"><input id="subIncludeVoided" type="checkbox" class="w-3.5 h-3.5" /> แสดงที่ยกเลิก/ลบ</label>
           </div>
           <input id="subSearch" placeholder="🔍 ค้นหา รายละเอียด / ชื่อ / อีเมล..." class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-red-500" />
           <div id="adminSubmissionsList" class="space-y-2"></div>
@@ -375,6 +375,13 @@
         </div>
 
         <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+          <h3 class="text-sm font-bold text-slate-700 mb-1">🧾 ประวัติการจัดการ (Audit Log)</h3>
+          <p class="text-[11px] text-slate-400 mb-2">การลบ / ยกเลิก / ตีกลับ / กู้คืน โดยแอดมิน · เรียงใหม่→เก่า • เฉพาะแอดมิน</p>
+          <button id="adminAuditRefresh" class="mb-2 w-full py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">🔄 โหลดประวัติล่าสุด</button>
+          <div id="adminAuditList" class="space-y-2 max-h-[420px] overflow-y-auto"></div>
+        </div>
+
+        <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
           <h3 class="text-sm font-bold text-slate-700 mb-2">⭐ มอบ XP พิเศษ (Bonus)</h3>
           <select id="adminUserSelect" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2"></select>
           <div class="flex gap-2 mb-2">
@@ -407,7 +414,7 @@
           <p class="text-[11px] text-slate-400 mt-2">ไฟล์เรียงวันที่-เวลา ใหม่→เก่า พร้อมชื่อผู้บันทึก หมวดหมู่ (AI) สถานะ และลิงก์ไฟล์แนบ</p>
         </div>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.10</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.11</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -617,12 +624,12 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.10 (index.html) · admin achievements config + soft-delete + KB management
+     KKU HR Exp — Phase 6.11 (index.html) · restore (undo) + audit log + admin achievements/KB management
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
   let userSearchTimer = null;
-  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", reject:"รายการถูกตีกลับ (รอส่งใหม่)", remove:"รายการถูกลบโดยแอดมิน", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
+  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", reject:"รายการถูกตีกลับ (รอส่งใหม่)", remove:"รายการถูกลบโดยแอดมิน", restore:"กู้คืนรายการ (คืน XP)", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -2056,6 +2063,7 @@
       loadAdminSubmissions();
       loadAchievementsCfg();
       loadAdminKb();
+      loadAuditLog();
     } catch (err) {
       $("adminPendingList").innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
     }
@@ -2118,11 +2126,13 @@
               ${it.voided ? `<p class="text-[11px] text-red-600 mt-1">เหตุผล: ${esc(it.voidReason)} · โดย ${esc(it.voidedBy)} · ${esc(it.voidedAt)}</p>` : ""}
               ${it.rejected ? `<p class="text-[11px] text-orange-600 mt-1">เหตุผลตีกลับ: ${esc(it.rejectReason)}</p>` : ""}
             </div>
-            ${(it.removed || it.voided || it.rejected) ? "" : `<div class="shrink-0 flex flex-col gap-1.5">
+            ${(it.removed || it.voided) ? `<div class="shrink-0">
+              <button data-restore="${esc(it.type)}:${esc(it.id)}" class="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 active:scale-95 transition">♻️ กู้คืน</button>
+            </div>` : (it.rejected ? "" : `<div class="shrink-0 flex flex-col gap-1.5">
               <button data-void="${esc(it.type)}:${esc(it.id)}" class="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold border border-red-200 active:scale-95 transition">ยกเลิก</button>
               <button data-reject="${esc(it.type)}:${esc(it.id)}" class="px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 text-xs font-bold border border-orange-200 active:scale-95 transition">ตีกลับ</button>
               <button data-remove="${esc(it.type)}:${esc(it.id)}" class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบ</button>
-            </div>`}
+            </div>`)}
           </div>
         </div>`).join("") +
         (data.count > data.shown ? `<p class="text-center text-[11px] text-slate-400 pt-2">แสดง ${data.shown}/${data.count} รายการล่าสุด</p>` : "");
@@ -2138,6 +2148,10 @@
       wrap.querySelectorAll("[data-remove]").forEach(b => {
         const [t, id] = b.dataset.remove.split(":");
         b.addEventListener("click", () => openRemoveModal(t, id));
+      });
+      wrap.querySelectorAll("[data-restore]").forEach(b => {
+        const [t, id] = b.dataset.restore.split(":");
+        b.addEventListener("click", () => confirmRestore(t, id));
       });
     } catch (err) {
       wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
@@ -2181,6 +2195,20 @@
   function openVoidModal(type, id) { openRecordActionModal("void", type, id); }
   function openRejectModal(type, id) { openRecordActionModal("reject", type, id); }
   function openRemoveModal(kind, id, detail) { openRecordActionModal("remove", kind, id, { kind, detail }); }
+
+  async function confirmRestore(kind, id) {
+    if (!confirm("กู้คืนรายการนี้? ระบบจะคืนสถานะเดิมและคืน XP ที่เคยหักไป (ถ้ามี)")) return;
+    const ok = await postAction({
+      action: "adminRestore", kind, recordId: id, reason: "กู้คืนโดยแอดมิน",
+      email: state.user.email, idToken: state.idToken
+    }, "♻️ กู้คืนรายการแล้ว (คืนสถานะ + XP)");
+    if (ok) {
+      loadAdminSubmissions();
+      loadAdmin();
+      if (kind === "kb") loadKb();
+      if (!$("userModal").classList.contains("hidden")) openUserDetail(state.userRecordEmail);
+    }
+  }
 
   async function confirmVoid() {
     const ctx = state.voidCtx;
@@ -2519,17 +2547,21 @@
       const tone = it.removed ? "border-slate-300 bg-slate-50" : (it.voided ? "border-red-100 bg-red-50/50" : (it.rejected ? "border-orange-100 bg-orange-50/50" : "border-slate-100"));
       const typeBadge = it.type === "work" ? "📋 งาน" : (isSolution ? "💡 ข้อเสนอแนะ" : "🛠️ ปัญหา");
       const typeCls = it.type === "work" ? "text-emerald-600" : (isSolution ? "text-indigo-600" : "text-amber-700");
-      const actionBtns = (!it.voided && !it.rejected && !it.removed)
-        ? (isSolution
-          ? `<div class="flex gap-2 mt-2">
-               <button data-uremove="solution:${esc(it.id)}" class="flex-1 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบ</button>
-             </div>`
-          : `<div class="flex gap-2 mt-2">
-               <button data-uedit="${esc(it.id)}" data-uedit-type="${it.type}" class="flex-1 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold active:scale-95 transition">✏️ แก้ไข</button>
-               <button data-ureject="${esc(it.id)}" data-ureject-type="${it.type}" class="flex-1 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-bold active:scale-95 transition">↩️ ตีกลับ</button>
-               <button data-uremove="${esc(it.type)}:${esc(it.id)}" class="flex-1 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบ</button>
-             </div>`)
-        : "";
+      const actionBtns = (it.voided || it.removed)
+        ? `<div class="flex gap-2 mt-2">
+             <button data-urestore="${esc(it.type)}:${esc(it.id)}" class="flex-1 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 active:scale-95 transition">♻️ กู้คืน</button>
+           </div>`
+        : (it.rejected
+          ? ""
+          : (isSolution
+            ? `<div class="flex gap-2 mt-2">
+                 <button data-uremove="solution:${esc(it.id)}" class="flex-1 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบ</button>
+               </div>`
+            : `<div class="flex gap-2 mt-2">
+                 <button data-uedit="${esc(it.id)}" data-uedit-type="${it.type}" class="flex-1 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold active:scale-95 transition">✏️ แก้ไข</button>
+                 <button data-ureject="${esc(it.id)}" data-ureject-type="${it.type}" class="flex-1 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-bold active:scale-95 transition">↩️ ตีกลับ</button>
+                 <button data-uremove="${esc(it.type)}:${esc(it.id)}" class="flex-1 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-300 active:scale-95 transition">🗑️ ลบ</button>
+               </div>`));
       return `<div class="rounded-xl border ${tone} p-2.5">
         <div class="flex justify-between items-start gap-2">
           <span class="text-[10px] font-mono text-slate-400">#${esc(it.id)}
@@ -2552,6 +2584,10 @@
       const [k, id] = b.dataset.uremove.split(":");
       const rec = (state.userRecords || []).find(x => x.id === id && (x.type === k || k === "solution"));
       openRemoveModal(k, id, rec ? rec.detail : "");
+    }));
+    listEl.querySelectorAll("[data-urestore]").forEach(b => b.addEventListener("click", () => {
+      const [k, id] = b.dataset.urestore.split(":");
+      confirmRestore(k, id);
     }));
   }
 
@@ -2781,6 +2817,43 @@
     }
   }
 
+  /* ---------- ประวัติการจัดการ (Audit Log) ---------- */
+  const AUDIT_META = {
+    void:         { label: "ยกเลิกรายการ",   cls: "bg-red-50 text-red-600 border-red-200" },
+    remove:       { label: "ลบรายการ",        cls: "bg-slate-100 text-slate-700 border-slate-300" },
+    reject:       { label: "ตีกลับ",           cls: "bg-orange-50 text-orange-600 border-orange-200" },
+    restore:      { label: "กู้คืน",            cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    kb_remove:    { label: "ลบออกจากคลัง",    cls: "bg-amber-50 text-amber-700 border-amber-200" },
+    kb_restore:   { label: "คืนเข้าคลัง",       cls: "bg-sky-50 text-sky-700 border-sky-200" }
+  };
+  const AUDIT_TYPE_LABEL = { work: "📋 งาน", issue: "🛠️ ปัญหา", solution: "💡 ข้อเสนอแนะ", kb: "📚 คลังความรู้" };
+
+  async function loadAuditLog() {
+    const wrap = $("adminAuditList");
+    if (!wrap) return;
+    wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">กำลังโหลด...</p>`;
+    try {
+      const data = await apiGet({ action:"auditLog", limit:"200", idToken: state.idToken });
+      if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
+      const items = data.items || [];
+      if (!items.length) { wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">ยังไม่มีประวัติ</p>`; return; }
+      wrap.innerHTML = items.map(it => {
+        const m = AUDIT_META[it.action] || { label: it.action, cls: "bg-slate-100 text-slate-600 border-slate-200" };
+        const tl = AUDIT_TYPE_LABEL[it.targetType] || it.targetType;
+        return `<div class="rounded-xl border ${m.cls} p-2.5">
+          <div class="flex justify-between items-center gap-2">
+            <span class="text-[11px] font-bold">${esc(m.label)} · ${esc(tl)} <span class="font-mono">#${esc(it.targetId)}</span></span>
+            <span class="text-[10px] opacity-70 shrink-0">🕒 ${esc(it.time)}</span>
+          </div>
+          ${it.reason ? `<p class="text-[11px] mt-1 opacity-90 whitespace-pre-wrap">${esc(it.reason)}</p>` : ""}
+          <p class="text-[10px] opacity-70 mt-1">โดย ${esc(it.actor)}</p>
+        </div>`;
+      }).join("");
+    } catch (err) {
+      wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-3">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+    }
+  }
+
   async function doExport(type, format) {
     showToast("กำลังเตรียมไฟล์...", "warn");
     try {
@@ -2861,6 +2934,7 @@
       const btn = e.target.closest(".ach-remove");
       if (btn) { const r = btn.closest(".ach-row"); if (r) r.remove(); }
     });
+    $("adminAuditRefresh").addEventListener("click", (e) => runBusy(e.currentTarget, loadAuditLog));
     $("adminRules").addEventListener("click", (e) => {
       const btn = e.target.closest(".rule-remove");
       if (btn) { const r = btn.closest(".rule-row"); if (r) r.remove(); }

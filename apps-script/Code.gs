@@ -213,20 +213,22 @@ var OFF_TOPIC_WORDS = ["ประท้วง", "ทวงหนี้", "ร้
 var SHEETS = {
   USERS: "Users", WORK_LOGS: "Work_Logs", ISSUES: "Issues", SOLUTIONS: "Solutions",
   XP_HISTORY: "XP_History", XP_RULES: "XP_Rules", LIKES: "Likes",
-  NOTIFICATIONS: "Notifications", NOTIF_ACKS: "Notif_Acks", USER_ACHIEVEMENTS: "User_Achievements"
+  NOTIFICATIONS: "Notifications", NOTIF_ACKS: "Notif_Acks", USER_ACHIEVEMENTS: "User_Achievements",
+  AUDIT_LOG: "Audit_Log"
 };
 
 var HEADERS = {
   USERS:         ["Email", "Full_Name", "Total_XP", "Level", "Last_Login", "Role"],
-  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "File_Meta", "Category", "Client_Ref", "Links", "Status", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At", "Remove_Reason", "Removed_By", "Removed_At"],
-  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "File_Meta", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At", "Remove_Reason", "Removed_By", "Removed_At", "KB_Remove_Reason", "KB_Removed_By", "KB_Removed_At"],
-  SOLUTIONS:     ["Solution_ID", "Issue_ID", "Timestamp", "Solution_Text", "Proposed_By", "Proposer_Name", "Status", "Remove_Reason", "Removed_By", "Removed_At"],
+  WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "File_Meta", "Category", "Client_Ref", "Links", "Status", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At", "Remove_Reason", "Removed_By", "Removed_At", "Prev_Status", "Removed_XP"],
+  ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "File_Meta", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At", "Remove_Reason", "Removed_By", "Removed_At", "KB_Remove_Reason", "KB_Removed_By", "KB_Removed_At", "Prev_Status", "Removed_XP"],
+  SOLUTIONS:     ["Solution_ID", "Issue_ID", "Timestamp", "Solution_Text", "Proposed_By", "Proposer_Name", "Status", "Remove_Reason", "Removed_By", "Removed_At", "Prev_Status", "Removed_XP"],
   XP_HISTORY:    ["XP_ID", "Timestamp", "User_Email", "Amount", "Reason", "Ref_ID", "Client_Ref"],
   XP_RULES:      ["Level", "Title", "Min_XP"],
   LIKES:         ["Like_ID", "Issue_ID", "User_Email", "Timestamp"],
   NOTIFICATIONS: ["Notif_ID", "Message", "Created_At", "Active"],
   NOTIF_ACKS:    ["Ack_ID", "Notif_ID", "User_Email", "Ack_At"],
-  USER_ACHIEVEMENTS: ["UA_ID", "Email", "Ach_ID", "Unlocked_At"]
+  USER_ACHIEVEMENTS: ["UA_ID", "Email", "Ach_ID", "Unlocked_At"],
+  AUDIT_LOG:     ["Audit_ID", "Timestamp", "Actor_Email", "Action", "Target_Type", "Target_ID", "Reason", "Meta"]
 };
 
 var SEED_XP_RULES = [
@@ -246,7 +248,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.10", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.11", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -279,13 +281,15 @@ function doGet(e) {
         return output_(adminOverview_(p.idToken), cb);
       case "adminSubmissions":
         return output_(adminSubmissions_(p.idToken, p.type, p.q, p.includeVoided), cb);
+      case "auditLog":
+        return output_(auditLog_(p.idToken, p.limit), cb);
       case "exportData":
         return output_(exportData_(p.idToken, p.type), cb);
       case "export":
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.10" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.11" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -347,6 +351,8 @@ function doPost(e) {
         return handleSaveAchievements_(email, data.list || []);
       case "adminRemove":
         return handleAdminRemove_(email, data.kind, data.recordId || data.id, data.reason || "");
+      case "adminRestore":
+        return handleAdminRestore_(email, data.kind, data.recordId || data.id, data.reason || "");
       default:               return json_({ status: "error", message: "unknown action: " + data.action });
     }
   } catch (err) {
@@ -1222,6 +1228,26 @@ function adminUserRecords_(idToken, targetEmail, type, includeVoided) {
   return { status: "ok", count: list.length, shown: cap.length, items: cap };
 }
 
+/* ประวัติการจัดการของแอดมิน (Audit Log) — admin only */
+function auditLog_(idToken, limit) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var email = verifyIdToken_(idToken).email;
+  if (!isAdmin_(email)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  var cap = Math.min(Math.max(Number(limit) || 200, 1), 500);
+  var rows = readObjects_(getSheet_(SHEETS.AUDIT_LOG, HEADERS.AUDIT_LOG), HEADERS.AUDIT_LOG)
+    .map(function (r) {
+      var meta = {};
+      try { meta = r.Meta ? JSON.parse(r.Meta) : {}; } catch (e) {}
+      return {
+        id: String(r.Audit_ID || ""), time: String(r.Timestamp || ""), actor: String(r.Actor_Email || ""),
+        action: String(r.Action || ""), targetType: String(r.Target_Type || ""), targetId: String(r.Target_ID || ""),
+        reason: String(r.Reason || ""), meta: meta
+      };
+    });
+  rows.sort(function (a, b) { return a.time < b.time ? 1 : -1; });
+  return { status: "ok", count: rows.length, items: rows.slice(0, cap) };
+}
+
 function activeNotifications_(idToken) {
   if (!idToken) return { status: "ok", notifications: [] };
   var email = verifyIdToken_(idToken).email;
@@ -1360,13 +1386,14 @@ function adminSubmissions_(idToken, type, q, includeVoided) {
   if (type !== "issue") {
     readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
       .filter(matches).forEach(function (r) {
-        var v = isVoided_(r);
-        if (v && !wantVoided) return;
+        if (isHidden_(r) && !wantVoided) return;
         list.push({
           type: "work", id: String(r.Log_ID || ""), time: String(r.Timestamp || ""),
           user: String(r.User_Email || ""), name: names[String(r.User_Email)] || "",
-          detail: String(r.Detail || ""), category: String(r.Category || "work"), voided: v,
+          detail: String(r.Detail || ""), category: String(r.Category || "work"),
+          voided: isVoided_(r),
           voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || ""),
+          removed: isRemoved_(r), removeReason: String(r.Remove_Reason || ""), removedBy: String(r.Removed_By || ""), removedAt: String(r.Removed_At || ""),
           rejected: isRejected_(r), rejectReason: String(r.Reject_Reason || "")
         });
       });
@@ -1374,14 +1401,15 @@ function adminSubmissions_(idToken, type, q, includeVoided) {
   if (type !== "work") {
     readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES)
       .filter(matches).forEach(function (r) {
-        var v = isVoided_(r);
-        if (v && !wantVoided) return;
+        if (isHidden_(r) && !wantVoided) return;
         list.push({
           type: "issue", id: String(r.Issue_ID || ""), time: String(r.Timestamp || ""),
           user: String(r.User_Email || ""), name: names[String(r.User_Email)] || "",
           detail: String(r.Detail || ""), category: String(r.Category || "issue"),
-          status: String(r.Status || "Pending"), voided: v,
+          status: String(r.Status || "Pending"),
+          voided: isVoided_(r),
           voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || ""),
+          removed: isRemoved_(r), removeReason: String(r.Remove_Reason || ""), removedBy: String(r.Removed_By || ""), removedAt: String(r.Removed_At || ""),
           rejected: isRejected_(r), rejectReason: String(r.Reject_Reason || "")
         });
       });
@@ -1678,6 +1706,18 @@ function solutionRemoved_(s) { return String(s && s.Status || "").trim() === "Re
 /* เช็กว่ารายการถูกตีกลับให้แก้ไขหรือยัง (Status = "Rejected") */
 function isRejected_(r) { return String(r && r.Status || "").trim() === "Rejected"; }
 
+/* บันทึกประวัติการจัดการของแอดมิน (Audit Log) */
+function logAudit_(actor, action, targetType, targetId, reason, meta) {
+  try {
+    appendByHeaders_(getSheet_(SHEETS.AUDIT_LOG, HEADERS.AUDIT_LOG), HEADERS.AUDIT_LOG, {
+      Audit_ID: "AU-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_(),
+      Timestamp: nowStr_(), Actor_Email: String(actor || ""), Action: String(action || ""),
+      Target_Type: String(targetType || ""), Target_ID: String(targetId || ""),
+      Reason: String(reason || "").slice(0, 300), Meta: meta ? JSON.stringify(meta) : ""
+    });
+  } catch (e) { /* การบันทึก log ต้องไม่ทำให้งานหลักล้มเหลว */ }
+}
+
 /* ยกเลิก record ของผู้ใช้ (งาน/ปัญหา) โดยแอดมิน: ติดธง Void + เก็บ audit + หัก XP คืน */
 function handleVoidRecord_(adminEmail, recordType, recordId, reason) {
   if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
@@ -1700,12 +1740,15 @@ function handleVoidRecord_(adminEmail, recordType, recordId, reason) {
 
   var owner = String(sh.getRange(row, map["User_Email"]).getValue() || "");
   var ts = nowStr_();
+  if (map["Prev_Status"]) sh.getRange(row, map["Prev_Status"]).setValue(cur);
   sh.getRange(row, map["Status"]).setValue("Void");
   if (map["Void_Reason"]) sh.getRange(row, map["Void_Reason"]).setValue(reason.slice(0, 200));
   if (map["Voided_By"])   sh.getRange(row, map["Voided_By"]).setValue(adminEmail);
   if (map["Voided_At"])   sh.getRange(row, map["Voided_At"]).setValue(ts);
 
   var reversed = reverseXpForRecord_(owner, recordId, reason, "void");
+  if (map["Removed_XP"]) sh.getRange(row, map["Removed_XP"]).setValue(reversed);
+  logAudit_(adminEmail, "void", type, recordId, reason, { owner: owner, reversedXp: reversed });
   return json_({ status: "ok", type: type, id: recordId, reversedXp: reversed, message: "ยกเลิกรายการเรียบร้อย" });
 }
 
@@ -1717,7 +1760,7 @@ function netRecordXp_(recordId) {
     .filter(function (h) { return String(h.Ref_ID) === String(recordId); })
     .reduce(function (sum, h) {
       var r = String(h.Reason);
-      if (r === "work_log" || r === "issue" || r === "solution" || r === "void" || r === "reject" || r === "remove") return sum + Number(h.Amount || 0);
+      if (r === "work_log" || r === "issue" || r === "solution" || r === "void" || r === "reject" || r === "remove" || r === "restore") return sum + Number(h.Amount || 0);
       return sum;
     }, 0);
 }
@@ -1772,6 +1815,7 @@ function handleAdminRemove_(adminEmail, kind, id, reason) {
     if (kmap["KB_Remove_Reason"]) ksh.getRange(krow, kmap["KB_Remove_Reason"]).setValue(reason.slice(0, 200));
     if (kmap["KB_Removed_By"])  ksh.getRange(krow, kmap["KB_Removed_By"]).setValue(adminEmail);
     if (kmap["KB_Removed_At"])  ksh.getRange(krow, kmap["KB_Removed_At"]).setValue(ts);
+    logAudit_(adminEmail, "kb_remove", "kb", id, reason, {});
     return json_({ status: "ok", kind: "kb", id: id, message: "ลบออกจากคลังองค์ความรู้แล้ว" });
   }
 
@@ -1782,11 +1826,15 @@ function handleAdminRemove_(adminEmail, kind, id, reason) {
     var smap = headerMap_(ssh);
     if (String(ssh.getRange(srow, smap["Status"]).getValue() || "") === "Removed") throw new Error("ข้อเสนอแนะนี้ถูกลบไปแล้ว");
     var proposer = String(ssh.getRange(srow, smap["Proposed_By"]).getValue() || "");
+    var sprev = String(ssh.getRange(srow, smap["Status"]).getValue() || "");
+    if (smap["Prev_Status"])   ssh.getRange(srow, smap["Prev_Status"]).setValue(sprev);
     if (smap["Status"])        ssh.getRange(srow, smap["Status"]).setValue("Removed");
     if (smap["Remove_Reason"]) ssh.getRange(srow, smap["Remove_Reason"]).setValue(reason.slice(0, 200));
     if (smap["Removed_By"])    ssh.getRange(srow, smap["Removed_By"]).setValue(adminEmail);
     if (smap["Removed_At"])    ssh.getRange(srow, smap["Removed_At"]).setValue(ts);
     var srev = reverseXpForRecord_(proposer, id, reason, "remove");
+    if (smap["Removed_XP"])    ssh.getRange(srow, smap["Removed_XP"]).setValue(srev);
+    logAudit_(adminEmail, "remove", "solution", id, reason, { owner: proposer, reversedXp: srev });
     return json_({ status: "ok", kind: "solution", id: id, reversedXp: srev, message: "ลบข้อเสนอแนะแล้ว" });
   }
 
@@ -1801,13 +1849,88 @@ function handleAdminRemove_(adminEmail, kind, id, reason) {
   if (cur === "Void") throw new Error("รายการนี้ถูกยกเลิกไปแล้ว");
 
   var owner = String(sh.getRange(row, map["User_Email"]).getValue() || "");
+  if (map["Prev_Status"]) sh.getRange(row, map["Prev_Status"]).setValue(cur);
   sh.getRange(row, map["Status"]).setValue("Removed");
   if (map["Remove_Reason"]) sh.getRange(row, map["Remove_Reason"]).setValue(reason.slice(0, 200));
   if (map["Removed_By"])    sh.getRange(row, map["Removed_By"]).setValue(adminEmail);
   if (map["Removed_At"])    sh.getRange(row, map["Removed_At"]).setValue(ts);
 
   var rev = reverseXpForRecord_(owner, id, reason, "remove");
+  if (map["Removed_XP"]) sh.getRange(row, map["Removed_XP"]).setValue(rev);
+  logAudit_(adminEmail, "remove", type, id, reason, { owner: owner, reversedXp: rev });
   return json_({ status: "ok", kind: type, id: id, reversedXp: rev, message: "ลบรายการเรียบร้อย" });
+}
+
+/* ======================================================================
+ * [7c-3] แอดมิน "กู้คืน" รายการที่ถูกลบ/ยกเลิก (Phase 6.11)
+ *   kind: work | issue | solution | kb
+ *   - work/issue/solution: คืนสถานะเดิม (Prev_Status) + คืน XP ที่เคยหักไป
+ *   - kb: คืนเข้าคลังองค์ความรู้ (KB_Approved=true)
+ * ==================================================================== */
+function handleAdminRestore_(adminEmail, kind, id, reason) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!id) throw new Error("ไม่พบรหัสรายการ");
+  reason = String(reason || "").trim() || "กู้คืนรายการ";
+  kind = String(kind || "").toLowerCase();
+  var ts = nowStr_();
+
+  if (kind === "kb") {
+    var ksh = getSheet_(SHEETS.ISSUES, HEADERS.ISSUES);
+    var krow = findRowByHeader_(ksh, "Issue_ID", id);
+    if (krow === -1) throw new Error("ไม่พบรายการในคลังองค์ความรู้");
+    var kmap = headerMap_(ksh);
+    if (kmap["KB_Approved"])       ksh.getRange(krow, kmap["KB_Approved"]).setValue(true);
+    if (kmap["KB_Remove_Reason"])  ksh.getRange(krow, kmap["KB_Remove_Reason"]).setValue("");
+    if (kmap["KB_Removed_By"])     ksh.getRange(krow, kmap["KB_Removed_By"]).setValue("");
+    if (kmap["KB_Removed_At"])     ksh.getRange(krow, kmap["KB_Removed_At"]).setValue("");
+    logAudit_(adminEmail, "kb_restore", "kb", id, reason, {});
+    return json_({ status: "ok", kind: "kb", id: id, message: "คืนเข้าคลังองค์ความรู้แล้ว" });
+  }
+
+  if (kind === "solution") {
+    var ssh = getSheet_(SHEETS.SOLUTIONS, HEADERS.SOLUTIONS);
+    var srow = findRowByHeader_(ssh, "Solution_ID", id);
+    if (srow === -1) throw new Error("ไม่พบข้อเสนอแนะนี้");
+    var smap = headerMap_(ssh);
+    var srem = String(ssh.getRange(srow, smap["Status"]).getValue() || "");
+    if (srem !== "Removed") throw new Error("ข้อเสนอแนะนี้ไม่ได้ถูกลบ");
+    var proposer = String(ssh.getRange(srow, smap["Proposed_By"]).getValue() || "");
+    var sprev = smap["Prev_Status"] ? String(ssh.getRange(srow, smap["Prev_Status"]).getValue() || "") : "";
+    if (smap["Status"])        ssh.getRange(srow, smap["Status"]).setValue(sprev);
+    if (smap["Remove_Reason"]) ssh.getRange(srow, smap["Remove_Reason"]).setValue("");
+    if (smap["Removed_By"])    ssh.getRange(srow, smap["Removed_By"]).setValue("");
+    if (smap["Removed_At"])    ssh.getRange(srow, smap["Removed_At"]).setValue("");
+    var sback = smap["Removed_XP"] ? Number(ssh.getRange(srow, smap["Removed_XP"]).getValue() || 0) : 0;
+    if (sback > 0 && proposer) awardXp_(proposer, sback, "restore", id, "");
+    if (smap["Removed_XP"]) ssh.getRange(srow, smap["Removed_XP"]).setValue(0);
+    logAudit_(adminEmail, "restore", "solution", id, reason, { owner: proposer, restoredXp: sback });
+    return json_({ status: "ok", kind: "solution", id: id, restoredXp: sback, message: "กู้คืนข้อเสนอแนะแล้ว" });
+  }
+
+  var type = (kind === "issue") ? "issue" : "work";
+  var t = recordSheet_(type);
+  var sh = t.sh, idHeader = t.idHeader;
+  var row = findRowByHeader_(sh, idHeader, id);
+  if (row === -1) throw new Error("ไม่พบรายการนี้");
+  var map = headerMap_(sh);
+  var cur = String(sh.getRange(row, map["Status"]).getValue() || "");
+  if (cur !== "Removed" && cur !== "Void") throw new Error("รายการนี้ไม่ได้ถูกลบหรือยกเลิก");
+
+  var owner = String(sh.getRange(row, map["User_Email"]).getValue() || "");
+  var prev = map["Prev_Status"] ? String(sh.getRange(row, map["Prev_Status"]).getValue() || "") : "";
+  sh.getRange(row, map["Status"]).setValue(prev);
+  if (map["Remove_Reason"]) sh.getRange(row, map["Remove_Reason"]).setValue("");
+  if (map["Removed_By"])    sh.getRange(row, map["Removed_By"]).setValue("");
+  if (map["Removed_At"])    sh.getRange(row, map["Removed_At"]).setValue("");
+  if (map["Void_Reason"])   sh.getRange(row, map["Void_Reason"]).setValue("");
+  if (map["Voided_By"])     sh.getRange(row, map["Voided_By"]).setValue("");
+  if (map["Voided_At"])     sh.getRange(row, map["Voided_At"]).setValue("");
+
+  var back = map["Removed_XP"] ? Number(sh.getRange(row, map["Removed_XP"]).getValue() || 0) : 0;
+  if (back > 0 && owner) awardXp_(owner, back, "restore", id, "");
+  if (map["Removed_XP"]) sh.getRange(row, map["Removed_XP"]).setValue(0);
+  logAudit_(adminEmail, "restore", type, id, reason, { owner: owner, restoredXp: back, toStatus: prev });
+  return json_({ status: "ok", kind: type, id: id, restoredXp: back, message: "กู้คืนรายการเรียบร้อย" });
 }
 
 /* ======================================================================
@@ -1884,6 +2007,7 @@ function handleAdminRejectRecord_(adminEmail, recordType, recordId, reason) {
   if (map["Rejected_At"])   sh.getRange(row, map["Rejected_At"]).setValue(ts);
 
   var reversed = reverseXpForRecord_(owner, recordId, reason, "reject");
+  logAudit_(adminEmail, "reject", type, recordId, reason, { owner: owner, reversedXp: reversed });
   return json_({ status: "ok", type: type, id: recordId, reversedXp: reversed, message: "ตีกลับรายการเรียบร้อย (หัก XP คืนแล้ว)" });
 }
 
