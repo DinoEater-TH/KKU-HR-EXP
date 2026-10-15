@@ -156,7 +156,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.19"
+      FRONT_PHASE      : "6.20"
     };
   </script>
 
@@ -179,7 +179,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.19</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.20</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -236,6 +236,29 @@
           </div>
           <div id="dashStreak"></div>
           <div id="dashStats"></div>
+          <div class="card bg-white rounded-2xl shadow-sm p-4">
+            <p class="text-sm font-bold text-slate-800">📤 Export ข้อมูลของฉัน</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">ดาวน์โหลดรายการงาน/ปัญหาของคุณ · เลือกช่วงวันที่ได้ (เว้นว่าง = ทั้งหมด)</p>
+            <div class="grid grid-cols-2 gap-2 mt-3">
+              <select id="expType" class="col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
+                <option value="all">ทั้งหมด (งาน + ปัญหา)</option>
+                <option value="work">บันทึกงาน</option>
+                <option value="issues">ปัญหา</option>
+              </select>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">จากวันที่ (ไม่บังคับ)</label>
+                <input id="expFrom" type="date" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">ถึงวันที่ (ไม่บังคับ)</label>
+                <input id="expTo" type="date" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+              </div>
+            </div>
+            <div class="flex gap-2 mt-3">
+              <button id="expCsv" class="flex-1 py-2.5 rounded-xl bg-emerald-700 text-white text-xs font-bold active:scale-95 transition">⬇️ CSV</button>
+              <button id="expXlsx" class="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold active:scale-95 transition">⬇️ Excel</button>
+            </div>
+          </div>
           <div id="dashAchCard"></div>
           <div id="dashMonthlyCard"></div>
           <div id="dashMixCard"></div>
@@ -518,7 +541,7 @@
           </div>
         </section>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.19</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.20</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -535,10 +558,10 @@
     <!-- ================= แถบนำทางล่าง (Bottom Nav) ================= -->
     <nav id="bottomNav" class="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
       <div class="max-w-lg mx-auto grid grid-cols-5">
-        <button data-tab="dashboard" class="nav-item"><span class="nav-ico">📊</span><span class="nav-lbl">หน้าแรก</span></button>
         <button data-tab="work"      class="nav-item"><span class="nav-ico">📝</span><span class="nav-lbl">บันทึก</span></button>
-        <button data-tab="board"     class="nav-item"><span class="nav-ico">🧩</span><span class="nav-lbl">บอร์ด</span></button>
+        <button data-tab="board"     class="nav-item"><span class="nav-ico">🧩</span><span class="nav-lbl">บอร์ดปัญหา</span></button>
         <button data-tab="kb"        class="nav-item"><span class="nav-ico">📚</span><span class="nav-lbl">ความรู้</span></button>
+        <button data-tab="history"   class="nav-item"><span class="nav-ico">🗂️</span><span class="nav-lbl">ประวัติ</span></button>
         <button id="navMoreBtn" class="nav-item"><span class="nav-ico">⋯</span><span class="nav-lbl">เพิ่มเติม</span><span id="navMoreDot" class="nav-dot hidden"></span></button>
       </div>
     </nav>
@@ -550,8 +573,8 @@
         <div class="max-w-lg mx-auto p-3 navsheet-pad">
           <div class="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200"></div>
           <div class="space-y-1">
+            <button data-tab="dashboard" class="tab-btn sheet-item">📊<span>แดชบอร์ด</span></button>
             <button data-tab="search"  class="tab-btn sheet-item">🔍<span>ค้นหา</span></button>
-            <button data-tab="history" class="tab-btn sheet-item">🗂️<span>ประวัติของฉัน</span></button>
             <button data-tab="resend"  id="sheetBtnResend" class="tab-btn sheet-item">📤<span>รอส่ง</span></button>
             <button data-tab="profile" class="tab-btn sheet-item">👤<span>โปรไฟล์</span></button>
             <button data-tab="admin"   id="sheetBtnAdmin" class="tab-btn sheet-item hidden">🛡️<span>แอดมิน</span></button>
@@ -728,9 +751,9 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.19 (index.html) · Phase 2 Smart Work Capture: คำแนะนำงาน/ปัญหา · สถานะการส่ง 6 แบบ · กันกดซ้ำ · ไม่ล้างข้อมูลจนยืนยันสำเร็จ · ไฟล์แนบมีสถานะประมวลผล · ผู้ใช้แก้ไข/ลบรายการงาน–ปัญหาของตัวเองจากประวัติได้ (ลบ = หัก XP คืน)
+     KKU HR Exp — Phase 6.20 (index.html) · เมนูใหม่: บันทึก(หน้าแรก) · บอร์ดปัญหา · ความรู้ · ประวัติ · เพิ่มเติม(แดชบอร์ด/Export) · Export ข้อมูลตัวเองเลือกช่วงวันได้ · ซ่อนชื่อ–อีเมลผู้โพสต์ในบอร์ดปัญหา+คลังความรู้ (เห็นเฉพาะแอดมิน) · ผู้ใช้แก้ไข/ลบรายการของตัวเอง (ลบ = หัก XP คืน)
      ============================================================ */
-  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], submitting:false, fileBusy:0, currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
+  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], submitting:false, fileBusy:0, currentTab:"work", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
   let userSearchTimer = null;
   const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", reject:"รายการถูกตีกลับ (รอส่งใหม่)", remove:"รายการถูกลบโดยแอดมิน", restore:"กู้คืนรายการ (คืน XP)", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
@@ -1085,7 +1108,7 @@
     $("userAvatar").src = state.user.picture || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>";
     $("loginView").classList.add("hidden");
     $("appView").classList.remove("hidden");
-    switchTab("dashboard");
+      switchTab("work");
     syncHeaderH();
     loadProfile().then(() => prefetchAll());  // อัปเดต Level + ดาวน์โหลดข้อมูลลงเครื่อง
     refreshResendBadge();
@@ -1358,7 +1381,7 @@
     refreshResendBadge();
     showToast("✅ อัปเดตข้อมูลลงเครื่องแล้ว");
     if (state.currentTab === "admin") loadAdmin();
-    else if (state.currentTab && state.currentTab !== "dashboard") switchTab(state.currentTab);
+      else if (state.currentTab && state.currentTab !== "work") switchTab(state.currentTab);
     else loadDashboard();
     updateSyncBar();
   }
@@ -1466,7 +1489,7 @@
   }
 
   /* ---------- Tabs ---------- */
-  const PRIMARY_TABS = ["dashboard", "work", "board", "kb"];
+  const PRIMARY_TABS = ["work", "board", "kb", "history"];
   function highlightNav(tab) {
     document.querySelectorAll("#bottomNav .nav-item").forEach(b => {
       const isMore = b.id === "navMoreBtn";
@@ -1719,7 +1742,7 @@
           <span class="text-[11px] font-mono text-slate-400">#${esc(it.id)}</span>${badge}
         </div>
         <p class="mt-2 text-sm text-slate-800 whitespace-pre-wrap">${esc(it.detail)}</p>
-        <p class="mt-1 text-[11px] text-slate-400">🕒 ${esc(it.time)} · โดยไม่ระบุตัวตน</p>
+        <p class="mt-1 text-[11px] text-slate-400">🕒 ${esc(it.time)} · ${it.author ? "โดย " + esc(it.author) : "โดยไม่ระบุตัวตน"}</p>
         ${files}${links ? `<div class="mt-2 flex flex-wrap gap-2">${links}</div>` : ""}${sols}
         ${solBlock}
         ${resolveBtn}
@@ -2168,7 +2191,7 @@
       state.profileData = data;
       state.isAdmin = !!data.isAdmin;
       $("sheetBtnAdmin").classList.toggle("hidden", !state.isAdmin);
-      if (!state.isAdmin && state.currentTab === "admin") switchTab("dashboard");
+      if (!state.isAdmin && state.currentTab === "admin") switchTab("work");
       $("headerLevelNum").textContent = "Lv " + data.level;
       updateHeaderXp(data.minXp, data.nextXp, data.totalXp);
       checkLevelUp(data.level, data.title);
@@ -3208,6 +3231,26 @@
     }
   }
 
+  async function myExport(format) {
+    const type = ($("expType") && $("expType").value) || "all";
+    const from = ($("expFrom") && $("expFrom").value) || "";
+    const to = ($("expTo") && $("expTo").value) || "";
+    if (from && to && from > to) { showToast("ช่วงวันที่ไม่ถูกต้อง (วันเริ่มหลังวันสิ้นสุด)", "warn"); return; }
+    showToast("กำลังเตรียมไฟล์...", "warn");
+    try {
+      const data = await apiGet({ action:"myExportRecords", idToken:state.idToken, email:state.user.email, type, from, to });
+      if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
+      if (!data.rows.length) { showToast("ไม่มีข้อมูลให้ Export", "warn"); return; }
+      const stamp = new Date().toISOString().slice(0, 10);
+      const label = type === "issues" ? "My_Issues" : (type === "work" ? "My_Work_Logs" : "My_Records");
+      if (format === "csv") exportCsv(data.rows, `${label}_${stamp}.csv`);
+      else exportXlsx(data.rows, `${label}_${stamp}.xlsx`);
+      showToast(`✅ Export ${data.count} รายการแล้ว`);
+    } catch (err) {
+      showToast("❌ Export ไม่สำเร็จ: " + err.message, "error");
+    }
+  }
+
   async function doExport(type, format) {
     showToast("กำลังเตรียมไฟล์...", "warn");
     try {
@@ -3305,6 +3348,8 @@
       const btn = e.target.closest(".rule-remove");
       if (btn) { const r = btn.closest(".rule-row"); if (r) r.remove(); }
     });
+    $("expCsv").addEventListener("click", (e) => runBusy(e.currentTarget, () => myExport("csv")));
+    $("expXlsx").addEventListener("click", (e) => runBusy(e.currentTarget, () => myExport("xlsx")));
     document.querySelectorAll(".export-btn").forEach(b => b.addEventListener("click", () => runBusy(b, () => doExport(b.dataset.export, b.dataset.format))));
     $("linkAddRow").addEventListener("click", addLinkRow);
     $("linkCancel").addEventListener("click", () => { $("linkModal").classList.add("hidden"); state.linkCtx = null; });

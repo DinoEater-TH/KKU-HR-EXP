@@ -252,7 +252,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.17", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.20", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -289,11 +289,13 @@ function doGet(e) {
         return output_(auditLog_(p.idToken, p.limit), cb);
       case "exportData":
         return output_(exportData_(p.idToken, p.type), cb);
+      case "myExportRecords":
+        return output_(myExportRecords_(p.idToken, p.email, p.from, p.to, p.type), cb);
       case "export":
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.19" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.20" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -790,7 +792,7 @@ function pendingIssues_(idToken) {
     if (solutionRemoved_(s)) return;
     var k = String(s.Issue_ID);
     (byIssue[k] = byIssue[k] || []).push({
-      text: String(s.Solution_Text || ""), by: String(s.Proposer_Name || "เพื่อนร่วมงาน"), time: String(s.Timestamp || ""),
+      text: String(s.Solution_Text || ""), by: admin ? String(s.Proposer_Name || "เพื่อนร่วมงาน") : "เพื่อนร่วมงาน", time: String(s.Timestamp || ""),
       mine: !!me && String(s.Proposed_By || "") === String(me)
     });
   });
@@ -809,8 +811,9 @@ function pendingIssues_(idToken) {
     list.push({
       id: String(r.Issue_ID || ""), time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
       status: status, files: fileMetaList_(r), links: parseLinks_(r.Links), solutions: dedupeSolutionsByText_(byIssue[String(r.Issue_ID)] || [], function (x) { return x.text; }),
-      canResolve: canResolve, mySolution: mySolution
-    }); // ไม่ส่ง User_Email
+      canResolve: canResolve, mySolution: mySolution,
+      author: admin ? String(r.User_Email || "") : ""
+    }); // ไม่ส่ง User_Email ให้ผู้ใช้ทั่วไป (เห็นเฉพาะแอดมิน)
   }
   return { status: "ok", count: list.length, issues: list };
 }
@@ -885,7 +888,7 @@ function knowledgeBase_(idToken, emailParam, includeRemoved) {
   var mapSol = function (x, removed) {
     var likers = likesBySol[x.id] || [];
     var o = {
-      id: x.id, text: x.text, by: x.by,
+      id: x.id, text: x.text, by: admin ? x.by : "เพื่อนร่วมงาน",
       mine: !!me && x.byEmail === me,
       likeCount: likers.length,
       likedByMe: !!me && likers.indexOf(me) !== -1
@@ -906,7 +909,7 @@ function knowledgeBase_(idToken, emailParam, includeRemoved) {
     list.push({
       id: id, time: String(r.Timestamp || ""), detail: String(r.Detail || ""),
       files: fileMetaList_(r), links: parseLinks_(r.Links), solutions: solList,
-      solver: String(r.Solved_By || ""), likeCount: articleLikes
+      solver: admin ? String(r.Solved_By || "") : "", likeCount: articleLikes
     });
   });
   list.sort(function (a, b) { return a.time < b.time ? 1 : -1; });
@@ -1608,6 +1611,61 @@ function exportData_(idToken, type) {
   });
   rows2.sort(function (a, b) { return a["วันที่-เวลา"] < b["วันที่-เวลา"] ? 1 : -1; });
   return { status: "ok", type: "worklogs", count: rows2.length, rows: rows2 };
+}
+
+/* ผู้ใช้ Export "ข้อมูลของตัวเอง" (งาน + ปัญหา) — เลือกช่วงวันที่ได้ (เว้นว่าง = ทั้งหมด) (Phase 6.20)
+   - ตรวจสิทธิ์เจ้าของจาก idToken
+   - type: all | work | issues  · from/to: "YYYY-MM-DD" (เทียบเฉพาะส่วนวันที่ของ Timestamp) */
+function myExportRecords_(idToken, emailParam, from, to, type) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var email = verifyIdToken_(idToken).email;
+  if (emailParam && emailParam !== email) throw new Error("email mismatch");
+
+  from = String(from || "").slice(0, 10);
+  to   = String(to || "").slice(0, 10);
+  type = String(type || "all").toLowerCase();
+  var filtered = (from || to);
+  var inRange = function (ts) {
+    var d = String(ts || "").slice(0, 10);
+    if (!d) return false;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  };
+
+  var rows = [];
+  if (type === "all" || type === "work" || type === "worklogs") {
+    readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS).forEach(function (r) {
+      if (String(r.User_Email) !== email) return;
+      if (filtered && !inRange(r.Timestamp)) return;
+      rows.push({
+        "ประเภท": "งาน",
+        "วันที่-เวลา": String(r.Timestamp || ""),
+        "รายละเอียด": String(r.Detail || ""),
+        "หมวดหมู่ (AI)": String(r.Category || ""),
+        "สถานะ": isVoided_(r) ? "ถูกยกเลิก" : (isRemoved_(r) ? "ถูกลบ" : "ปกติ"),
+        "ไฟล์แนบ": splitUrls_(r.File_URLs).join("\n"),
+        "ลิงก์เพิ่มเติม": formatLinks_(r.Links)
+      });
+    });
+  }
+  if (type === "all" || type === "issue" || type === "issues") {
+    readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES).forEach(function (r) {
+      if (String(r.User_Email) !== email) return;
+      if (filtered && !inRange(r.Timestamp)) return;
+      rows.push({
+        "ประเภท": "ปัญหา",
+        "วันที่-เวลา": String(r.Timestamp || ""),
+        "รายละเอียด": String(r.Detail || ""),
+        "หมวดหมู่ (AI)": String(r.Category || ""),
+        "สถานะ": String(r.Status || "Pending"),
+        "ไฟล์แนบ": splitUrls_(r.File_URLs).join("\n"),
+        "ลิงก์เพิ่มเติม": formatLinks_(r.Links)
+      });
+    });
+  }
+  rows.sort(function (a, b) { return a["วันที่-เวลา"] < b["วันที่-เวลา"] ? 1 : -1; });
+  return { status: "ok", email: email, count: rows.length, from: from, to: to, type: type, rows: rows };
 }
 
 function isTruthy_(v) { return v === true || String(v).toUpperCase() === "TRUE"; }
