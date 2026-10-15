@@ -127,6 +127,40 @@ function streakConfigDefaults_() {
   return { daily: STREAK_BONUS_DAILY, milestones: ms };
 }
 
+/* ---- การมองเห็นของผู้ใช้ (Phase 6.22)
+ * แอดมินเปิด/ปิดการแสดงผล "ผู้ทำคะแนนสูงสุด" และ "อันดับสมาชิกทั้งหมด" ให้ผู้ใช้ทั่วไป
+ * เก็บใน Script Property: UI_CONFIG = {showTopScorers:true, showMemberRank:false}
+ * หมายเหตุ: แอดมินมองเห็นได้เสมอไม่ว่าตั้งค่าใด */
+var UI_CONFIG_PROP    = "UI_CONFIG";
+var UI_CONFIG_DEFAULT = { showTopScorers: true, showMemberRank: false };
+var UI_CONFIG_LABELS  = { showTopScorers: "🏆 ผู้ทำคะแนนสูงสุด", showMemberRank: "👥 อันดับสมาชิกทั้งหมด" };
+
+function getUiConfig_() {
+  var cfg = { showTopScorers: UI_CONFIG_DEFAULT.showTopScorers, showMemberRank: UI_CONFIG_DEFAULT.showMemberRank };
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty(UI_CONFIG_PROP);
+    if (raw) {
+      var o = JSON.parse(raw) || {};
+      if (o.showTopScorers !== undefined) cfg.showTopScorers = (o.showTopScorers === true || String(o.showTopScorers) === "true");
+      if (o.showMemberRank !== undefined) cfg.showMemberRank = (o.showMemberRank === true || String(o.showMemberRank) === "true");
+    }
+  } catch (e) {}
+  return cfg;
+}
+
+/* แอดมินบันทึกค่าการมองเห็นของผู้ใช้ */
+function handleSaveUiConfig_(adminEmail, config) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  var cur = getUiConfig_();
+  config = config || {};
+  var next = {
+    showTopScorers: (config.showTopScorers === undefined) ? cur.showTopScorers : (config.showTopScorers === true || String(config.showTopScorers) === "true"),
+    showMemberRank: (config.showMemberRank === undefined) ? cur.showMemberRank : (config.showMemberRank === true || String(config.showMemberRank) === "true")
+  };
+  PropertiesService.getScriptProperties().setProperty(UI_CONFIG_PROP, JSON.stringify(next));
+  return json_({ status: "ok", config: next, message: "บันทึกการมองเห็นของผู้ใช้แล้ว" });
+}
+
 /* ---- RPG: Achievements / เหรียญตรา (Phase 6.1) ----
  * type อ้างอิงค่าจาก achievementStats_() : work_count | issue_count | solution_count |
  * solved_count | like_count | level | total_xp | streak | night_owl | early_bird
@@ -252,7 +286,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.20", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.22", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -275,6 +309,8 @@ function doGet(e) {
         return output_({ status: "ok", config: getXpConfig_(), labels: XP_LABELS, defaults: XP_DEFAULTS }, cb);
       case "streakConfig":
         return output_({ status: "ok", config: getStreakConfig_(), defaults: streakConfigDefaults_(), days: STREAK_MILESTONE_DAYS }, cb);
+      case "uiConfig":
+        return output_({ status: "ok", config: getUiConfig_(), labels: UI_CONFIG_LABELS, defaults: UI_CONFIG_DEFAULT }, cb);
       case "achievementsConfig":
         return output_({ status: "ok", list: getAchievements_(), types: ACHIEVEMENT_TYPES, typeLabels: ACHIEVEMENT_TYPE_LABELS, rarities: ACHIEVEMENT_RARITIES, defaults: achievementsDefaults_() }, cb);
       case "activeNotifications":
@@ -295,7 +331,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.20" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.22" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -347,6 +383,8 @@ function doPost(e) {
         return handleSaveXpConfig_(email, data.config || {});
       case "saveStreakConfig":
         return handleSaveStreakConfig_(email, data.config || {});
+      case "saveUiConfig":
+        return handleSaveUiConfig_(email, data.config || {});
       case "voidRecord":
         return handleVoidRecord_(email, data.recordType, data.recordId, data.reason || "");
       case "adminEditRecord":
@@ -1227,12 +1265,17 @@ function dashboard_(idToken, emailParam) {
 
   var rank = rankOfUser_(email, users);
   var ranks = rankMap_(users);
-  var top = users.slice()
-    .sort(function (a, b) { return (Number(b.Total_XP) || 0) - (Number(a.Total_XP) || 0); })
-    .slice(0, 5)
-    .map(function (u, idx) {
-      return { rank: idx + 1, email: String(u.Email), name: String(u.Full_Name || ""), totalXp: Number(u.Total_XP || 0), level: Number(u.Level || 1), role: String(u.Role || "User") };
-    });
+  var ui = getUiConfig_();
+  var canSeeTop = isAdmin || ui.showTopScorers;       // แอดมินเห็นเสมอ
+  var canSeeMembers = isAdmin || ui.showMemberRank;
+  var top = canSeeTop
+    ? users.slice()
+        .sort(function (a, b) { return (Number(b.Total_XP) || 0) - (Number(a.Total_XP) || 0); })
+        .slice(0, 5)
+        .map(function (u, idx) {
+          return { rank: idx + 1, email: String(u.Email), name: String(u.Full_Name || ""), totalXp: Number(u.Total_XP || 0), level: Number(u.Level || 1), role: String(u.Role || "User") };
+        })
+    : [];
 
   var resp = {
     status: "ok", email: email, name: name, isAdmin: isAdmin,
@@ -1249,8 +1292,9 @@ function dashboard_(idToken, emailParam) {
     recent: recent,
     rank: rank, totalUsers: users.length,
     streak: streakStats_(email),
+    ui: { showTopScorers: ui.showTopScorers, showMemberRank: ui.showMemberRank },
     top: top,
-    allUsers: isAdmin ? users.map(function (u) {
+    allUsers: canSeeMembers ? users.map(function (u) {
       return { rank: ranks[String(u.Email)] || 0, email: String(u.Email), name: String(u.Full_Name || ""), totalXp: Number(u.Total_XP || 0), level: Number(u.Level || 1), role: String(u.Role || "User") };
     }) : []
   };
@@ -2661,3 +2705,4 @@ function openLink_(title, url) {
 }
 
 function showWebAppUrl() { SpreadsheetApp.getUi().alert("ลิงก์ Web App:\n\n" + ScriptApp.getService().getUrl()); }
+
