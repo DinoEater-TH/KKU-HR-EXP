@@ -2,9 +2,18 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#7f1d1d" />
   <title>KKU HR Exp</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="KKU HR Exp" />
+  <meta name="application-name" content="KKU HR Exp" />
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -530,6 +539,9 @@
 
   <!-- ================= RPG: XP float layer ================= -->
   <div id="xpFloatLayer" class="pointer-events-none fixed inset-x-0 bottom-24 z-[85] flex justify-center"></div>
+
+  <!-- ================= PWA: ปุ่มติดตั้งแอป ================= -->
+  <button id="installBtn" class="hidden fixed bottom-20 right-4 z-[70] rounded-full bg-red-700 text-white text-xs font-bold px-4 py-3 shadow-xl active:scale-95 transition">📲 ติดตั้งแอป</button>
 
   <script>
   /* ============================================================
@@ -2485,6 +2497,31 @@
     checkStatus();
     window.addEventListener("online", () => { updateOnline(); showToast("✅ กลับมาเชื่อมต่ออินเทอร์เน็ตแล้ว"); checkStatus(); });
     window.addEventListener("offline", () => { updateOnline(); checkStatus(); });
+
+    /* ---------- PWA: ติดตั้งลงหน้าจอโฮม + service worker ---------- */
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(() => {}); });
+    }
+    let deferredInstall = null;
+    const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    const isiOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault(); deferredInstall = e;
+      if (!isStandalone()) $("installBtn").classList.remove("hidden");
+    });
+    window.addEventListener("appinstalled", () => { deferredInstall = null; $("installBtn").classList.add("hidden"); showToast("📲 ติดตั้งแอปเรียบร้อยแล้ว"); });
+    $("installBtn").addEventListener("click", async () => {
+      if (deferredInstall) {
+        deferredInstall.prompt();
+        try { await deferredInstall.userChoice; } catch (e) {}
+        deferredInstall = null; $("installBtn").classList.add("hidden");
+      } else if (isiOS()) {
+        showToast("บน iPhone: กดปุ่ม แชร์ ⬆️ แล้วเลือก “เพิ่มไปยังหน้าจอโฮม”", "warn");
+      } else {
+        showToast("เปิดเมนูเบราว์เซอร์ ⋮ แล้วเลือก “ติดตั้งแอป / เพิ่มไปยังหน้าจอโฮม”", "warn");
+      }
+    });
+    if (!isStandalone() && isiOS()) $("installBtn").classList.remove("hidden");
 
     document.querySelectorAll(".attach-input").forEach(inp => inp.addEventListener("change", async (e) => {
       for (const file of Array.from(e.target.files)) { try { state.attachments.push(await prepareFile(file)); } catch (err) { showToast(err.message, "error"); } }

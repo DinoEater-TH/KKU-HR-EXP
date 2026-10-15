@@ -1,0 +1,20 @@
+{
+  "name": "KKU HR Exp — ระบบบันทึกการปฏิบัติงานเพื่อสร้างองค์ความรู้",
+  "short_name": "KKU HR Exp",
+  "description": "ระบบบันทึกการปฏิบัติงานเพื่อสร้างองค์ความรู้ มหาวิทยาลัยขอนแก่น",
+  "lang": "th",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#7f1d1d",
+  "categories": ["productivity", "education", "business"],
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
