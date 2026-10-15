@@ -133,6 +133,7 @@
         <button data-tab="work"    class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📝 บันทึก</button>
         <button data-tab="board"   class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🧩 บอร์ด</button>
         <button data-tab="kb"      class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📚 ความรู้</button>
+        <button data-tab="search"  class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🔍 ค้นหา</button>
       <button data-tab="history" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">🗂️ ประวัติ</button>
       <button data-tab="resend" id="tabBtnResend" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">📤 รอส่ง</button>
       <button data-tab="profile" class="tab-btn whitespace-nowrap px-3 py-2 rounded-xl text-xs font-semibold">👤 โปรไฟล์</button>
@@ -209,6 +210,19 @@
           <button id="refreshKb" class="text-xs bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm active:scale-95">↻ รีเฟรช</button>
         </div>
         <div id="kbList" class="space-y-3"></div>
+      </div>
+
+      <!-- ===== ค้นหา (ประวัติ + องค์ความรู้) ===== -->
+      <div id="tab-search" class="tab-panel hidden fade-in">
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <p class="text-sm font-semibold text-slate-600 mb-2">🔍 ค้นหาปัญหา / แนวทางแก้ไข</p>
+          <div class="flex gap-2">
+            <input id="searchInput" placeholder="พิมพ์คำสำคัญ หรือเลขที่รายการ (เช่น ไมค์, เสียง, #IS..)..." class="flex-1 min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <button id="searchGo" class="shrink-0 px-4 rounded-xl bg-red-700 text-white text-sm font-semibold active:scale-95 transition">ค้นหา</button>
+          </div>
+          <p class="mt-2 text-[11px] text-slate-400">ค้นทั้ง <b>ประวัติของฉัน</b> และ <b>คลังองค์ความรู้</b> — ถ้าเจอเคสตรงกันหรือใกล้เคียง จะเห็นตัวอย่างวิธีแก้ไขด้านล่าง</p>
+        </div>
+        <div id="searchResults" class="space-y-3 mt-3"></div>
       </div>
 
       <!-- ===== ประวัติของฉัน ===== -->
@@ -513,7 +527,7 @@
   /* ============================================================
      KKU HR Exp — Phase 6.8 (index.html) · Admin tools + system status indicator
      ============================================================ */
-  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, historyItems:{}, sound: localStorage.getItem("hrx_sound") !== "0" };
+  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
   let userSearchTimer = null;
   const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
@@ -1106,6 +1120,7 @@
     if (tab === "dashboard") loadDashboard();
     if (tab === "board") loadBoard();
     if (tab === "kb") loadKb();
+    if (tab === "search") loadSearch();
     if (tab === "history") loadHistory();
     if (tab === "resend") loadResend();
     if (tab === "profile") loadProfile();
@@ -1290,6 +1305,7 @@
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       if (!data.articles.length) { wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">ยังไม่มีองค์ความรู้ (เคสที่แก้สำเร็จ)</p>`; return; }
       state.kbItems = {}; data.articles.forEach(it => state.kbItems[it.id] = it);
+      state.kbList = data.articles;
       wrap.innerHTML = data.articles.map(kbCard).join("");
       wrap.querySelectorAll("[data-like]").forEach(b => b.addEventListener("click", () => runBusy(b, () => likeArticle(b.dataset.like))));
     } catch (err) {
@@ -1337,6 +1353,7 @@
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       if (!data.items.length) { wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">ยังไม่มีรายการที่บันทึกไว้</p>`; return; }
       state.historyItems = {}; data.items.forEach(it => state.historyItems[it.id] = it);
+      state.histList = data.items;
       wrap.innerHTML = data.items.map(historyCard).join("");
       wrap.querySelectorAll("[data-backfill]").forEach(b => b.addEventListener("click", () => backfill(b.dataset.backfillType, b.dataset.backfill)));
       wrap.querySelectorAll("[data-resolve]").forEach(b => b.addEventListener("click", () => runBusy(b, () => resolveIssue(b.dataset.resolve))));
@@ -1374,6 +1391,82 @@
         ${linkBtn}
         ${resolveBtn}
       </div>`;
+  }
+
+  /* ---------- ค้นหา (ประวัติของฉัน + คลังองค์ความรู้) ---------- */
+  let searchTimer = null;
+  function searchNorm(s) { return String(s == null ? "" : s).toLowerCase().replace(/\s+/g, " ").trim(); }
+  function searchCompact(s) { return searchNorm(s).replace(/[^0-9a-z\u0E00-\u0E7F]+/g, ""); }
+  function searchScore(q, doc) {
+    const Q = searchNorm(q), D = String(doc || "").toLowerCase();
+    if (!Q || !D) return 0;
+    if (D.includes(Q)) return 1000 + Q.length * 5;                 // ตรงทั้งประโยค
+    const toks = Q.split(" ").filter(t => t.length >= 2);
+    let hit = 0; toks.forEach(t => { if (D.includes(t)) hit++; });
+    if (hit) return 200 + hit * 20;                                 // ตรงบางคำ
+    const qc = searchCompact(Q), qb = [];                           // ใกล้เคียง (ทนภาษาไทยไม่เว้นวรรค)
+    for (let i = 0; i < qc.length - 1; i++) qb.push(qc.slice(i, i + 2));
+    if (!qb.length) return 0;
+    const uniq = Array.from(new Set(qb)), dc = searchCompact(D);
+    let inter = 0; uniq.forEach(g => { if (dc.indexOf(g) !== -1) inter++; });
+    const ratio = inter / uniq.length;
+    return ratio >= 0.4 ? Math.round(ratio * 150) : 0;
+  }
+  function kbSearchText(it) { return [it.id, it.detail, it.solver, (it.solutions || []).map(s => s.text).join(" ")].join(" \n "); }
+  function histSearchText(it) { return [it.id, it.detail, it.category, it.status].join(" \n "); }
+  function searchCard(type, it) {
+    const badge = type === "kb"
+      ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">✅ องค์ความรู้</span>`
+      : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-semibold">🗂️ ประวัติของฉัน</span>`;
+    const sols = (type === "kb" && it.solutions && it.solutions.length)
+      ? `<div class="mt-3 space-y-2">${it.solutions.map(s => `<div class="bg-emerald-50 rounded-lg p-2.5"><p class="text-[11px] text-emerald-700 font-semibold">💡 ${esc(s.by)} เสนอ</p><p class="text-sm text-slate-700 mt-1 whitespace-pre-wrap">${esc(s.text)}</p></div>`).join("")}</div>`
+      : (type === "kb" ? `<p class="mt-2 text-[11px] text-slate-400">ยังไม่มีแนวทางแก้ไขที่บันทึกไว้</p>` : "");
+    const files = (it.files && it.files.length) ? `<div class="mt-2 flex flex-wrap gap-2 items-center">${fileBadges(it.files)}</div>` : "";
+    return `
+      <div class="card bg-white rounded-2xl shadow-sm p-4">
+        <div class="flex items-center justify-between gap-2">${badge}<span class="text-[11px] font-mono text-slate-400">#${esc(it.id)}</span></div>
+        <p class="mt-2 text-sm text-slate-800 whitespace-pre-wrap">${esc(it.detail)}</p>
+        <p class="mt-1 text-[11px] text-slate-400">🕒 ${esc(it.time)}${type === "kb" && it.solver ? " · 🏅 " + esc(it.solver) : ""}</p>
+        ${sols}${files}
+      </div>`;
+  }
+  async function loadSearch(force) {
+    const wrap = $("searchResults");
+    if (!state.idToken) {
+      wrap.innerHTML = `<div class="text-center py-8"><p class="text-sm text-amber-600 mb-3">กรุณาเข้าสู่ระบบใหม่เพื่อค้นหา</p><button onclick="logout()" class="text-xs bg-red-700 text-white px-4 py-2 rounded-full">ออกจากระบบ</button></div>`;
+      return;
+    }
+    if (force || !state.kbList.length || !state.histList.length) {
+      wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">กำลังโหลดข้อมูล...</p>`;
+      try {
+        const [kb, hist] = await Promise.all([
+          apiGet({ action:"knowledgeBase", idToken:state.idToken || "", email:state.user.email }),
+          apiGet({ action:"myHistory", idToken:state.idToken, email:state.user.email })
+        ]);
+        if (kb && kb.status === "ok") { state.kbList = kb.articles; state.kbItems = {}; kb.articles.forEach(it => state.kbItems[it.id] = it); }
+        if (hist && hist.status === "ok") { state.histList = hist.items; state.historyItems = {}; hist.items.forEach(it => state.historyItems[it.id] = it); }
+      } catch (e) {
+        wrap.innerHTML = `<p class="text-center text-sm text-red-500 py-8">โหลดไม่สำเร็จ: ${esc(e.message)}</p>`;
+        return;
+      }
+    }
+    runSearch($("searchInput").value);
+  }
+  function runSearch(q) {
+    const wrap = $("searchResults");
+    const query = String(q || "").trim();
+    if (query.length < 2) { wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-8">พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา 🔍</p>`; return; }
+    const kbHits = state.kbList.map(it => ({ it, s: searchScore(query, kbSearchText(it)) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+    const histHits = state.histList.map(it => ({ it, s: searchScore(query, histSearchText(it)) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+    const total = kbHits.length + histHits.length;
+    if (!total) {
+      wrap.innerHTML = `<div class="text-center py-8"><p class="text-sm text-slate-400">ไม่พบเคสที่ตรงหรือใกล้เคียงกับ "${esc(query)}"</p><p class="text-[11px] text-slate-400 mt-1">ลองใช้คำสั้นลง หรือเปลี่ยนคำสำคัญ</p></div>`;
+      return;
+    }
+    let html = `<p class="text-xs text-slate-500 px-1">พบ <b>${total}</b> รายการที่เกี่ยวข้อง</p>`;
+    if (kbHits.length) html += `<p class="text-xs font-bold text-emerald-700 px-1 mt-2">✅ องค์ความรู้ / วิธีแก้ไข (${kbHits.length})</p>` + kbHits.map(x => searchCard("kb", x.it)).join("");
+    if (histHits.length) html += `<p class="text-xs font-bold text-slate-600 px-1 mt-2">🗂️ ประวัติของฉัน (${histHits.length})</p>` + histHits.map(x => searchCard("hist", x.it)).join("");
+    wrap.innerHTML = html;
   }
 
   /* ---------- รอส่ง: รายการที่ถูกตีกลับ ---------- */
@@ -2291,6 +2384,9 @@
     $("submitBtn").addEventListener("click", submit);
     $("refreshBoard").addEventListener("click", (e) => runBusy(e.currentTarget, loadBoard));
     $("refreshKb").addEventListener("click", (e) => runBusy(e.currentTarget, loadKb));
+    $("searchGo").addEventListener("click", (e) => runBusy(e.currentTarget, () => loadSearch()));
+    $("searchInput").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => runSearch($("searchInput").value), 300); });
+    $("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runSearch($("searchInput").value); } });
     $("refreshHistory").addEventListener("click", (e) => runBusy(e.currentTarget, loadHistory));
     $("logoutBtn").addEventListener("click", (e) => runBusy(e.currentTarget, logout));
     $("saveModalClose").addEventListener("click", () => $("saveModal").classList.add("hidden"));
