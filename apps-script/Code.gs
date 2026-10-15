@@ -286,7 +286,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.22", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.23", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -331,7 +331,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.22" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.23" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -399,6 +399,12 @@ function doPost(e) {
         return handleAdminRemove_(email, data.kind, data.recordId || data.id, data.reason || "");
       case "adminRestore":
         return handleAdminRestore_(email, data.kind, data.recordId || data.id, data.reason || "");
+      case "adminEditSolution":
+        return handleAdminEditSolution_(email, data.solutionId, data.solution || data.text || "");
+      case "adminRemoveFile":
+        return handleAdminRemoveFile_(email, data.recordType, data.recordId || data.id, data.url || "");
+      case "adminRemoveLink":
+        return handleAdminRemoveLink_(email, data.recordType, data.recordId || data.id, data.url || "");
       default:               return json_({ status: "error", message: "unknown action: " + data.action });
     }
   } catch (err) {
@@ -1574,6 +1580,27 @@ function adminSubmissions_(idToken, type, q, includeVoided) {
         || String(names[String(o.User_Email)] || "").toLowerCase().indexOf(ql) !== -1;
   };
 
+  // รวมข้อเสนอแนะ (Solutions) ทั้งหมดต่อปัญหา เพื่อให้แอดมินเห็น/จัดการได้ครบ (Phase 6.23)
+  var solByIssue = {};
+  if (type !== "work") {
+    readObjects_(getSheet_(SHEETS.SOLUTIONS, HEADERS.SOLUTIONS), HEADERS.SOLUTIONS)
+      .forEach(function (s) {
+        var k = String(s.Issue_ID || "");
+        if (!k) return;
+        (solByIssue[k] = solByIssue[k] || []).push({
+          id: String(s.Solution_ID || ""),
+          text: String(s.Solution_Text || ""),
+          by: String(s.Proposer_Name || "") || String(s.Proposed_By || ""),
+          email: String(s.Proposed_By || ""),
+          time: String(s.Timestamp || ""),
+          removed: solutionRemoved_(s),
+          removeReason: String(s.Remove_Reason || ""),
+          removedBy: String(s.Removed_By || ""),
+          removedAt: String(s.Removed_At || "")
+        });
+      });
+  }
+
   var list = [];
   if (type !== "issue") {
     readObjects_(getSheet_(SHEETS.WORK_LOGS, HEADERS.WORK_LOGS), HEADERS.WORK_LOGS)
@@ -1583,6 +1610,8 @@ function adminSubmissions_(idToken, type, q, includeVoided) {
           type: "work", id: String(r.Log_ID || ""), time: String(r.Timestamp || ""),
           user: String(r.User_Email || ""), name: names[String(r.User_Email)] || "",
           detail: String(r.Detail || ""), category: String(r.Category || "work"),
+          status: String(r.Status || ""),
+          files: fileMetaList_(r), links: parseLinks_(r.Links),
           voided: isVoided_(r),
           voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || ""),
           removed: isRemoved_(r), removeReason: String(r.Remove_Reason || ""), removedBy: String(r.Removed_By || ""), removedAt: String(r.Removed_At || ""),
@@ -1599,6 +1628,10 @@ function adminSubmissions_(idToken, type, q, includeVoided) {
           user: String(r.User_Email || ""), name: names[String(r.User_Email)] || "",
           detail: String(r.Detail || ""), category: String(r.Category || "issue"),
           status: String(r.Status || "Pending"),
+          solvedBy: String(r.Solved_By || ""), solution: String(r.Solution || ""),
+          kbApproved: isTruthy_(r.KB_Approved),
+          files: fileMetaList_(r), links: parseLinks_(r.Links),
+          solutions: (solByIssue[String(r.Issue_ID)] || []).slice().sort(function (a, b) { return a.time < b.time ? -1 : 1; }),
           voided: isVoided_(r),
           voidReason: String(r.Void_Reason || ""), voidedBy: String(r.Voided_By || ""), voidedAt: String(r.Voided_At || ""),
           removed: isRemoved_(r), removeReason: String(r.Remove_Reason || ""), removedBy: String(r.Removed_By || ""), removedAt: String(r.Removed_At || ""),
@@ -2248,6 +2281,77 @@ function handleAdminRestore_(adminEmail, kind, id, reason) {
 }
 
 /* ======================================================================
+ * [7c-4] แอดมินแก้ไข/ลบรายละเอียดย่อยในแผง "รายการส่งข้อมูล" (Phase 6.23)
+ *   - adminEditSolution : แก้ข้อความข้อเสนอแนะ (XP ไม่เปลี่ยน)
+ *   - adminRemoveFile   : ลบไฟล์แนบออกจากรายการ (ไม่ลบไฟล์จริงใน Drive)
+ *   - adminRemoveLink   : ลบ "ลิงก์ข้อมูลเพิ่มเติม" ออก 1 รายการ
+ * ==================================================================== */
+function handleAdminEditSolution_(adminEmail, solutionId, text) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!solutionId) throw new Error("ไม่พบข้อเสนอแนะนี้");
+  text = String(text || "").trim();
+  if (!text) throw new Error("ไม่มีข้อความ");
+  if (text.length < MIN_DETAIL_CHARS) throw new Error("ข้อความต้องมีอย่างน้อย " + MIN_DETAIL_CHARS + " ตัวอักษร");
+  if (text.length > 5000) throw new Error("ข้อความยาวเกินไป (สูงสุด 5000 ตัวอักษร)");
+
+  var ssh = getSheet_(SHEETS.SOLUTIONS, HEADERS.SOLUTIONS);
+  var row = findRowByHeader_(ssh, "Solution_ID", solutionId);
+  if (row === -1) throw new Error("ไม่พบข้อเสนอแนะนี้");
+  var map = headerMap_(ssh);
+  if (String(ssh.getRange(row, map["Status"]).getValue() || "") === "Removed") throw new Error("ข้อเสนอแนะนี้ถูกลบอยู่ แก้ไขไม่ได้ (กู้คืนก่อน)");
+  var oldText = String(ssh.getRange(row, map["Solution_Text"]).getValue() || "");
+  ssh.getRange(row, map["Solution_Text"]).setValue(text);
+  logAudit_(adminEmail, "edit", "solution", solutionId, "", { oldText: oldText.slice(0, 120), newText: text.slice(0, 120) });
+  return json_({ status: "ok", id: solutionId, solution: text, message: "แก้ไขข้อเสนอแนะแล้ว" });
+}
+
+/* แอดมินลบไฟล์แนบออกจากรายการ (ลบเฉพาะการอ้างอิงในรายการ — ไฟล์ใน Drive คงอยู่) */
+function handleAdminRemoveFile_(adminEmail, recordType, recordId, url) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!recordId) throw new Error("ไม่พบรหัสรายการ");
+  url = String(url || "").trim();
+  if (!url) throw new Error("ไม่พบไฟล์ที่จะลบ");
+  var t = recordSheet_(recordType);
+  var sh = t.sh, idHeader = t.idHeader;
+  var row = findRowByHeader_(sh, idHeader, recordId);
+  if (row === -1) throw new Error("ไม่พบรายการนี้");
+  var map = headerMap_(sh);
+
+  var urls = splitUrls_(sh.getRange(row, map["File_URLs"]).getValue()).filter(function (u) { return String(u) !== url; });
+  sh.getRange(row, map["File_URLs"]).setValue(urls.join("\n"));
+
+  if (map["File_Meta"]) {
+    var metas = [];
+    try { metas = JSON.parse(String(sh.getRange(row, map["File_Meta"]).getValue() || "") || "[]"); } catch (e) { metas = []; }
+    if (!Array.isArray(metas)) metas = [];
+    metas = metas.filter(function (m) { return String(m && m.url) !== url; });
+    sh.getRange(row, map["File_Meta"]).setValue(metas.length ? JSON.stringify(metas) : "");
+  }
+  logAudit_(adminEmail, "remove_file", (String(recordType) === "issue" ? "issue" : "work"), recordId, "", { url: url });
+  return json_({ status: "ok", id: recordId, remaining: urls.length, message: "ลบไฟล์แนบออกจากรายการแล้ว" });
+}
+
+/* แอดมินลบ "ลิงก์ข้อมูลเพิ่มเติม" ออก 1 รายการ */
+function handleAdminRemoveLink_(adminEmail, recordType, recordId, url) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!recordId) throw new Error("ไม่พบรหัสรายการ");
+  url = String(url || "").trim();
+  if (!url) throw new Error("ไม่พบลิงก์ที่จะลบ");
+  var t = recordSheet_(recordType);
+  var sh = t.sh, idHeader = t.idHeader;
+  var row = findRowByHeader_(sh, idHeader, recordId);
+  if (row === -1) throw new Error("ไม่พบรายการนี้");
+  var map = headerMap_(sh);
+  var col = map["Links"];
+  if (!col) throw new Error("ยังไม่มีคอลัมน์ Links");
+
+  var links = parseLinks_(sh.getRange(row, col).getValue()).filter(function (l) { return String(l && l.u) !== url; });
+  sh.getRange(row, col).setValue(serializeLinks_(links));
+  logAudit_(adminEmail, "remove_link", (String(recordType) === "issue" ? "issue" : "work"), recordId, "", { url: url });
+  return json_({ status: "ok", id: recordId, remaining: links.length, message: "ลบลิงก์แล้ว" });
+}
+
+/* ======================================================================
  * [7d] แอดมินแก้ไข/ตีกลับรายการ + ผู้ใช้ส่งใหม่ (Phase 6.7)
  * ==================================================================== */
 /* หา sheet/หัวข้อคอลัมน์ ตามประเภทรายการ */
@@ -2705,4 +2809,3 @@ function openLink_(title, url) {
 }
 
 function showWebAppUrl() { SpreadsheetApp.getUi().alert("ลิงก์ Web App:\n\n" + ScriptApp.getService().getUrl()); }
-
