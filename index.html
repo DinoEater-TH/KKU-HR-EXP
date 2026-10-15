@@ -84,7 +84,8 @@
     const CONFIG = {
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
-      ALLOWED_DOMAIN   : "kku.ac.th"
+      ALLOWED_DOMAIN   : "kku.ac.th",
+      FRONT_PHASE      : "6.8"
     };
   </script>
 
@@ -107,7 +108,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.5</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.8</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -334,6 +335,15 @@
         <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.8</p>
       </div>
 
+      <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
+        <button id="sysStatus" class="inline-flex items-center gap-1.5 text-[11px] text-slate-400 font-mono active:scale-95 transition" title="แตะเพื่อเช็คการเชื่อมต่อใหม่">
+          <span id="sysDot" class="inline-block w-2 h-2 rounded-full bg-slate-300"></span>
+          <span id="sysFront">Frontend Phase —</span>
+          <span>·</span>
+          <span id="sysBack">กำลังเชื่อมต่อ...</span>
+        </button>
+      </div>
+
     </main>
   </section>
 
@@ -501,7 +511,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.0 (index.html) · RPG: Juice + Streak + Character Card
+     KKU HR Exp — Phase 6.8 (index.html) · Admin tools + system status indicator
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], currentTab:"dashboard", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, historyItems:{}, sound: localStorage.getItem("hrx_sound") !== "0" };
   let subSearchTimer = null;
@@ -526,6 +536,32 @@
 
   function updateOnline() {
     $("offlineBar").classList.toggle("hidden", navigator.onLine !== false);
+  }
+
+  /* ---------- สถานะระบบ (Frontend/Backend ทำงานถึง Phase ไหน) ---------- */
+  let _statusBusy = false;
+  async function checkStatus() {
+    if (_statusBusy) return;
+    _statusBusy = true;
+    const dot = $("sysDot"), back = $("sysBack");
+    try {
+      $("sysFront").textContent = "Frontend Phase " + (CONFIG.FRONT_PHASE || "?");
+      dot.className = "inline-block w-2 h-2 rounded-full bg-amber-400";
+      back.textContent = "กำลังเชื่อมต่อ...";
+      const d = await apiGet({ action:"ping" });
+      if (d && d.status === "ok") {
+        dot.className = "inline-block w-2 h-2 rounded-full bg-emerald-500";
+        back.textContent = String(d.message || "Backend OK").replace("KKU HR Exp API ", "") + (d.time ? " · " + d.time : "");
+      } else {
+        dot.className = "inline-block w-2 h-2 rounded-full bg-red-500";
+        back.textContent = "Backend ตอบกลับผิดพลาด";
+      }
+    } catch (e) {
+      dot.className = "inline-block w-2 h-2 rounded-full bg-red-500";
+      back.textContent = navigator.onLine === false ? "📴 ออฟไลน์" : "เชื่อมต่อ Backend ไม่ได้";
+    } finally {
+      _statusBusy = false;
+    }
   }
 
   /* ---------- RPG: Juice (เสียง / XP ลอย / เลเวลอัพ) ---------- */
@@ -836,6 +872,7 @@
     refreshResendBadge();
     checkNotifications();
     updateSyncBar();
+    checkStatus();
   }
 
   function logout() {
@@ -915,7 +952,7 @@
   }
   function apiCacheKey(params) {
     if (!params || !params.action) return null;
-    if (params.action === "submitResult" || params.action === "exportData") return null; // ห้ามแคช (สถานะเปลี่ยนตลอด/ไฟล์ใหญ่)
+    if (params.action === "submitResult" || params.action === "exportData" || params.action === "ping") return null; // ห้ามแคช (สถานะเปลี่ยนตลอด/ไฟล์ใหญ่/เช็คสด)
     if (params.action === "adminSubmissions")
       return "adminSubmissions|" + (params.type || "") + "|" + (params.q || "") + "|" + (params.includeVoided || "");
     if (params.action === "adminUserDetail") return "adminUserDetail|" + (params.email || "");
@@ -2295,8 +2332,10 @@
     renderModeButtons();
 
     updateOnline();
-    window.addEventListener("online", () => { updateOnline(); showToast("✅ กลับมาเชื่อมต่ออินเทอร์เน็ตแล้ว"); });
-    window.addEventListener("offline", updateOnline);
+    $("sysStatus").addEventListener("click", checkStatus);
+    checkStatus();
+    window.addEventListener("online", () => { updateOnline(); showToast("✅ กลับมาเชื่อมต่ออินเทอร์เน็ตแล้ว"); checkStatus(); });
+    window.addEventListener("offline", () => { updateOnline(); checkStatus(); });
 
     document.querySelectorAll(".attach-input").forEach(inp => inp.addEventListener("change", async (e) => {
       for (const file of Array.from(e.target.files)) { try { state.attachments.push(await prepareFile(file)); } catch (err) { showToast(err.message, "error"); } }
