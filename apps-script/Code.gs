@@ -252,11 +252,13 @@ var SHEETS = {
   USERS: "Users", WORK_LOGS: "Work_Logs", ISSUES: "Issues", SOLUTIONS: "Solutions",
   XP_HISTORY: "XP_History", XP_RULES: "XP_Rules", LIKES: "Likes",
   NOTIFICATIONS: "Notifications", NOTIF_ACKS: "Notif_Acks", USER_ACHIEVEMENTS: "User_Achievements",
-  AUDIT_LOG: "Audit_Log", SERVICE_EVALS: "Service_Evals", SERVICE_TOKENS: "Service_Tokens"
+  AUDIT_LOG: "Audit_Log", SERVICE_EVALS: "Service_Evals", SERVICE_TOKENS: "Service_Tokens",
+  QUESTS: "Quests", QUEST_PARTICIPANTS: "Quest_Participants",
+  SHOP_ITEMS: "Shop_Items", SHOP_REDEEMS: "Shop_Redeems", COIN_HISTORY: "Coin_History"
 };
 
 var HEADERS = {
-  USERS:         ["Email", "Full_Name", "Total_XP", "Level", "Last_Login", "Role"],
+  USERS:         ["Email", "Full_Name", "Total_XP", "Level", "Last_Login", "Role", "Coins"],
   WORK_LOGS:     ["Log_ID", "Timestamp", "User_Email", "Detail", "File_URLs", "File_Meta", "Category", "Client_Ref", "Links", "Status", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At", "Remove_Reason", "Removed_By", "Removed_At", "Prev_Status", "Removed_XP", "Backdated", "Submitted_At"],
   ISSUES:        ["Issue_ID", "Timestamp", "User_Email", "Detail", "Status", "Solution", "Solved_By", "File_URLs", "File_Meta", "Category", "Solved_By_Email", "Client_Ref", "KB_Approved", "Links", "Void_Reason", "Voided_By", "Voided_At", "Reject_Reason", "Rejected_By", "Rejected_At", "Remove_Reason", "Removed_By", "Removed_At", "KB_Remove_Reason", "KB_Removed_By", "KB_Removed_At", "Prev_Status", "Removed_XP"],
   SOLUTIONS:     ["Solution_ID", "Issue_ID", "Timestamp", "Solution_Text", "Proposed_By", "Proposer_Name", "Status", "Remove_Reason", "Removed_By", "Removed_At", "Prev_Status", "Removed_XP"],
@@ -268,7 +270,12 @@ var HEADERS = {
   USER_ACHIEVEMENTS: ["UA_ID", "Email", "Ach_ID", "Unlocked_At"],
   AUDIT_LOG:     ["Audit_ID", "Timestamp", "Actor_Email", "Action", "Target_Type", "Target_ID", "Reason", "Meta"],
   SERVICE_EVALS: ["Eval_ID", "Timestamp", "Request_Title", "Location", "Requester_Email", "Rating_Fast", "Rating_Unable", "Stars_Total", "Comment", "Officer_Email", "Officer_Name", "XP_Awarded", "Status", "Void_Reason", "Voided_By", "Voided_At", "Restored_At", "Restored_By"],
-  SERVICE_TOKENS:["Token", "Officer_Email", "Officer_Name", "Created_At"]
+  SERVICE_TOKENS:["Token", "Officer_Email", "Officer_Name", "Created_At"],
+  QUESTS:         ["Quest_ID", "Name", "Desc", "Icon", "Start_At", "End_At", "Max_Participants", "Unlimited", "Prereq_Quest_ID", "Min_Level", "Needs_Code", "Code_Value", "Needs_Checkin", "Checkin_Lat", "Checkin_Lng", "Checkin_Radius_M", "Repeatable", "Coins_Reward", "Active", "Created_By", "Created_At", "Updated_At"],
+  QUEST_PARTICIPANTS: ["QP_ID", "Quest_ID", "User_Email", "Status", "Code_Submitted", "Code_OK", "Checkin_At", "Checkin_Lat", "Checkin_Lng", "Checkin_OK", "Join_At", "Completed_At", "Attempt", "Coins_Awarded", "Notes"],
+  SHOP_ITEMS:    ["Item_ID", "Name", "Desc", "Icon", "Cost_Coins", "Stock", "Limit_Per_User", "Min_Level", "Max_Level", "Prereq_Quest_ID", "Active", "Type", "Meta", "Created_By", "Created_At", "Updated_At"],
+  SHOP_REDEEMS:  ["Redeem_ID", "Item_ID", "User_Email", "Status", "Cost_Coins", "Redeemed_At", "Notes"],
+  COIN_HISTORY:  ["Coin_ID", "Timestamp", "User_Email", "Amount", "Reason", "Ref_ID"]
 };
 
 var SEED_XP_RULES = [
@@ -288,7 +295,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.26", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.27", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -313,6 +320,18 @@ function doGet(e) {
         return output_({ status: "ok", config: getStreakConfig_(), defaults: streakConfigDefaults_(), days: STREAK_MILESTONE_DAYS }, cb);
       case "uiConfig":
         return output_({ status: "ok", config: getUiConfig_(), labels: UI_CONFIG_LABELS, defaults: UI_CONFIG_DEFAULT }, cb);
+      case "quests":
+        return output_(questsList_(p.idToken, p.email), cb);
+      case "questHistory":
+        return output_(questHistory_(p.idToken, p.email), cb);
+      case "shop":
+        return output_(shopList_(p.idToken, p.email), cb);
+      case "adminQuests":
+        return output_(adminQuests_(p.idToken), cb);
+      case "adminShop":
+        return output_(adminShop_(p.idToken), cb);
+      case "adminQuestParticipants":
+        return output_(adminQuestParticipants_(p.idToken, p.questId), cb);
       case "achievementsConfig":
         return output_({ status: "ok", list: getAchievements_(), types: ACHIEVEMENT_TYPES, typeLabels: ACHIEVEMENT_TYPE_LABELS, rarities: ACHIEVEMENT_RARITIES, defaults: achievementsDefaults_() }, cb);
       case "activeNotifications":
@@ -341,7 +360,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.26" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.27" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -424,6 +443,24 @@ function doPost(e) {
         return handleAdminRemoveFile_(email, data.recordType, data.recordId || data.id, data.url || "");
       case "adminRemoveLink":
         return handleAdminRemoveLink_(email, data.recordType, data.recordId || data.id, data.url || "");
+      case "saveQuest":
+        return handleSaveQuest_(email, data.quest || data);
+      case "deleteQuest":
+        return handleDeleteQuest_(email, data.questId);
+      case "joinQuest":
+        return handleJoinQuest_(email, data.questId, data.code);
+      case "questCheckin":
+        return handleQuestCheckin_(email, data.questId, data.lat, data.lng);
+      case "adminQuestComplete":
+        return handleAdminQuestComplete_(email, data.questId, data.targetEmail, data.mode);
+      case "saveShopItem":
+        return handleSaveShopItem_(email, data.item || data);
+      case "deleteShopItem":
+        return handleDeleteShopItem_(email, data.itemId);
+      case "redeemShop":
+        return handleRedeemShop_(email, data.itemId);
+      case "adminSetRedeemStatus":
+        return handleAdminSetRedeemStatus_(email, data.redeemId, data.status);
       default:               return json_({ status: "error", message: "unknown action: " + data.action });
     }
   } catch (err) {
@@ -1305,6 +1342,7 @@ function dashboard_(idToken, emailParam) {
   var resp = {
     status: "ok", email: email, name: name, isAdmin: isAdmin,
     totalXp: totalXp, level: lv.level, title: lv.title,
+    coins: getCoins_(email),
     minXp: lv.minXp, nextXp: lv.nextMinXp, nextTitle: lv.nextTitle,
     counts: counts, workCount: works.length, issueCount: issues.length, solvedCount: solved,
     months: months,
@@ -2423,6 +2461,602 @@ function handleAdminRemoveLink_(adminEmail, recordType, recordId, url) {
   sh.getRange(row, col).setValue(serializeLinks_(links));
   logAudit_(adminEmail, "remove_link", (String(recordType) === "issue" ? "issue" : "work"), recordId, "", { url: url });
   return json_({ status: "ok", id: recordId, remaining: links.length, message: "ลบลิงก์แล้ว" });
+}
+
+/* ======================================================================
+ * [7e] PHASE 3: ภารกิจ (Quests) + เหรียญ (Coins) + ร้านค้า (Shop)
+ * ==================================================================== */
+
+/* ---------- helpers ---------- */
+function bool_(v) { return v === true || v === "TRUE" || v === "true" || v === 1 || v === "1"; }
+
+/* แปลงวันที่/เวลาให้เป็น "yyyy-MM-dd HH:mm" (isEnd + ไม่มีเวลา = 23:59) */
+function normDt_(s, isEnd) {
+  s = String(s || "").trim().replace("T", " ");
+  if (!s) return "";
+  var m = s.match(/^(\d{4}-\d{2}-\d{2})(?:[ ](\d{2}:\d{2}))?/);
+  if (!m) return "";
+  if (m[2]) return m[1] + " " + m[2];
+  return m[1] + (isEnd ? " 23:59" : " 00:00");
+}
+function withinWindow_(q, nowMin) {
+  var s = normDt_(q.Start_At, false);
+  var e = normDt_(q.End_At, true);
+  if (s && nowMin < s) return false;
+  if (e && nowMin > e) return false;
+  return true;
+}
+function haversineM_(lat1, lng1, lat2, lng2) {
+  var R = 6371000, toRad = function (d) { return d * Math.PI / 180; };
+  var dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+function readRowObj_(sh, headers, row) { var arr = readObjects_(sh, headers); return arr[row - 2] || {}; }
+function readAllQuests_() {
+  return readObjects_(getSheet_(SHEETS.QUESTS, HEADERS.QUESTS), HEADERS.QUESTS);
+}
+function readAllParticipants_() {
+  return readObjects_(getSheet_(SHEETS.QUEST_PARTICIPANTS, HEADERS.QUEST_PARTICIPANTS), HEADERS.QUEST_PARTICIPANTS);
+}
+function userTotalXp_(email) {
+  var users = readObjects_(getSheet_(SHEETS.USERS, HEADERS.USERS), HEADERS.USERS);
+  for (var i = 0; i < users.length; i++) if (String(users[i].Email) === email) return Number(users[i].Total_XP || 0);
+  return 0;
+}
+function hasCompletedQuest_(email, questId) {
+  var parts = readAllParticipants_();
+  return parts.some(function (p) {
+    return String(p.Quest_ID) === String(questId) && String(p.User_Email) === email && String(p.Status) === "completed";
+  });
+}
+function questById_(id) {
+  var qs = readAllQuests_();
+  for (var i = 0; i < qs.length; i++) if (String(qs[i].Quest_ID) === String(id)) return qs[i];
+  return null;
+}
+
+/* ---------- เหรียญ ---------- */
+function getCoins_(email) {
+  try {
+    var ush = getSheet_(SHEETS.USERS, HEADERS.USERS);
+    var row = findRowByHeader_(ush, "Email", email);
+    if (row === -1) return 0;
+    var map = headerMap_(ush);
+    if (!map["Coins"]) return 0;
+    return Math.max(0, Math.round(Number(ush.getRange(row, map["Coins"]).getValue() || 0)));
+  } catch (e) { return 0; }
+}
+function addCoins_(email, amount, reason, refId) {
+  amount = Math.round(Number(amount) || 0);
+  if (!amount) return getCoins_(email);
+  appendByHeaders_(getSheet_(SHEETS.COIN_HISTORY, HEADERS.COIN_HISTORY), HEADERS.COIN_HISTORY, {
+    Coin_ID: "CN-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_(),
+    Timestamp: nowStr_(), User_Email: email, Amount: amount, Reason: reason || "", Ref_ID: refId || ""
+  });
+  var ush = getSheet_(SHEETS.USERS, HEADERS.USERS);
+  var map = headerMap_(ush);
+  var row = findRowByHeader_(ush, "Email", email);
+  var total;
+  if (row === -1) {
+    appendByHeaders_(ush, HEADERS.USERS, { Email: email, Full_Name: "", Total_XP: 0, Level: 1, Last_Login: nowStr_(), Coins: Math.max(0, amount) });
+    total = Math.max(0, amount);
+  } else {
+    total = Number(ush.getRange(row, map["Coins"]).getValue() || 0) + amount;
+    if (total < 0) total = 0;
+    ush.getRange(row, map["Coins"]).setValue(total);
+  }
+  return total;
+}
+
+/* ---------- ความพร้อมเข้าร่วมภารกิจ ---------- */
+function questEligibility_(q, email, pcount, mine, nowMin) {
+  if (!withinWindow_(q, nowMin)) return { ok: false, reason: "อยู่นอกช่วงเวลาของภารกิจ" };
+  if (mine.completed && !bool_(q.Repeatable)) return { ok: false, reason: "ทำภารกิจนี้แล้ว (ทำซ้ำไม่ได้)" };
+  if (mine.active) return { ok: true, reason: "กำลังดำเนินการอยู่" };
+  if (!bool_(q.Unlimited)) {
+    var max = Number(q.Max_Participants || 0);
+    if (max > 0 && pcount >= max) return { ok: false, reason: "ผู้เข้าร่วมเต็มแล้ว" };
+  }
+  var minLevel = Number(q.Min_Level || 1) || 1;
+  if (minLevel > 1 && levelFor_(userTotalXp_(email)).level < minLevel) {
+    return { ok: false, reason: "ต้องมีเลเวลอย่างน้อย " + minLevel };
+  }
+  var pre = String(q.Prereq_Quest_ID || "").trim();
+  if (pre && !hasCompletedQuest_(email, pre)) return { ok: false, reason: "ต้องผ่านภารกิจก่อนหน้า" };
+  return { ok: true, reason: "" };
+}
+function questPublic_(q, ctx) {
+  return {
+    id: String(q.Quest_ID), name: String(q.Name || ""), desc: String(q.Desc || ""), icon: String(q.Icon || "🎯"),
+    startAt: String(q.Start_At || ""), endAt: String(q.End_At || ""),
+    maxParticipants: Number(q.Max_Participants || 0) || 0, unlimited: bool_(q.Unlimited),
+    prereqQuestId: String(q.Prereq_Quest_ID || ""), minLevel: Number(q.Min_Level || 1) || 1,
+    needsCode: bool_(q.Needs_Code), needsCheckin: bool_(q.Needs_Checkin),
+    checkinLat: Number(q.Checkin_Lat || 0), checkinLng: Number(q.Checkin_Lng || 0), checkinRadiusM: Number(q.Checkin_Radius_M || 0),
+    repeatable: bool_(q.Repeatable), coins: Number(q.Coins_Reward || 0) || 0,
+    participantCount: ctx.participantCount, joined: ctx.joined, completed: ctx.completed,
+    eligible: ctx.eligible, reason: ctx.reason, attempts: ctx.attempts, status: ctx.status
+  };
+}
+
+/* ---------- รายการภารกิจสำหรับผู้ใช้ ---------- */
+function questsList_(idToken, emailParam) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var info = verifyIdToken_(idToken), email = info.email;
+  if (emailParam && emailParam !== email) throw new Error("email mismatch");
+  var quests = readAllQuests_();
+  var parts = readAllParticipants_();
+  var nowMin = nowStr_().substring(0, 16);
+  var list = [];
+  quests.forEach(function (q) {
+    if (!bool_(q.Active)) return;
+    var qid = String(q.Quest_ID);
+    var qParts = parts.filter(function (p) { return String(p.Quest_ID) === qid; });
+    var uniq = {};
+    qParts.forEach(function (p) { if (String(p.Status) !== "cancelled") uniq[String(p.User_Email)] = 1; });
+    var pcount = Object.keys(uniq).length;
+    var mine = qParts.filter(function (p) { return String(p.User_Email) === email; });
+    var completed = mine.some(function (p) { return String(p.Status) === "completed"; });
+    var active = mine.some(function (p) { return String(p.Status) === "joined"; });
+    var r = questEligibility_(q, email, pcount, { completed: completed, active: active }, nowMin);
+    list.push(questPublic_(q, {
+      participantCount: pcount, joined: completed || active, completed: completed,
+      eligible: r.ok, reason: r.reason, attempts: mine.length,
+      status: active ? "joined" : (completed ? "completed" : "")
+    }));
+  });
+  list.sort(function (a, b) { return (a.completed ? 1 : 0) - (b.completed ? 1 : 0); });
+  return { status: "ok", email: email, isAdmin: isAdmin_(email), coins: getCoins_(email), quests: list };
+}
+
+/* ---------- ประวัติการเข้าร่วมภารกิจ ---------- */
+function questHistory_(idToken, emailParam) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var info = verifyIdToken_(idToken), email = info.email;
+  if (emailParam && emailParam !== email) throw new Error("email mismatch");
+  var quests = readAllQuests_();
+  var qmap = {}; quests.forEach(function (q) { qmap[String(q.Quest_ID)] = q; });
+  var hist = readAllParticipants_().filter(function (p) { return String(p.User_Email) === email; })
+    .map(function (p) {
+      var q = qmap[String(p.Quest_ID)] || {};
+      return {
+        qpId: String(p.QP_ID), questId: String(p.Quest_ID),
+        name: String(q.Name || "(ภารกิจถูกลบ)"), icon: String(q.Icon || "🎯"),
+        coins: Number(p.Coins_Awarded || 0) || 0, status: String(p.Status || ""),
+        attempt: Number(p.Attempt || 1) || 1, joinedAt: String(p.Join_At || ""), completedAt: String(p.Completed_At || "")
+      };
+    }).sort(function (a, b) { return a.joinedAt < b.joinedAt ? 1 : -1; });
+  return { status: "ok", email: email, coins: getCoins_(email), history: hist };
+}
+
+/* ---------- เข้าร่วมภารกิจ ---------- */
+function handleJoinQuest_(email, questId, code) {
+  questId = String(questId || "").trim();
+  if (!questId) throw new Error("ไม่พบรหัสภารกิจ");
+  var qsh = getSheet_(SHEETS.QUESTS, HEADERS.QUESTS);
+  var qrow = findRowByHeader_(qsh, "Quest_ID", questId);
+  if (qrow === -1) throw new Error("ไม่พบภารกิจนี้");
+  var q = readRowObj_(qsh, HEADERS.QUESTS, qrow);
+  if (!bool_(q.Active)) throw new Error("ภารกิจนี้ปิดอยู่");
+  var nowMin = nowStr_().substring(0, 16);
+  if (!withinWindow_(q, nowMin)) throw new Error("อยู่นอกช่วงเวลาของภารกิจ");
+
+  var psh = getSheet_(SHEETS.QUEST_PARTICIPANTS, HEADERS.QUEST_PARTICIPANTS);
+  var pmap = headerMap_(psh);
+  var parts = readAllParticipants_();
+  var qParts = parts.filter(function (p) { return String(p.Quest_ID) === questId; });
+  var uniq = {};
+  qParts.forEach(function (p) { if (String(p.Status) !== "cancelled") uniq[String(p.User_Email)] = 1; });
+  var pcount = Object.keys(uniq).length;
+  var mine = qParts.filter(function (p) { return String(p.User_Email) === email; });
+  var completed = mine.some(function (p) { return String(p.Status) === "completed"; });
+  var activeRow = -1, maxAttempt = 0;
+  mine.forEach(function (p) {
+    if (String(p.Status) === "joined") activeRow = findRowByHeader_(psh, "QP_ID", String(p.QP_ID));
+    var a = Number(p.Attempt || 1) || 1; if (a > maxAttempt) maxAttempt = a;
+  });
+  if (completed && !bool_(q.Repeatable)) throw new Error("คุณทำภารกิจนี้แล้ว (ทำซ้ำไม่ได้)");
+  if (!bool_(q.Unlimited)) {
+    var max = Number(q.Max_Participants || 0);
+    if (max > 0 && pcount >= max && activeRow === -1 && !completed) throw new Error("ผู้เข้าร่วมเต็มแล้ว");
+  }
+  var minLevel = Number(q.Min_Level || 1) || 1;
+  if (minLevel > 1 && levelFor_(userTotalXp_(email)).level < minLevel) throw new Error("ต้องมีเลเวลอย่างน้อย " + minLevel);
+  var pre = String(q.Prereq_Quest_ID || "").trim();
+  if (pre && !hasCompletedQuest_(email, pre)) throw new Error("ต้องผ่านภารกิจก่อนหน้า");
+
+  var needsCode = bool_(q.Needs_Code), needsCheckin = bool_(q.Needs_Checkin);
+  var codeOk = false, provided = String(code || "").trim();
+  if (needsCode) {
+    var expected = String(q.Code_Value || "");
+    if (!provided) throw new Error("กรุณากรอกรหัสภารกิจ");
+    if (provided !== expected) throw new Error("รหัสภารกิจไม่ถูกต้อง");
+    codeOk = true;
+  }
+
+  var prow;
+  if (activeRow !== -1) {
+    prow = activeRow;
+    if (needsCode) { psh.getRange(prow, pmap["Code_Submitted"]).setValue(provided); psh.getRange(prow, pmap["Code_OK"]).setValue(true); }
+  } else {
+    var attempt = completed ? (maxAttempt + 1) : Math.max(1, maxAttempt + 1);
+    var qpId = "QP-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_();
+    appendByHeaders_(psh, HEADERS.QUEST_PARTICIPANTS, {
+      QP_ID: qpId, Quest_ID: questId, User_Email: email, Status: "joined",
+      Code_Submitted: provided, Code_OK: codeOk, Join_At: nowStr_(), Attempt: attempt, Coins_Awarded: 0
+    });
+    prow = findRowByHeader_(psh, "QP_ID", qpId);
+  }
+
+  if (needsCheckin) {
+    return json_({ status: "ok", completed: false, coins: 0, message: "เข้าร่วมแล้ว — กรุณาเช็คอินที่จุดที่กำหนด" });
+  }
+
+  var coins = Number(q.Coins_Reward || 0) || 0;
+  var qpIdVal = String(psh.getRange(prow, pmap["QP_ID"]).getValue());
+  psh.getRange(prow, pmap["Status"]).setValue("completed");
+  psh.getRange(prow, pmap["Completed_At"]).setValue(nowStr_());
+  psh.getRange(prow, pmap["Coins_Awarded"]).setValue(coins);
+  if (coins) addCoins_(email, coins, "quest", qpIdVal);
+  return json_({ status: "ok", completed: true, coins: coins, message: "ผ่านภารกิจแล้ว ได้ " + coins + " เหรียญ" });
+}
+
+/* ---------- เช็คอินตามพิกัด ---------- */
+function handleQuestCheckin_(email, questId, lat, lng) {
+  questId = String(questId || "").trim();
+  if (!questId) throw new Error("ไม่พบรหัสภารกิจ");
+  var qsh = getSheet_(SHEETS.QUESTS, HEADERS.QUESTS);
+  var qrow = findRowByHeader_(qsh, "Quest_ID", questId);
+  if (qrow === -1) throw new Error("ไม่พบภารกิจนี้");
+  var q = readRowObj_(qsh, HEADERS.QUESTS, qrow);
+  if (!bool_(q.Active)) throw new Error("ภารกิจนี้ปิดอยู่");
+  if (!bool_(q.Needs_Checkin)) throw new Error("ภารกิจนี้ไม่ต้องเช็คอิน");
+  var nowMin = nowStr_().substring(0, 16);
+  if (!withinWindow_(q, nowMin)) throw new Error("อยู่นอกช่วงเวลาเช็คอิน");
+  var la = Number(lat), lo = Number(lng);
+  if (isNaN(la) || isNaN(lo) || (la === 0 && lo === 0)) throw new Error("ไม่ได้รับตำแหน่งปัจจุบัน");
+  var clat = Number(q.Checkin_Lat || 0), clng = Number(q.Checkin_Lng || 0), rad = Number(q.Checkin_Radius_M || 0);
+  var dist = haversineM_(la, lo, clat, clng);
+  if (rad > 0 && dist > rad) throw new Error("คุณอยู่นอกพื้นที่เช็คอิน (ห่าง " + Math.round(dist) + " ม.)");
+
+  var psh = getSheet_(SHEETS.QUEST_PARTICIPANTS, HEADERS.QUEST_PARTICIPANTS);
+  var pmap = headerMap_(psh);
+  var parts = readAllParticipants_();
+  var idx = -1;
+  for (var i = 0; i < parts.length; i++) {
+    if (String(parts[i].Quest_ID) === questId && String(parts[i].User_Email) === email && String(parts[i].Status) === "joined") { idx = i; break; }
+  }
+  if (idx === -1) throw new Error("คุณยังไม่ได้เข้าร่วมภารกิจนี้ หรือเช็คอินไปแล้ว");
+  var prow = idx + 2;
+  psh.getRange(prow, pmap["Checkin_At"]).setValue(nowStr_());
+  psh.getRange(prow, pmap["Checkin_Lat"]).setValue(la);
+  psh.getRange(prow, pmap["Checkin_Lng"]).setValue(lo);
+  psh.getRange(prow, pmap["Checkin_OK"]).setValue(true);
+  var coins = Number(q.Coins_Reward || 0) || 0;
+  psh.getRange(prow, pmap["Status"]).setValue("completed");
+  psh.getRange(prow, pmap["Completed_At"]).setValue(nowStr_());
+  psh.getRange(prow, pmap["Coins_Awarded"]).setValue(coins);
+  if (coins) addCoins_(email, coins, "quest", String(parts[idx].QP_ID));
+  return json_({ status: "ok", completed: true, coins: coins, distanceM: Math.round(dist), message: "เช็คอินสำเร็จ ได้ " + coins + " เหรียญ" });
+}
+
+/* ---------- แอดมิน: จัดการภารกิจ ---------- */
+function cleanQuest_(obj, existingId) {
+  var o = obj || {};
+  var name = String(o.name || "").trim().slice(0, 80);
+  if (!name) throw new Error("กรุณากรอกชื่อภารกิจ");
+  var needsCode = bool_(o.needsCode);
+  var codeVal = String(o.codeValue || "").trim().slice(0, 40);
+  if (needsCode && codeVal.length < 6) throw new Error("รหัสภารกิจต้องมีอย่างน้อย 6 ตัวอักษร");
+  var needsCheckin = bool_(o.needsCheckin);
+  var radius = Math.max(0, Math.round(Number(o.checkinRadiusM || 0) || 0));
+  var lat = Number(o.checkinLat || 0) || 0, lng = Number(o.checkinLng || 0) || 0;
+  if (needsCheckin && radius <= 0) throw new Error("กรุณากำหนดรัศมีจุดเช็คอิน (>0 เมตร)");
+  if (needsCheckin && (lat === 0 && lng === 0)) throw new Error("กรุณากำหนดพิกัดจุดเช็คอิน");
+  var coins = Math.max(0, Math.round(Number(o.coins || 0) || 0));
+  if (coins > 100000) coins = 100000;
+  return {
+    Quest_ID: existingId || ("Q-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_()),
+    Name: name, Desc: String(o.desc || "").trim().slice(0, 500), Icon: String(o.icon || "🎯").slice(0, 4),
+    Start_At: normDt_(o.startAt, false), End_At: normDt_(o.endAt, true),
+    Max_Participants: Math.max(0, Math.round(Number(o.maxParticipants || 0) || 0)),
+    Unlimited: bool_(o.unlimited), Prereq_Quest_ID: String(o.prereqQuestId || "").trim(),
+    Min_Level: Math.max(1, Math.round(Number(o.minLevel || 1) || 1)),
+    Needs_Code: needsCode, Code_Value: codeVal, Needs_Checkin: needsCheckin,
+    Checkin_Lat: lat, Checkin_Lng: lng, Checkin_Radius_M: radius,
+    Repeatable: bool_(o.repeatable), Coins_Reward: coins, Active: o.active === false ? false : true
+  };
+}
+function handleSaveQuest_(adminEmail, obj) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  var id = String((obj && obj.questId) || "").trim();
+  var sh = getSheet_(SHEETS.QUESTS, HEADERS.QUESTS);
+  var clean = cleanQuest_(obj, id || null);
+  if (id) {
+    var row = findRowByHeader_(sh, "Quest_ID", id);
+    if (row === -1) throw new Error("ไม่พบภารกิจนี้");
+    var map = headerMap_(sh);
+    HEADERS.QUESTS.forEach(function (h) {
+      if (h === "Quest_ID" || h === "Created_At" || h === "Created_By") return;
+      if (h === "Updated_At") { sh.getRange(row, map[h]).setValue(nowStr_()); return; }
+      if (clean[h] !== undefined) sh.getRange(row, map[h]).setValue(clean[h]);
+    });
+    logAudit_(adminEmail, "save_quest", "quest", id, "", { name: clean.Name });
+    return json_({ status: "ok", id: id, message: "บันทึกภารกิจแล้ว" });
+  }
+  clean.Created_By = adminEmail; clean.Created_At = nowStr_(); clean.Updated_At = nowStr_();
+  appendByHeaders_(sh, HEADERS.QUESTS, clean);
+  logAudit_(adminEmail, "create_quest", "quest", clean.Quest_ID, "", { name: clean.Name });
+  return json_({ status: "ok", id: clean.Quest_ID, message: "สร้างภารกิจแล้ว" });
+}
+function handleDeleteQuest_(adminEmail, questId) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  questId = String(questId || "").trim();
+  var sh = getSheet_(SHEETS.QUESTS, HEADERS.QUESTS);
+  var row = findRowByHeader_(sh, "Quest_ID", questId);
+  if (row === -1) throw new Error("ไม่พบภารกิจนี้");
+  sh.getRange(row, headerMap_(sh)["Active"]).setValue(false);
+  logAudit_(adminEmail, "deactivate_quest", "quest", questId, "", {});
+  return json_({ status: "ok", id: questId, message: "ปิดใช้งานภารกิจแล้ว" });
+}
+function adminQuests_(idToken) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var adminEmail = verifyIdToken_(idToken).email;
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  var quests = readAllQuests_();
+  var parts = readAllParticipants_();
+  var list = quests.map(function (q) {
+    var qid = String(q.Quest_ID);
+    var qParts = parts.filter(function (p) { return String(p.Quest_ID) === qid; });
+    var uniq = {};
+    qParts.forEach(function (p) { if (String(p.Status) !== "cancelled") uniq[String(p.User_Email)] = 1; });
+    return {
+      id: qid, name: String(q.Name || ""), desc: String(q.Desc || ""), icon: String(q.Icon || "🎯"),
+      startAt: String(q.Start_At || ""), endAt: String(q.End_At || ""),
+      maxParticipants: Number(q.Max_Participants || 0) || 0, unlimited: bool_(q.Unlimited),
+      prereqQuestId: String(q.Prereq_Quest_ID || ""), minLevel: Number(q.Min_Level || 1) || 1,
+      needsCode: bool_(q.Needs_Code), codeValue: String(q.Code_Value || ""), needsCheckin: bool_(q.Needs_Checkin),
+      checkinLat: Number(q.Checkin_Lat || 0), checkinLng: Number(q.Checkin_Lng || 0), checkinRadiusM: Number(q.Checkin_Radius_M || 0),
+      repeatable: bool_(q.Repeatable), coins: Number(q.Coins_Reward || 0) || 0, active: bool_(q.Active),
+      createdAt: String(q.Created_At || ""), participantCount: Object.keys(uniq).length,
+      completedCount: qParts.filter(function (p) { return String(p.Status) === "completed"; }).length
+    };
+  });
+  return { status: "ok", quests: list };
+}
+function adminQuestParticipants_(idToken, questId) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var adminEmail = verifyIdToken_(idToken).email;
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  var parts = readAllParticipants_().filter(function (p) { return String(p.Quest_ID) === String(questId); });
+  return {
+    status: "ok", participants: parts.map(function (p) {
+      return {
+        qpId: String(p.QP_ID), email: String(p.User_Email), status: String(p.Status || ""),
+        attempt: Number(p.Attempt || 1) || 1, coins: Number(p.Coins_Awarded || 0) || 0,
+        joinedAt: String(p.Join_At || ""), completedAt: String(p.Completed_At || ""), checkinOk: bool_(p.Checkin_OK)
+      };
+    })
+  };
+}
+function handleAdminQuestComplete_(adminEmail, questId, targetEmail, mode) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  questId = String(questId || "").trim(); targetEmail = String(targetEmail || "").trim();
+  if (!questId || !targetEmail) throw new Error("ข้อมูลไม่ครบ");
+  var q = questById_(questId);
+  if (!q) throw new Error("ไม่พบภารกิจนี้");
+  var psh = getSheet_(SHEETS.QUEST_PARTICIPANTS, HEADERS.QUEST_PARTICIPANTS);
+  var pmap = headerMap_(psh);
+  var parts = readAllParticipants_();
+  var idx = -1;
+  for (var i = parts.length - 1; i >= 0; i--) {
+    if (String(parts[i].Quest_ID) === questId && String(parts[i].User_Email) === targetEmail &&
+        (String(parts[i].Status) === "joined" || String(parts[i].Status) === "completed")) { idx = i; break; }
+  }
+  var coins = Number(q.Coins_Reward || 0) || 0;
+  if (String(mode) === "undo") {
+    if (idx === -1) throw new Error("ไม่พบการเข้าร่วมของผู้ใช้รายนี้");
+    var prow = idx + 2;
+    var awarded = Number(parts[idx].Coins_Awarded || 0) || 0;
+    if (awarded) addCoins_(targetEmail, -awarded, "quest_undo", String(parts[idx].QP_ID));
+    psh.getRange(prow, pmap["Status"]).setValue("cancelled");
+    psh.getRange(prow, pmap["Coins_Awarded"]).setValue(0);
+    logAudit_(adminEmail, "quest_undo", "quest", questId, "", { email: targetEmail });
+    return json_({ status: "ok", message: "ยกเลิกการผ่านภารกิจแล้ว" });
+  }
+  if (idx !== -1 && String(parts[idx].Status) === "completed") throw new Error("ผู้ใช้รายนี้ผ่านภารกิจแล้ว");
+  var prow2;
+  if (idx !== -1) { prow2 = idx + 2; }
+  else {
+    var qpId = "QP-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_();
+    appendByHeaders_(psh, HEADERS.QUEST_PARTICIPANTS, {
+      QP_ID: qpId, Quest_ID: questId, User_Email: targetEmail, Status: "joined",
+      Join_At: nowStr_(), Attempt: 1, Coins_Awarded: 0, Notes: "admin"
+    });
+    prow2 = findRowByHeader_(psh, "QP_ID", qpId);
+  }
+  var qpIdVal = String(psh.getRange(prow2, pmap["QP_ID"]).getValue());
+  psh.getRange(prow2, pmap["Status"]).setValue("completed");
+  psh.getRange(prow2, pmap["Completed_At"]).setValue(nowStr_());
+  psh.getRange(prow2, pmap["Coins_Awarded"]).setValue(coins);
+  if (coins) addCoins_(targetEmail, coins, "quest", qpIdVal);
+  logAudit_(adminEmail, "quest_complete", "quest", questId, "", { email: targetEmail });
+  return json_({ status: "ok", message: "ทำเครื่องหมายผ่านภารกิจแล้ว" });
+}
+
+/* ---------- ร้านค้า: รายการสำหรับผู้ใช้ ---------- */
+function shopEligibility_(it, email, myCount, stockUsed, coins, userLevel) {
+  if (it.active === false) return { ok: false, reason: "สินค้าปิดอยู่" };
+  var minL = Number(it.Min_Level || 0) || 0, maxL = Number(it.Max_Level || 0) || 0;
+  if (minL > 0 && userLevel < minL) return { ok: false, reason: "ต้องมีเลเวลอย่างน้อย " + minL };
+  if (maxL > 0 && userLevel > maxL) return { ok: false, reason: "เกินระดับที่กำหนด (สูงสุด " + maxL + ")" };
+  var pre = String(it.Prereq_Quest_ID || "").trim();
+  if (pre && !hasCompletedQuest_(email, pre)) return { ok: false, reason: "ต้องผ่านภารกิจที่กำหนดก่อน" };
+  var maxPer = Number(it.Limit_Per_User || 0) || 0;
+  if (maxPer > 0 && myCount >= maxPer) return { ok: false, reason: "แลกครบจำนวนที่กำหนดต่อคนแล้ว" };
+  var stock = Number(it.Stock || 0) || 0;
+  if (stock > 0 && stockUsed >= stock) return { ok: false, reason: "สินค้าหมด" };
+  if (coins < (Number(it.Cost_Coins || 0) || 0)) return { ok: false, reason: "เหรียญไม่พอ" };
+  return { ok: true, reason: "" };
+}
+function shopItemPublic_(it, ctx) {
+  return {
+    id: String(it.Item_ID), name: String(it.Name || ""), desc: String(it.Desc || ""), icon: String(it.Icon || "🎁"),
+    cost: Number(it.Cost_Coins || 0) || 0, stock: Number(it.Stock || 0) || 0,
+    limitPerUser: Number(it.Limit_Per_User || 0) || 0, minLevel: Number(it.Min_Level || 0) || 0,
+    maxLevel: Number(it.Max_Level || 0) || 0, prereqQuestId: String(it.Prereq_Quest_ID || ""),
+    type: String(it.Type || "reward"), active: it.active !== false,
+    myRedeems: ctx.myRedeems, remaining: ctx.remaining, eligible: ctx.eligible, reason: ctx.reason
+  };
+}
+function shopList_(idToken, emailParam) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var info = verifyIdToken_(idToken), email = info.email;
+  if (emailParam && emailParam !== email) throw new Error("email mismatch");
+  var items = readObjects_(getSheet_(SHEETS.SHOP_ITEMS, HEADERS.SHOP_ITEMS), HEADERS.SHOP_ITEMS);
+  var redeems = readObjects_(getSheet_(SHEETS.SHOP_REDEEMS, HEADERS.SHOP_REDEEMS), HEADERS.SHOP_REDEEMS);
+  var coins = getCoins_(email);
+  var userLevel = levelFor_(userTotalXp_(email)).level;
+  var list = [];
+  items.forEach(function (it) {
+    if (it.active === false) return;
+    var iid = String(it.Item_ID);
+    var myCount = redeems.filter(function (r) {
+      return String(r.Item_ID) === iid && String(r.User_Email) === email && String(r.Status) !== "Cancelled";
+    }).length;
+    var stockUsed = redeems.filter(function (r) { return String(r.Item_ID) === iid && String(r.Status) !== "Cancelled"; }).length;
+    var stock = Number(it.Stock || 0) || 0;
+    var remaining = stock > 0 ? Math.max(0, stock - stockUsed) : -1;
+    var r = shopEligibility_(it, email, myCount, stockUsed, coins, userLevel);
+    list.push(shopItemPublic_(it, { myRedeems: myCount, remaining: remaining, eligible: r.ok, reason: r.reason }));
+  });
+  list.sort(function (a, b) { return (a.eligible ? 0 : 1) - (b.eligible ? 0 : 1) || a.cost - b.cost; });
+  return { status: "ok", email: email, isAdmin: isAdmin_(email), coins: coins, level: userLevel, items: list };
+}
+function handleRedeemShop_(email, itemId) {
+  itemId = String(itemId || "").trim();
+  if (!itemId) throw new Error("ไม่พบรหัสสินค้า");
+  var sh = getSheet_(SHEETS.SHOP_ITEMS, HEADERS.SHOP_ITEMS);
+  var row = findRowByHeader_(sh, "Item_ID", itemId);
+  if (row === -1) throw new Error("ไม่พบสินค้านี้");
+  var it = readRowObj_(sh, HEADERS.SHOP_ITEMS, row);
+  if (it.active === false) throw new Error("สินค้านี้ปิดอยู่");
+  var redeems = readObjects_(getSheet_(SHEETS.SHOP_REDEEMS, HEADERS.SHOP_REDEEMS), HEADERS.SHOP_REDEEMS);
+  var myCount = redeems.filter(function (r) {
+    return String(r.Item_ID) === itemId && String(r.User_Email) === email && String(r.Status) !== "Cancelled";
+  }).length;
+  var stockUsed = redeems.filter(function (r) { return String(r.Item_ID) === itemId && String(r.Status) !== "Cancelled"; }).length;
+  var coins = getCoins_(email);
+  var userLevel = levelFor_(userTotalXp_(email)).level;
+  var r = shopEligibility_(it, email, myCount, stockUsed, coins, userLevel);
+  if (!r.ok) throw new Error(r.reason);
+
+  var redeemId = "RD-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_();
+  var cost = Number(it.Cost_Coins || 0) || 0;
+  addCoins_(email, -cost, "redeem", redeemId);
+  appendByHeaders_(getSheet_(SHEETS.SHOP_REDEEMS, HEADERS.SHOP_REDEEMS), HEADERS.SHOP_REDEEMS, {
+    Redeem_ID: redeemId, Item_ID: itemId, User_Email: email, Status: "Requested",
+    Cost_Coins: cost, Redeemed_At: nowStr_(), Notes: ""
+  });
+  return json_({ status: "ok", redeemId: redeemId, coins: getCoins_(email), message: "แลก " + it.Name + " สำเร็จ" });
+}
+
+/* ---------- ร้านค้า: แอดมิน ---------- */
+function cleanShopItem_(obj, existingId) {
+  var o = obj || {};
+  var name = String(o.name || "").trim().slice(0, 80);
+  if (!name) throw new Error("กรุณากรอกชื่อของรางวัล");
+  var cost = Math.max(0, Math.round(Number(o.cost || 0) || 0));
+  return {
+    Item_ID: existingId || ("SI-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_()),
+    Name: name, Desc: String(o.desc || "").trim().slice(0, 500), Icon: String(o.icon || "🎁").slice(0, 4),
+    Cost_Coins: cost, Stock: Math.max(0, Math.round(Number(o.stock || 0) || 0)),
+    Limit_Per_User: Math.max(0, Math.round(Number(o.limitPerUser || 0) || 0)),
+    Min_Level: Math.max(0, Math.round(Number(o.minLevel || 0) || 0)),
+    Max_Level: Math.max(0, Math.round(Number(o.maxLevel || 0) || 0)),
+    Prereq_Quest_ID: String(o.prereqQuestId || "").trim(), Active: o.active === false ? false : true,
+    Type: String(o.type || "reward").slice(0, 40), Meta: ""
+  };
+}
+function handleSaveShopItem_(adminEmail, obj) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  var id = String((obj && obj.itemId) || "").trim();
+  var sh = getSheet_(SHEETS.SHOP_ITEMS, HEADERS.SHOP_ITEMS);
+  var clean = cleanShopItem_(obj, id || null);
+  if (id) {
+    var row = findRowByHeader_(sh, "Item_ID", id);
+    if (row === -1) throw new Error("ไม่พบสินค้านี้");
+    var map = headerMap_(sh);
+    HEADERS.SHOP_ITEMS.forEach(function (h) {
+      if (h === "Item_ID" || h === "Created_At" || h === "Created_By") return;
+      if (h === "Updated_At") { sh.getRange(row, map[h]).setValue(nowStr_()); return; }
+      if (clean[h] !== undefined) sh.getRange(row, map[h]).setValue(clean[h]);
+    });
+    logAudit_(adminEmail, "save_shop_item", "shop", id, "", { name: clean.Name });
+    return json_({ status: "ok", id: id, message: "บันทึกของรางวัลแล้ว" });
+  }
+  clean.Created_By = adminEmail; clean.Created_At = nowStr_(); clean.Updated_At = nowStr_();
+  appendByHeaders_(sh, HEADERS.SHOP_ITEMS, clean);
+  logAudit_(adminEmail, "create_shop_item", "shop", clean.Item_ID, "", { name: clean.Name });
+  return json_({ status: "ok", id: clean.Item_ID, message: "สร้างของรางวัลแล้ว" });
+}
+function handleDeleteShopItem_(adminEmail, itemId) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  itemId = String(itemId || "").trim();
+  var sh = getSheet_(SHEETS.SHOP_ITEMS, HEADERS.SHOP_ITEMS);
+  var row = findRowByHeader_(sh, "Item_ID", itemId);
+  if (row === -1) throw new Error("ไม่พบสินค้านี้");
+  sh.getRange(row, headerMap_(sh)["Active"]).setValue(false);
+  logAudit_(adminEmail, "deactivate_shop_item", "shop", itemId, "", {});
+  return json_({ status: "ok", id: itemId, message: "ปิดใช้งานของรางวัลแล้ว" });
+}
+function adminShop_(idToken) {
+  if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
+  var adminEmail = verifyIdToken_(idToken).email;
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  var items = readObjects_(getSheet_(SHEETS.SHOP_ITEMS, HEADERS.SHOP_ITEMS), HEADERS.SHOP_ITEMS);
+  var redeems = readObjects_(getSheet_(SHEETS.SHOP_REDEEMS, HEADERS.SHOP_REDEEMS), HEADERS.SHOP_REDEEMS);
+  var list = items.map(function (it) {
+    var iid = String(it.Item_ID);
+    var rs = redeems.filter(function (r) { return String(r.Item_ID) === iid; });
+    return {
+      id: iid, name: String(it.Name || ""), desc: String(it.Desc || ""), icon: String(it.Icon || "🎁"),
+      cost: Number(it.Cost_Coins || 0) || 0, stock: Number(it.Stock || 0) || 0,
+      limitPerUser: Number(it.Limit_Per_User || 0) || 0, minLevel: Number(it.Min_Level || 0) || 0,
+      maxLevel: Number(it.Max_Level || 0) || 0, prereqQuestId: String(it.Prereq_Quest_ID || ""),
+      type: String(it.Type || "reward"), active: it.active !== false,
+      redeemCount: rs.filter(function (r) { return String(r.Status) !== "Cancelled"; }).length
+    };
+  });
+  var recentRedeems = redeems.map(function (r) {
+    return {
+      redeemId: String(r.Redeem_ID), itemId: String(r.Item_ID), email: String(r.User_Email),
+      status: String(r.Status || ""), cost: Number(r.Cost_Coins || 0) || 0, at: String(r.Redeemed_At || "")
+    };
+  }).sort(function (a, b) { return a.at < b.at ? 1 : -1; }).slice(0, 100);
+  return { status: "ok", items: list, redeems: recentRedeems };
+}
+function handleAdminSetRedeemStatus_(adminEmail, redeemId, status) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  redeemId = String(redeemId || "").trim();
+  var st = String(status || "").trim();
+  if (["Requested", "Delivered", "Cancelled"].indexOf(st) === -1) throw new Error("สถานะไม่ถูกต้อง");
+  var sh = getSheet_(SHEETS.SHOP_REDEEMS, HEADERS.SHOP_REDEEMS);
+  var row = findRowByHeader_(sh, "Redeem_ID", redeemId);
+  if (row === -1) throw new Error("ไม่พบรายการแลกนี้");
+  var map = headerMap_(sh);
+  var cur = String(sh.getRange(row, map["Status"]).getValue() || "");
+  if (cur === "Cancelled") throw new Error("รายการนี้ถูกยกเลิกแล้ว");
+  sh.getRange(row, map["Status"]).setValue(st);
+  if (st === "Cancelled") {
+    var cost = Number(sh.getRange(row, map["Cost_Coins"]).getValue() || 0) || 0;
+    var userEmail = String(sh.getRange(row, map["User_Email"]).getValue() || "");
+    if (cost) addCoins_(userEmail, cost, "redeem_refund", redeemId);
+  }
+  logAudit_(adminEmail, "set_redeem_status", "shop", redeemId, st, {});
+  return json_({ status: "ok", message: "อัปเดตสถานะแล้ว" });
 }
 
 /* ======================================================================

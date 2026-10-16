@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
@@ -157,7 +157,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.26"
+      FRONT_PHASE      : "6.27"
     };
   </script>
 
@@ -180,7 +180,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.26</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.27</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -386,6 +386,45 @@
         <div id="profileBody"></div>
       </div>
 
+      <!-- ===== ภารกิจ (Quests) ===== -->
+      <div id="tab-quests" class="tab-panel hidden fade-in">
+        <div class="hrx-card bg-gradient-to-br from-amber-600 to-orange-700 text-white rounded-2xl p-4 mb-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-bold">🎯 ภารกิจรับเหรียญ</p>
+              <p class="text-[11px] text-white/80 mt-0.5">เข้าร่วมภารกิจเพื่อรับเหรียญ แล้วนำไปแลกของในร้านค้า</p>
+            </div>
+            <div class="text-right shrink-0">
+              <p class="text-[10px] text-white/70">เหรียญของฉัน</p>
+              <p id="questCoinBal" class="text-xl font-black">0 🪙</p>
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-2 mb-3">
+          <button data-qtab="active" class="qtab-btn flex-1 py-2 rounded-xl text-xs font-bold">🎯 ภารกิจ</button>
+          <button data-qtab="history" class="qtab-btn flex-1 py-2 rounded-xl text-xs font-bold">📜 ประวัติของฉัน</button>
+        </div>
+        <div id="questList" class="space-y-3"></div>
+        <div id="questHistoryList" class="space-y-3 hidden"></div>
+      </div>
+
+      <!-- ===== ร้านค้า (Shop) ===== -->
+      <div id="tab-shop" class="tab-panel hidden fade-in">
+        <div class="hrx-card bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-2xl p-4 mb-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-bold">🎁 ร้านค้าแลกของรางวัล</p>
+              <p class="text-[11px] text-white/80 mt-0.5">ใช้เหรียญที่ได้จากภารกิจแลกของรางวัล</p>
+            </div>
+            <div class="text-right shrink-0">
+              <p class="text-[10px] text-white/70">เหรียญของฉัน</p>
+              <p id="shopCoinBal" class="text-xl font-black">0 🪙</p>
+            </div>
+          </div>
+        </div>
+        <div id="shopList" class="space-y-3"></div>
+      </div>
+
       <!-- ===== แอดมิน (Admin Panel) ===== -->
       <!-- ===== บริการ (Service Evaluation QR) ===== -->
       <div id="tab-service" class="tab-panel hidden fade-in">
@@ -420,6 +459,8 @@
           <button class="asub-btn active" data-asub="overview">📊 ภาพรวม</button>
           <button class="asub-btn" data-asub="users">👥 ผู้ใช้</button>
           <button class="asub-btn" data-asub="records">🧾 รายการ</button>
+          <button class="asub-btn" data-asub="quests">🎯 ภารกิจ</button>
+          <button class="asub-btn" data-asub="shop">🎁 ร้านค้า</button>
           <button class="asub-btn" data-asub="settings">⚙️ ตั้งค่า</button>
           <button class="asub-btn" data-asub="audit">🕘 ประวัติ</button>
           <button class="asub-btn" data-asub="service">⭐ ประเมินบริการ</button>
@@ -502,8 +543,37 @@
           </div>
         </section>
 
-        <!-- ===== หมวด: ตั้งค่า ===== -->
-        <section class="admin-sub hidden" data-sub="settings">
+        <!-- ===== หมวด: ภารกิจ (Quests) ===== -->
+        <section class="admin-sub hidden" data-sub="quests">
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <div class="flex justify-between items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-700">🎯 จัดการภารกิจ</h3>
+              <button id="adminQuestAdd" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold active:scale-95 transition">＋ สร้างภารกิจ</button>
+            </div>
+            <p class="text-[11px] text-slate-400 mb-2 mt-1">สร้าง/แก้ไขภารกิจ · กำหนดจำนวนคน ระดับ รหัส จุดเช็คอิน เหรียญรางวัล · ดูผู้เข้าร่วม</p>
+            <div id="adminQuestList" class="space-y-2"></div>
+          </div>
+        </section>
+
+        <!-- ===== หมวด: ร้านค้า (Shop) ===== -->
+        <section class="admin-sub hidden" data-sub="shop">
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <div class="flex justify-between items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-700">🎁 จัดการของรางวัล</h3>
+              <button id="adminShopAdd" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold active:scale-95 transition">＋ เพิ่มของรางวัล</button>
+            </div>
+            <p class="text-[11px] text-slate-400 mb-2 mt-1">กำหนดราคา (เหรียญ) จำนวนคงเหลือ จำกัดต่อคน ช่วงระดับ และภารกิจที่ต้องผ่านก่อนแลก</p>
+            <div id="adminShopList" class="space-y-2"></div>
+          </div>
+          <div class="mt-3 bg-white rounded-2xl shadow-sm p-4">
+            <div class="flex justify-between items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-700">🧾 รายการแลกล่าสุด</h3>
+              <button id="adminRedeemRefresh" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold active:scale-95 transition">↻ รีเฟรช</button>
+            </div>
+            <div id="adminRedeemList" class="space-y-2 mt-2"></div>
+          </div>
+        </section>
+
           <div class="bg-white rounded-2xl shadow-sm p-4">
             <h3 class="text-sm font-bold text-slate-700 mb-1">🎚️ ตั้งค่าระดับขั้น & XP (Level Setup)</h3>
             <p class="text-[11px] text-slate-400 mb-2">แก้ชื่อยศและเกณฑ์ XP • เพิ่ม/ลบระดับได้ (ระบบเรียงตาม XP ให้อัตโนมัติ และอัปเดต Level ผู้ใช้ทุกคนเมื่อบันทึก)</p>
@@ -623,7 +693,7 @@
           </div>
         </section>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.26</p>
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.27</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -656,6 +726,8 @@
           <div class="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200"></div>
           <div class="space-y-1">
             <button data-tab="dashboard" class="tab-btn sheet-item">📊<span>แดชบอร์ด</span></button>
+            <button data-tab="quests"  class="tab-btn sheet-item">🎯<span>ภารกิจ</span></button>
+            <button data-tab="shop"    class="tab-btn sheet-item">🎁<span>ร้านค้า</span></button>
             <button data-tab="search"  class="tab-btn sheet-item">🔍<span>ค้นหา</span></button>
             <button data-tab="resend"  id="sheetBtnResend" class="tab-btn sheet-item">📤<span>รอส่ง</span></button>
             <button data-tab="profile" class="tab-btn sheet-item">👤<span>โปรไฟล์</span></button>
@@ -867,9 +939,9 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.26 (index.html) · ป้ายแต้ม XP ทุกปุ่มดึงค่าจริงจากตั้งค่าแอดมิน (ไม่ hardcode) · แอดมินดูรายละเอียดครบในแผง "รายการส่งข้อมูล" (กดขยาย: ไฟล์แนบ/รูป · ลิงก์ · ข้อเสนอแนะทุกข้อ) + แก้/ลบได้ทุกส่วน (แก้ข้อความ, ลบข้อเสนอแนะ–ไฟล์–ลิงก์ หัก XP คืน) · แอดมินเปิด/ปิดการมองเห็น "อันดับสมาชิก/ผู้ทำคะแนนสูงสุด" ให้ผู้ใช้ · เมนู: บันทึก(หน้าแรก)/บอร์ดปัญหา/ความรู้/ประวัติ/เพิ่มเติม(แดชบอร์ด/Export)
+     KKU HR Exp — Phase 6.27 (index.html) · PHASE 3: ภารกิจ (Quests) + เหรียญ (Coins) + ร้านค้า (Shop) — แอดมินสร้างภารกิจ (จำนวนคน/ระดับ/รหัส/จุดเช็คอิน/ทำซ้ำได้/เหรียญรางวัล), ผู้ใช้เข้าร่วม-เช็คอิน-กรอกรหัส รับเหรียญ, มีประวัติการเข้าร่วม; ร้านค้าแลกของรางวัล (ราคา/จำกัดต่อคน/ช่วงระดับ/ภารกิจที่ต้องผ่าน) · ต่อจาก Phase 6.23 (แอดมินดูรายละเอียดครบในแผงรายการส่งข้อมูล + เปิด/ปิดการมองเห็นอันดับ) · + XP ป้ายจริงจากแอดมิน (6.23.1) · ประเมินบริการ QR (6.24-6.25) · รายงาน+ป้องกันสแปม (6.26)
      ============================================================ */
-  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], submitting:false, fileBusy:0, currentTab:"work", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, solEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0", xpCfg:null };
+  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], submitting:false, fileBusy:0, currentTab:"work", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, solEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], quests:[], questHist:[], questTab:"active", adminQuests:[], shopItems:[], adminShop:[], redeems:[], sound: localStorage.getItem("hrx_sound") !== "0", xpCfg:null };
   let subSearchTimer = null;
   let userSearchTimer = null;
   const XP_FALLBACK = { WORK_LOG: 10, ISSUE: 15, SOLUTION: 25, RESOLVE: 50, LIKE_RECEIVED: 5 };
@@ -1653,6 +1725,8 @@
     if (tab === "search") loadSearch();
     if (tab === "history") loadHistory();
     if (tab === "resend") loadResend();
+    if (tab === "quests") loadQuests();
+    if (tab === "shop") loadShop();
     if (tab === "profile") loadProfile();
     if (tab === "service") loadService();
     if (tab === "admin") { switchAdminSub("overview"); loadAdmin(); }
@@ -1667,6 +1741,8 @@
       s.classList.toggle("hidden", s.dataset.sub !== name));
     if (name === "service") loadAdminServiceEvals();
     if (name === "report") loadAdminServiceReport();
+    if (name === "quests") loadAdminQuests();
+    if (name === "shop") loadAdminShop();
   }
 
   /* ---------- บริการ: QR ประเมินหน้างาน (Phase 6.26) ---------- */
@@ -3259,7 +3335,7 @@
             <div class="min-w-0">
               <p class="text-white/80 text-xs">สวัสดี 👋 ${esc(state.user.name || "")}</p>
               <h2 class="mt-1 text-xl font-extrabold leading-tight">${esc(d.title)} <span class="text-amber-300">Lv.${d.level}</span></h2>
-              <p class="text-[11px] text-white/70 mt-1">อันดับ <b class="text-amber-200">#${d.rank}</b> จาก ${d.totalUsers} คน</p>
+              <p class="text-[11px] text-white/70 mt-1">อันดับ <b class="text-amber-200">#${d.rank}</b> จาก ${d.totalUsers} คน · 🪙 <b class="text-amber-200">${Number(d.coins || 0).toLocaleString("th-TH")}</b> เหรียญ</p>
             </div>
             <button class="sound-toggle text-sm px-2 py-1 rounded-lg bg-white/15 active:scale-95 shrink-0" onclick="toggleSound()" title="เปิด/ปิดเสียง" aria-label="เปิดหรือปิดเสียง">${state.sound ? "🔊" : "🔇"}</button>
           </div>
@@ -4102,6 +4178,524 @@
         localStorage.removeItem("hrx_user"); localStorage.removeItem("hrx_token");
       }
     }
+
+    /* ================================================================
+     * PHASE 3: ภารกิจ (Quests) + เหรียญ (Coins) + ร้านค้า (Shop)
+     * ============================================================== */
+    function fmtCoins(n) { return Number(n || 0).toLocaleString("th-TH"); }
+    function coinBadge(n) { return `<span class="text-amber-600 font-bold">🪙 ${fmtCoins(n)}</span>`; }
+    function getGeo() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) return reject(new Error("อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง"));
+        navigator.geolocation.getCurrentPosition(
+          p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+          () => reject(new Error("ไม่สามารถอ่านตำแหน่งได้ (กรุณาอนุญาตการเข้าถึงตำแหน่ง)")),
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+      });
+    }
+    function windowTxt(q) {
+      if (!q.startAt && !q.endAt) return "ไม่จำกัดเวลา";
+      return (q.startAt ? "เริ่ม " + esc(q.startAt) : "") + (q.endAt ? (q.startAt ? " · " : "") + "ถึง " + esc(q.endAt) : "");
+    }
+    function questReqTxt(q) {
+      const r = [];
+      if (q.needsCode) r.push("🔑 ต้องกรอกรหัส");
+      if (q.needsCheckin) r.push("📍 ต้องเช็คอิน");
+      if (q.minLevel > 1) r.push("Lv." + q.minLevel + "+");
+      if (q.prereqQuestId) r.push("🔗 ต้องผ่านภารกิจก่อน");
+      return r.length ? r.join(" · ") : "เข้าร่วมได้เลย";
+    }
+
+    /* ---------- ผู้ใช้: ภารกิจ ---------- */
+    async function loadQuests() {
+      const list = $("questList");
+      if (!list) return;
+      list.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">กำลังโหลด...</p>`;
+      try {
+        const d = await apiGet({ action:"quests", idToken:state.idToken, email:state.user.email });
+        if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
+        state.quests = d.quests || [];
+        $("questCoinBal").textContent = fmtCoins(d.coins) + " 🪙";
+        renderQuests();
+      } catch (err) {
+        list.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+      }
+    }
+    function renderQuests() {
+      const list = $("questList");
+      const qs = state.quests || [];
+      if (!qs.length) { list.innerHTML = `<div class="hrx-card text-sm text-slate-400 text-center py-6">ยังไม่มีภารกิจในขณะนี้ 🎯</div>`; return; }
+      list.innerHTML = qs.map(questCardHtml).join("");
+    }
+    function questCardHtml(q) {
+      const maxTxt = q.unlimited ? "ไม่จำกัด" : (q.maxParticipants > 0 ? q.maxParticipants + " คน" : "ไม่จำกัด");
+      const pct = (!q.unlimited && q.maxParticipants > 0) ? Math.min(100, Math.round(q.participantCount / q.maxParticipants * 100)) : 0;
+      let action = "";
+      if (q.status === "joined") {
+        action = q.needsCheckin
+          ? `<button data-qcheckin="${esc(q.id)}" class="w-full py-2.5 rounded-xl bg-sky-600 text-white text-sm font-bold active:scale-95 transition">📍 เช็คอิน</button>`
+          : `<div class="w-full py-2.5 rounded-xl bg-sky-50 text-sky-700 text-sm font-bold text-center border border-sky-200">⏳ รอดำเนินการ</div>`;
+      } else if (q.completed && !q.repeatable) {
+        action = `<div class="w-full py-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold text-center border border-emerald-200">✅ ผ่านภารกิจนี้แล้ว</div>`;
+      } else if (q.eligible) {
+        action = `${q.needsCode ? `<input data-qcode="${esc(q.id)}" type="text" placeholder="🔑 กรอกรหัสภารกิจ" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-amber-500" />` : ""}
+          <button data-qjoin="${esc(q.id)}" class="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold active:scale-95 transition">🎯 เข้าร่วมภารกิจ (รับ ${fmtCoins(q.coins)} 🪙)</button>`;
+      } else {
+        action = `<div class="w-full py-2.5 rounded-xl bg-slate-100 text-slate-400 text-sm font-bold text-center">🔒 ${esc(q.reason || "ยังไม่เข้าเงื่อนไข")}</div>`;
+      }
+      return `<div class="hrx-card">
+        <div class="flex items-start gap-3">
+          <div class="text-3xl shrink-0">${esc(q.icon || "🎯")}</div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="text-sm font-bold text-slate-800">${esc(q.name)}</h3>
+              <span class="shrink-0 text-xs font-black text-amber-600">${fmtCoins(q.coins)} 🪙</span>
+            </div>
+            ${q.desc ? `<p class="text-[12px] text-slate-500 mt-0.5 whitespace-pre-wrap">${esc(q.desc)}</p>` : ""}
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">🕒 ${windowTxt(q)}</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">👥 ${esc(maxTxt)}</span>
+              ${q.repeatable ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-600">♻️ ทำซ้ำได้</span>` : ""}
+              ${q.completed ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">✅ ผ่านแล้ว</span>` : ""}
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1.5">📋 ${esc(questReqTxt(q))} · ผู้เข้าร่วม ${q.participantCount}${(!q.unlimited && q.maxParticipants > 0) ? "/" + q.maxParticipants : ""}</p>
+            ${(!q.unlimited && q.maxParticipants > 0) ? `<div class="h-1.5 rounded-full bg-slate-100 mt-1.5 overflow-hidden"><div class="h-full bg-amber-500" style="width:${pct}%"></div></div>` : ""}
+          </div>
+        </div>
+        <div class="mt-3">${action}</div>
+      </div>`;
+    }
+    async function joinQuest(id, btn) {
+      const q = (state.quests || []).find(x => x.id === id);
+      if (!q) return;
+      let code = "";
+      if (q.needsCode) {
+        const inp = document.querySelector('[data-qcode="' + id + '"]');
+        code = inp ? inp.value.trim() : "";
+        if (!code) { showToast("กรุณากรอกรหัสภารกิจ", "warn"); return; }
+      }
+      await runBusy(btn, async () => {
+        await questPost({ action:"joinQuest", questId:id, code, email:state.user.email, idToken:state.idToken });
+        await new Promise(r => setTimeout(r, 700));
+        await loadQuests();
+        const a = (state.quests || []).find(x => x.id === id);
+        if (a && (a.completed || a.status === "joined")) {
+          if (a.completed) { showToast("🎉 ผ่านภารกิจ! ได้ " + fmtCoins(a.coins) + " เหรียญ"); playChime && playChime("gain"); }
+          else showToast("✅ เข้าร่วมแล้ว — อย่าลืมเช็คอินที่จุดที่กำหนด");
+        } else {
+          showToast("⚠️ เข้าร่วมไม่สำเร็จ (รหัสผิด / เต็ม / เงื่อนไขไม่ครบ)", "warn");
+        }
+      });
+    }
+    async function checkinQuest(id, btn) {
+      let geo;
+      try { geo = await getGeo(); }
+      catch (e) { showToast("📍 " + e.message, "error"); return; }
+      await runBusy(btn, async () => {
+        await questPost({ action:"questCheckin", questId:id, lat:geo.lat, lng:geo.lng, email:state.user.email, idToken:state.idToken });
+        await new Promise(r => setTimeout(r, 700));
+        await loadQuests();
+        const a = (state.quests || []).find(x => x.id === id);
+        if (a && a.completed) { showToast("🎉 เช็คอินสำเร็จ! ได้ " + fmtCoins(a.coins) + " เหรียญ"); playChime && playChime("gain"); }
+        else showToast("⚠️ เช็คอินไม่สำเร็จ (อยู่นอกพื้นที่ หรือหมดเวลา)", "warn");
+      });
+    }
+    async function questPost(payload) {
+      if (navigator.onLine === false) { showToast("📴 ออฟไลน์อยู่ กรุณาเชื่อมต่อก่อน", "error"); return; }
+      try { await sendToServer(payload); }
+      catch (e) { showToast("❌ ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่", "error"); }
+    }
+    function setQuestTab(which) {
+      document.querySelectorAll(".qtab-btn").forEach(b => {
+        const on = b.dataset.qtab === which;
+        b.className = "qtab-btn flex-1 py-2 rounded-xl text-xs font-bold " + (on ? "bg-amber-600 text-white shadow" : "bg-white text-slate-500 border border-slate-200");
+      });
+      const showActive = which === "active";
+      $("questList").classList.toggle("hidden", !showActive);
+      $("questHistoryList").classList.toggle("hidden", showActive);
+      if (!showActive) loadQuestHistory();
+    }
+    async function loadQuestHistory() {
+      const wrap = $("questHistoryList");
+      wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">กำลังโหลด...</p>`;
+      try {
+        const d = await apiGet({ action:"questHistory", idToken:state.idToken, email:state.user.email });
+        if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
+        $("questCoinBal").textContent = fmtCoins(d.coins) + " 🪙";
+        const h = d.history || [];
+        if (!h.length) { wrap.innerHTML = `<div class="hrx-card text-sm text-slate-400 text-center py-6">ยังไม่มีประวัติการเข้าร่วมภารกิจ</div>`; return; }
+        wrap.innerHTML = h.map(x => {
+          const badge = x.status === "completed" ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">✅ ผ่าน</span>`
+            : x.status === "joined" ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">⏳ กำลังทำ</span>`
+            : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">ยกเลิก</span>`;
+          return `<div class="hrx-card flex items-center gap-3">
+            <span class="text-2xl">${esc(x.icon)}</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-bold text-slate-800 truncate">${esc(x.name)} ${x.attempt > 1 ? `<span class="text-[10px] text-slate-400">(ครั้งที่ ${x.attempt})</span>` : ""}</p>
+              <p class="text-[11px] text-slate-400">เข้าร่วม ${esc(x.joinedAt || "-")}${x.completedAt ? " · ผ่าน " + esc(x.completedAt) : ""}</p>
+            </div>
+            <div class="text-right shrink-0">${badge}<p class="text-[11px] font-bold text-amber-600 mt-0.5">+${fmtCoins(x.coins)} 🪙</p></div>
+          </div>`;
+        }).join("");
+      } catch (err) {
+        wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+      }
+    }
+
+    /* ---------- ผู้ใช้: ร้านค้า ---------- */
+    async function loadShop() {
+      const list = $("shopList");
+      if (!list) return;
+      list.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">กำลังโหลด...</p>`;
+      try {
+        const d = await apiGet({ action:"shop", idToken:state.idToken, email:state.user.email });
+        if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
+        state.shopItems = d.items || [];
+        $("shopCoinBal").textContent = fmtCoins(d.coins) + " 🪙";
+        renderShop();
+      } catch (err) {
+        list.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+      }
+    }
+    function renderShop() {
+      const list = $("shopList");
+      const items = state.shopItems || [];
+      if (!items.length) { list.innerHTML = `<div class="hrx-card text-sm text-slate-400 text-center py-6">ยังไม่มีของรางวัลในร้าน 🎁</div>`; return; }
+      list.innerHTML = items.map(it => {
+        const limitTxt = it.limitPerUser > 0 ? `แลกได้ ${it.myRedeems}/${it.limitPerUser} ชิ้น` : (it.myRedeems > 0 ? `แลกแล้ว ${it.myRedeems} ชิ้น` : "ไม่จำกัดจำนวน");
+        const stockTxt = it.remaining >= 0 ? `คงเหลือ ${it.remaining} ชิ้น` : "มีสินค้า";
+        let btn;
+        if (it.eligible) btn = `<button data-redeem="${esc(it.id)}" class="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold active:scale-95 transition">🎁 แลก (${fmtCoins(it.cost)} 🪙)</button>`;
+        else btn = `<div class="w-full py-2.5 rounded-xl bg-slate-100 text-slate-400 text-sm font-bold text-center">🔒 ${esc(it.reason || "ยังแลกไม่ได้")}</div>`;
+        return `<div class="hrx-card">
+          <div class="flex items-start gap-3">
+            <div class="text-3xl shrink-0">${esc(it.icon || "🎁")}</div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start justify-between gap-2">
+                <h3 class="text-sm font-bold text-slate-800">${esc(it.name)}</h3>
+                <span class="shrink-0 text-xs font-black text-amber-600">${fmtCoins(it.cost)} 🪙</span>
+              </div>
+              ${it.desc ? `<p class="text-[12px] text-slate-500 mt-0.5 whitespace-pre-wrap">${esc(it.desc)}</p>` : ""}
+              <div class="flex flex-wrap gap-1.5 mt-2">
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">📦 ${esc(stockTxt)}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">👤 ${esc(limitTxt)}</span>
+                ${it.minLevel > 0 ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">Lv.${it.minLevel}${it.maxLevel > 0 ? "-" + it.maxLevel : "+"}</span>` : ""}
+                ${it.prereqQuestId ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-600">🔗 ต้องผ่านภารกิจ</span>` : ""}
+              </div>
+            </div>
+          </div>
+          <div class="mt-3">${btn}</div>
+        </div>`;
+      }).join("");
+    }
+    async function redeemItem(id, btn) {
+      const it = (state.shopItems || []).find(x => x.id === id);
+      if (!it) return;
+      if (!confirm("ยืนยันแลก \"" + it.name + "\" ด้วย " + fmtCoins(it.cost) + " เหรียญ?")) return;
+      await runBusy(btn, async () => {
+        await questPost({ action:"redeemShop", itemId:id, email:state.user.email, idToken:state.idToken });
+        await new Promise(r => setTimeout(r, 700));
+        await loadShop();
+        const a = (state.shopItems || []).find(x => x.id === id);
+        if (a && a.myRedeems > it.myRedeems) { showToast("🎉 แลกสำเร็จ! กรุณารับของจากผู้ดูแลระบบ"); playChime && playChime("gain"); }
+        else showToast("⚠️ แลกไม่สำเร็จ (เหรียญไม่พอ / ครบจำนวน / สินค้าหมด)", "warn");
+      });
+    }
+
+    /* ---------- แอดมิน: ภารกิจ ---------- */
+    async function loadAdminQuests() {
+      const wrap = $("adminQuestList");
+      if (!wrap) return;
+      wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">กำลังโหลด...</p>`;
+      try {
+        const d = await apiGet({ action:"adminQuests", idToken:state.idToken });
+        if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
+        state.adminQuests = d.quests || [];
+        if (!state.adminQuests.length) { wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีภารกิจ — กด "＋ สร้างภารกิจ"</p>`; return; }
+        wrap.innerHTML = state.adminQuests.map(questAdminCardHtml).join("");
+      } catch (err) {
+        wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-3">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+      }
+    }
+    function questAdminCardHtml(q) {
+      const activeBadge = q.active ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">เปิด</span>` : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">ปิด</span>`;
+      return `<div class="rounded-xl border border-slate-100 p-3" data-qcard="${esc(q.id)}">
+        <div class="flex items-start gap-2">
+          <span class="text-xl">${esc(q.icon || "🎯")}</span>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 flex-wrap">${activeBadge}<span class="text-sm font-bold text-slate-800">${esc(q.name)}</span></div>
+            <p class="text-[11px] text-slate-400 mt-0.5">🪙 ${fmtCoins(q.coins)} · 👥 ${q.participantCount}${q.unlimited ? "" : "/" + q.maxParticipants} · ✅ ${q.completedCount} · ${q.repeatable ? "♻️ ทำซ้ำได้" : "ทำซ้ำไม่ได้"} · ${q.needsCode ? "🔑 รหัส" : ""}${q.needsCheckin ? " 📍 เช็คอิน" : ""}</p>
+          </div>
+        </div>
+        <div class="flex gap-1.5 mt-2">
+          <button data-qtedit="${esc(q.id)}" class="flex-1 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200 active:scale-95 transition">✏️ แก้ไข</button>
+          <button data-qtparts="${esc(q.id)}" class="flex-1 py-1.5 rounded-lg bg-slate-50 text-slate-600 text-xs font-bold border border-slate-200 active:scale-95 transition">👥 ผู้เข้าร่วม</button>
+          <button data-qtoggle="${esc(q.id)}" class="py-1.5 px-2 rounded-lg ${q.active ? "bg-slate-100 text-slate-600" : "bg-emerald-50 text-emerald-700 border border-emerald-200"} text-xs font-bold active:scale-95 transition">${q.active ? "ปิด" : "เปิด"}</button>
+        </div>
+        <div class="qedit hidden mt-3 border-t border-dashed border-slate-200 pt-3">${questAdminFormHtml(q)}</div>
+        <div class="qparts hidden mt-2"></div>
+      </div>`;
+    }
+    function questAdminFormHtml(q) {
+      q = q || {};
+      const opts = (state.adminQuests || []).filter(x => x.id !== q.id)
+        .map(x => `<option value="${esc(x.id)}"${q.prereqQuestId === x.id ? " selected" : ""}>${esc(x.name)}</option>`).join("");
+      return `
+        <div class="space-y-2 text-sm">
+          <div class="flex gap-2">
+            <input data-f="icon" value="${esc(q.icon || "🎯")}" class="w-14 text-center rounded-lg border border-slate-200 bg-slate-50 p-2" placeholder="🎯" />
+            <input data-f="name" value="${esc(q.name || "")}" class="flex-1 rounded-lg border border-slate-200 bg-slate-50 p-2" placeholder="ชื่อภารกิจ *" />
+          </div>
+          <textarea data-f="desc" rows="2" class="w-full rounded-lg border border-slate-200 bg-slate-50 p-2" placeholder="รายละเอียดภารกิจ">${esc(q.desc || "")}</textarea>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="text-[11px] text-slate-500">เริ่ม<input data-f="startAt" type="datetime-local" value="${esc((q.startAt || "").replace(" ", "T"))}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+            <label class="text-[11px] text-slate-500">สิ้นสุด<input data-f="endAt" type="datetime-local" value="${esc((q.endAt || "").replace(" ", "T"))}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="text-[11px] text-slate-500 flex items-center gap-1.5"><input data-f="unlimited" type="checkbox"${q.unlimited ? " checked" : ""} class="w-4 h-4" /> ไม่จำกัดจำนวนคน</label>
+            <label class="text-[11px] text-slate-500">จำนวนสูงสุด<input data-f="maxParticipants" type="number" min="0" value="${Number(q.maxParticipants || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="text-[11px] text-slate-500">ระดับขั้นต่ำ (Lv.)<input data-f="minLevel" type="number" min="1" value="${Number(q.minLevel || 1)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+            <label class="text-[11px] text-slate-500">เหรียญรางวัล 🪙<input data-f="coins" type="number" min="0" value="${Number(q.coins || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+          </div>
+          <label class="text-[11px] text-slate-500 block">ต้องผ่านภารกิจก่อน (ถ้ามี)<select data-f="prereqQuestId" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"><option value="">— ไม่ต้อง —</option>${opts}</select></label>
+          <label class="text-[11px] text-slate-500 flex items-center gap-1.5"><input data-f="repeatable" type="checkbox"${q.repeatable ? " checked" : ""} class="w-4 h-4" /> ทำซ้ำได้</label>
+          <label class="text-[11px] text-slate-500 flex items-center gap-1.5"><input data-f="needsCode" type="checkbox"${q.needsCode ? " checked" : ""} class="w-4 h-4" /> ต้องกรอกรหัส (≥ 6 ตัว)</label>
+          <input data-f="codeValue" value="${esc(q.codeValue || "")}" class="w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" placeholder="รหัสภารกิจ (ถ้าเปิดใช้)" />
+          <label class="text-[11px] text-slate-500 flex items-center gap-1.5"><input data-f="needsCheckin" type="checkbox"${q.needsCheckin ? " checked" : ""} class="w-4 h-4" /> ต้องเช็คอินตามจุด</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="text-[11px] text-slate-500">ละติจูด<input data-f="checkinLat" value="${Number(q.checkinLat || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+            <label class="text-[11px] text-slate-500">ลองจิจูด<input data-f="checkinLng" value="${Number(q.checkinLng || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+            <label class="text-[11px] text-slate-500">รัศมี (ม.)<input data-f="checkinRadiusM" type="number" min="0" value="${Number(q.checkinRadiusM || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+          </div>
+          <button data-qgeo="${esc(q.id || "new")}" class="w-full py-1.5 rounded-lg border border-dashed border-sky-300 text-sky-700 text-xs font-semibold active:scale-95 transition">📍 ใช้ตำแหน่งปัจจุบันของฉัน</button>
+          <label class="text-[11px] text-slate-500 flex items-center gap-1.5"><input data-f="active" type="checkbox"${q.active !== false ? " checked" : ""} class="w-4 h-4" /> เปิดใช้งาน</label>
+          <button data-qsave="${esc(q.id || "")}" class="w-full py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกภารกิจ</button>
+        </div>`;
+    }
+    async function adminSaveQuest(card) {
+      const id = card.dataset.qcard;
+      const v = f => { const el = card.querySelector('[data-f="' + f + '"]'); return el ? (el.type === "checkbox" ? el.checked : el.value) : ""; };
+      const quest = {
+        questId: id, icon: v("icon"), name: v("name"), desc: v("desc"),
+        startAt: v("startAt"), endAt: v("endAt"), unlimited: v("unlimited"), maxParticipants: v("maxParticipants"),
+        minLevel: v("minLevel"), coins: v("coins"), prereqQuestId: v("prereqQuestId"), repeatable: v("repeatable"),
+        needsCode: v("needsCode"), codeValue: v("codeValue"), needsCheckin: v("needsCheckin"),
+        checkinLat: v("checkinLat"), checkinLng: v("checkinLng"), checkinRadiusM: v("checkinRadiusM"), active: v("active")
+      };
+      if (!String(quest.name).trim()) { showToast("กรุณากรอกชื่อภารกิจ", "warn"); return; }
+      await questPost({ action:"saveQuest", quest, email:state.user.email, idToken:state.idToken });
+      showToast("💾 บันทึกภารกิจแล้ว");
+      loadAdminQuests();
+    }
+    async function adminToggleQuest(id) {
+      const q = (state.adminQuests || []).find(x => x.id === id);
+      if (!q) return;
+      if (q.active) {
+        if (!confirm("ปิดใช้งานภารกิจ \"" + q.name + "\"?")) return;
+        await questPost({ action:"deleteQuest", questId:id, email:state.user.email, idToken:state.idToken });
+        showToast("ปิดใช้งานภารกิจแล้ว");
+      } else {
+        const quest = Object.assign({}, q, { questId:id, active:true });
+        await questPost({ action:"saveQuest", quest, email:state.user.email, idToken:state.idToken });
+        showToast("เปิดใช้งานภารกิจแล้ว");
+      }
+      loadAdminQuests();
+    }
+    async function adminQuestParts(id, box) {
+      if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+      box.classList.remove("hidden");
+      box.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">กำลังโหลด...</p>`;
+      try {
+        const d = await apiGet({ action:"adminQuestParticipants", questId:id, idToken:state.idToken });
+        if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
+        const ps = d.participants || [];
+        if (!ps.length) { box.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-2">ยังไม่มีผู้เข้าร่วม</p>`; return; }
+        box.innerHTML = ps.map(p => {
+          const badge = p.status === "completed" ? "✅" : p.status === "joined" ? "⏳" : "✖️";
+          const act = p.status === "completed"
+            ? `<button data-qpundo="${esc(id)}:${esc(p.email)}" class="text-[10px] px-2 py-1 rounded bg-red-50 text-red-600 border border-red-200">ยกเลิก</button>`
+            : `<button data-qpcomp="${esc(id)}:${esc(p.email)}" class="text-[10px] px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">ให้ผ่าน</button>`;
+          return `<div class="flex items-center justify-between gap-2 text-[11px] py-1 border-b border-slate-50">
+            <span class="truncate">${badge} <span class="font-mono">${esc(p.email)}</span>${p.checkinOk ? " 📍" : ""}${p.attempt > 1 ? " ×" + p.attempt : ""}</span>
+            <span class="shrink-0 flex items-center gap-1.5"><span class="text-amber-600">+${fmtCoins(p.coins)}</span>${act}</span>
+          </div>`;
+        }).join("");
+      } catch (err) { box.innerHTML = `<p class="text-[11px] text-red-500 text-center py-2">${esc(err.message)}</p>`; }
+    }
+    async function adminQuestComplete(questId, email, mode) {
+      await questPost({ action:"adminQuestComplete", questId, targetEmail:email, mode, email:state.user.email, idToken:state.idToken });
+      showToast(mode === "undo" ? "ยกเลิกการผ่านแล้ว" : "ทำเครื่องหมายผ่านแล้ว");
+      const box = document.querySelector('[data-qcard="' + questId + '"] .qparts');
+      if (box) { box.classList.add("hidden"); loadAdminQuests(); }
+    }
+
+    /* ---------- แอดมิน: ร้านค้า ---------- */
+    async function loadAdminShop() {
+      const wrap = $("adminShopList");
+      if (!wrap) return;
+      wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">กำลังโหลด...</p>`;
+      try {
+        const d = await apiGet({ action:"adminShop", idToken:state.idToken });
+        if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
+        state.adminShop = d.items || [];
+        state.adminRedeems = d.redeems || [];
+        wrap.innerHTML = state.adminShop.length ? state.adminShop.map(shopAdminCardHtml).join("") : `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีของรางวัล — กด "＋ เพิ่มของรางวัล"</p>`;
+        renderAdminRedeems();
+      } catch (err) {
+        wrap.innerHTML = `<p class="text-sm text-red-500 text-center py-3">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+      }
+    }
+    function shopAdminCardHtml(it) {
+      const activeBadge = it.active ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">เปิด</span>` : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">ปิด</span>`;
+      return `<div class="rounded-xl border border-slate-100 p-3" data-scard="${esc(it.id)}">
+        <div class="flex items-start gap-2">
+          <span class="text-xl">${esc(it.icon || "🎁")}</span>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 flex-wrap">${activeBadge}<span class="text-sm font-bold text-slate-800">${esc(it.name)}</span></div>
+            <p class="text-[11px] text-slate-400 mt-0.5">🪙 ${fmtCoins(it.cost)} · 📦 คงเหลือ ${it.stock > 0 ? fmtCoins(it.stock) : "ไม่จำกัด"} · 👤 ${it.limitPerUser > 0 ? it.limitPerUser + "/คน" : "ไม่จำกัด"} · แลกแล้ว ${it.redeemCount}</p>
+          </div>
+        </div>
+        <div class="flex gap-1.5 mt-2">
+          <button data-sedit="${esc(it.id)}" class="flex-1 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 active:scale-95 transition">✏️ แก้ไข</button>
+          <button data-stoggle="${esc(it.id)}" class="py-1.5 px-2 rounded-lg ${it.active ? "bg-slate-100 text-slate-600" : "bg-emerald-50 text-emerald-700 border border-emerald-200"} text-xs font-bold active:scale-95 transition">${it.active ? "ปิด" : "เปิด"}</button>
+        </div>
+        <div class="sedit hidden mt-3 border-t border-dashed border-slate-200 pt-3">${shopAdminFormHtml(it)}</div>
+      </div>`;
+    }
+    function shopAdminFormHtml(it) {
+      it = it || {};
+      const opts = (state.adminQuests || []).map(x => `<option value="${esc(x.id)}"${it.prereqQuestId === x.id ? " selected" : ""}>${esc(x.name)}</option>`).join("");
+      return `
+        <div class="space-y-2 text-sm">
+          <div class="flex gap-2">
+            <input data-f="icon" value="${esc(it.icon || "🎁")}" class="w-14 text-center rounded-lg border border-slate-200 bg-slate-50 p-2" placeholder="🎁" />
+            <input data-f="name" value="${esc(it.name || "")}" class="flex-1 rounded-lg border border-slate-200 bg-slate-50 p-2" placeholder="ชื่อของรางวัล *" />
+          </div>
+          <textarea data-f="desc" rows="2" class="w-full rounded-lg border border-slate-200 bg-slate-50 p-2" placeholder="รายละเอียด">${esc(it.desc || "")}</textarea>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="text-[11px] text-slate-500">ราคา 🪙<input data-f="cost" type="number" min="0" value="${Number(it.cost || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+            <label class="text-[11px] text-slate-500">คงเหลือ<input data-f="stock" type="number" min="0" value="${Number(it.stock || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+            <label class="text-[11px] text-slate-500">ต่อคน<input data-f="limitPerUser" type="number" min="0" value="${Number(it.limitPerUser || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="text-[11px] text-slate-500">ระดับต่ำสุด (0=ไม่จำกัด)<input data-f="minLevel" type="number" min="0" value="${Number(it.minLevel || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+            <label class="text-[11px] text-slate-500">ระดับสูงสุด (0=ไม่จำกัด)<input data-f="maxLevel" type="number" min="0" value="${Number(it.maxLevel || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+          </div>
+          <label class="text-[11px] text-slate-500 block">ต้องผ่านภารกิจก่อนแลก<select data-f="prereqQuestId" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"><option value="">— ไม่ต้อง —</option>${opts}</select></label>
+          <label class="text-[11px] text-slate-500 flex items-center gap-1.5"><input data-f="active" type="checkbox"${it.active !== false ? " checked" : ""} class="w-4 h-4" /> เปิดใช้งาน</label>
+          <button data-ssave="${esc(it.id || "")}" class="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold active:scale-95 transition">💾 บันทึกของรางวัล</button>
+        </div>`;
+    }
+    async function adminSaveShopItem(card) {
+      const id = card.dataset.scard;
+      const v = f => { const el = card.querySelector('[data-f="' + f + '"]'); return el ? (el.type === "checkbox" ? el.checked : el.value) : ""; };
+      const item = { itemId: id, icon: v("icon"), name: v("name"), desc: v("desc"), cost: v("cost"), stock: v("stock"),
+        limitPerUser: v("limitPerUser"), minLevel: v("minLevel"), maxLevel: v("maxLevel"), prereqQuestId: v("prereqQuestId"), active: v("active") };
+      if (!String(item.name).trim()) { showToast("กรุณากรอกชื่อของรางวัล", "warn"); return; }
+      await questPost({ action:"saveShopItem", item, email:state.user.email, idToken:state.idToken });
+      showToast("💾 บันทึกของรางวัลแล้ว");
+      loadAdminShop();
+    }
+    async function adminToggleShop(id) {
+      const it = (state.adminShop || []).find(x => x.id === id);
+      if (!it) return;
+      if (it.active) {
+        if (!confirm("ปิดใช้งาน \"" + it.name + "\"?")) return;
+        await questPost({ action:"deleteShopItem", itemId:id, email:state.user.email, idToken:state.idToken });
+        showToast("ปิดใช้งานแล้ว");
+      } else {
+        const item = Object.assign({}, it, { itemId:id, active:true });
+        await questPost({ action:"saveShopItem", item, email:state.user.email, idToken:state.idToken });
+        showToast("เปิดใช้งานแล้ว");
+      }
+      loadAdminShop();
+    }
+    function renderAdminRedeems() {
+      const wrap = $("adminRedeemList");
+      if (!wrap) return;
+      const rs = state.adminRedeems || [];
+      if (!rs.length) { wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-3">ยังไม่มีรายการแลก</p>`; return; }
+      const nameOf = id => { const it = (state.adminShop || []).find(x => x.id === id); return it ? it.name : id; };
+      wrap.innerHTML = rs.map(r => {
+        const badge = r.status === "Delivered" ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">ส่งมอบแล้ว</span>`
+          : r.status === "Cancelled" ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">ยกเลิก</span>`
+          : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">รอส่งมอบ</span>`;
+        const act = r.status === "Requested"
+          ? `<div class="flex gap-1.5"><button data-rset="deliver:${esc(r.redeemId)}" class="text-[10px] px-2 py-1 rounded bg-emerald-600 text-white">ส่งมอบ</button><button data-rset="cancel:${esc(r.redeemId)}" class="text-[10px] px-2 py-1 rounded bg-red-50 text-red-600 border border-red-200">ยกเลิก+คืนเหรียญ</button></div>` : badge;
+        return `<div class="flex items-center justify-between gap-2 rounded-lg border border-slate-100 p-2">
+          <div class="min-w-0">
+            <p class="text-[12px] font-semibold text-slate-700 truncate">${esc(nameOf(r.itemId))}</p>
+            <p class="text-[10px] text-slate-400 truncate">${esc(r.email)} · 🪙 ${fmtCoins(r.cost)} · ${esc(r.at)}</p>
+          </div>
+          <div class="shrink-0">${act}</div>
+        </div>`;
+      }).join("");
+    }
+    async function adminSetRedeem(action, redeemId) {
+      const status = action === "deliver" ? "Delivered" : "Cancelled";
+      await questPost({ action:"adminSetRedeemStatus", redeemId, status, email:state.user.email, idToken:state.idToken });
+      showToast(action === "deliver" ? "อัปเดตเป็นส่งมอบแล้ว" : "ยกเลิกและคืนเหรียญแล้ว");
+      loadAdminShop();
+    }
+
+    /* ---------- Wiring ---------- */
+    document.querySelectorAll(".qtab-btn").forEach(b => b.addEventListener("click", () => setQuestTab(b.dataset.qtab)));
+    setQuestTab("active");
+    $("questList").addEventListener("click", (e) => {
+      const jb = e.target.closest("[data-qjoin]"); if (jb) return joinQuest(jb.dataset.qjoin, jb);
+      const cb = e.target.closest("[data-qcheckin]"); if (cb) return checkinQuest(cb.dataset.qcheckin, cb);
+    });
+    $("shopList").addEventListener("click", (e) => {
+      const rb = e.target.closest("[data-redeem]"); if (rb) return redeemItem(rb.dataset.redeem, rb);
+    });
+    if ($("adminQuestAdd")) $("adminQuestAdd").addEventListener("click", () => {
+      const wrap = $("adminQuestList");
+      const tmp = document.createElement("div");
+      tmp.innerHTML = questAdminCardHtml({ id:"", active:true, unlimited:true, minLevel:1, coins:10 });
+      const card = tmp.firstElementChild;
+      card.dataset.qcard = "";
+      card.querySelector(".qedit").classList.remove("hidden");
+      wrap.insertBefore(card, wrap.firstChild);
+    });
+    if ($("adminQuestList")) $("adminQuestList").addEventListener("click", (e) => {
+      const ed = e.target.closest("[data-qtedit]"); if (ed) { const c = ed.closest("[data-qcard]"); return c.querySelector(".qedit").classList.toggle("hidden"); }
+      const pa = e.target.closest("[data-qtparts]"); if (pa) { const c = pa.closest("[data-qcard]"); return adminQuestParts(pa.dataset.qtparts, c.querySelector(".qparts")); }
+      const tg = e.target.closest("[data-qtoggle]"); if (tg) return adminToggleQuest(tg.dataset.qtoggle);
+      const sv = e.target.closest("[data-qsave]"); if (sv) { const c = sv.closest("[data-qcard]"); return runBusy(sv, () => adminSaveQuest(c)); }
+      const ge = e.target.closest("[data-qgeo]"); if (ge) {
+        const c = ge.closest("[data-qcard]");
+        return runBusy(ge, async () => {
+          try { const g = await getGeo(); c.querySelector('[data-f="checkinLat"]').value = g.lat.toFixed(6); c.querySelector('[data-f="checkinLng"]').value = g.lng.toFixed(6); showToast("📍 ใส่พิกัดปัจจุบันแล้ว"); }
+          catch (err) { showToast("📍 " + err.message, "error"); }
+        });
+      }
+      const cp = e.target.closest("[data-qpcomp]"); if (cp) { const [q, m] = cp.dataset.qpcomp.split(":"); return adminQuestComplete(q, m, "complete"); }
+      const un = e.target.closest("[data-qpundo]"); if (un) { const [q, m] = un.dataset.qpundo.split(":"); return adminQuestComplete(q, m, "undo"); }
+    });
+    if ($("adminShopAdd")) $("adminShopAdd").addEventListener("click", () => {
+      const wrap = $("adminShopList");
+      const tmp = document.createElement("div");
+      tmp.innerHTML = shopAdminCardHtml({ id:"", active:true });
+      const card = tmp.firstElementChild;
+      card.dataset.scard = "";
+      card.querySelector(".sedit").classList.remove("hidden");
+      wrap.insertBefore(card, wrap.firstChild);
+    });
+    if ($("adminShopList")) $("adminShopList").addEventListener("click", (e) => {
+      const ed = e.target.closest("[data-sedit]"); if (ed) { const c = ed.closest("[data-scard]"); return c.querySelector(".sedit").classList.toggle("hidden"); }
+      const tg = e.target.closest("[data-stoggle]"); if (tg) return adminToggleShop(tg.dataset.stoggle);
+      const sv = e.target.closest("[data-ssave]"); if (sv) { const c = sv.closest("[data-scard]"); return runBusy(sv, () => adminSaveShopItem(c)); }
+    });
+    if ($("adminRedeemList")) $("adminRedeemList").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-rset]"); if (!b) return;
+      const [act, id] = b.dataset.rset.split(":");
+      if (act === "cancel" && !confirm("ยกเลิกและคืนเหรียญให้ผู้ใช้?")) return;
+      return runBusy(b, () => adminSetRedeem(act, id));
+    });
+    if ($("adminRedeemRefresh")) $("adminRedeemRefresh").addEventListener("click", (e) => runBusy(e.currentTarget, () => loadAdminShop().then(renderAdminRedeems)));
 
     $("syncNow").addEventListener("click", (e) => runBusy(e.currentTarget, refreshAll));
     initGoogle();
