@@ -12,6 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <meta name="apple-mobile-web-app-title" content="KKU HR Exp" />
   <meta name="application-name" content="KKU HR Exp" />
 
@@ -156,7 +157,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.23.1"
+      FRONT_PHASE      : "6.25"
     };
   </script>
 
@@ -179,7 +180,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.23.1</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.25</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -386,6 +387,33 @@
       </div>
 
       <!-- ===== แอดมิน (Admin Panel) ===== -->
+      <!-- ===== บริการ (Service Evaluation QR) ===== -->
+      <div id="tab-service" class="tab-panel hidden fade-in">
+        <div class="space-y-3">
+          <div class="hrx-card">
+            <h3 class="hrx-card-title">⭐ ประเมินการบริการหน้างาน</h3>
+            <p class="text-[11px] text-slate-400 mt-1">ให้ผู้รับบริการสแกน QR แล้วประเมินความพึงพอใจ ทุกดาวที่ได้จะกลายเป็น XP ของคุณอัตโนมัติ (สูงสุด 7 ดาว/ครั้ง)</p>
+            <div class="mt-3 flex flex-col items-center gap-3">
+              <div id="svcQrBox" class="p-3 bg-white border border-slate-200 rounded-2xl">
+                <img id="svcQrImg" alt="QR" class="w-52 h-52" />
+              </div>
+              <div id="svcLink" class="text-[11px] font-mono text-slate-500 break-all text-center"></div>
+              <div class="flex gap-2 w-full">
+                <button id="svcCopy" class="flex-1 py-2.5 rounded-xl bg-slate-700 text-white text-xs font-bold active:scale-95 transition">🔗 คัดลอกลิงก์</button>
+                <button id="svcShare" class="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold active:scale-95 transition">📤 แชร์</button>
+              </div>
+            </div>
+          </div>
+          <div class="hrx-card">
+            <div class="flex justify-between items-center">
+              <h3 class="hrx-card-title">📋 ประวัติการประเมินของฉัน</h3>
+              <span id="svcEvalCount" class="text-[11px] text-slate-400"></span>
+            </div>
+            <div id="svcEvalList" class="space-y-2 mt-2"></div>
+          </div>
+        </div>
+      </div>
+
       <div id="tab-admin" class="tab-panel hidden fade-in">
         <div id="adminSubNav">
           <button class="asub-btn active" data-asub="overview">📊 ภาพรวม</button>
@@ -393,6 +421,7 @@
           <button class="asub-btn" data-asub="records">🧾 รายการ</button>
           <button class="asub-btn" data-asub="settings">⚙️ ตั้งค่า</button>
           <button class="asub-btn" data-asub="audit">🕘 ประวัติ</button>
+          <button class="asub-btn" data-asub="service">⭐ ประเมินบริการ</button>
           <button class="asub-btn" data-asub="misc">📢 อื่นๆ</button>
         </div>
 
@@ -548,7 +577,28 @@
           </div>
         </section>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.23.1</p>
+        <!-- ===== หมวด: ประเมินบริการ (Phase 6.25) ===== -->
+        <section class="admin-sub hidden" data-sub="service">
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <div class="flex justify-between items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-700">⭐ ประเมินการบริการหน้างาน</h3>
+              <span id="adminSvcCount" class="text-[11px] text-slate-400"></span>
+            </div>
+            <p class="text-[11px] text-slate-400 mb-2">รายการประเมินจากผู้รับบริการผ่าน QR · 1 ดาว = 1 XP ที่มอบให้เจ้าหน้าที่</p>
+            <div id="adminSvcSummary" class="grid grid-cols-3 gap-2 mb-3"></div>
+            <div class="flex gap-2 mb-2">
+              <input id="adminSvcSearch" placeholder="🔍 ค้นหา เจ้าหน้าที่ / หัวข้อ..." class="flex-1 min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+              <button id="adminSvcRefresh" class="shrink-0 px-3 rounded-xl bg-slate-700 text-white text-xs font-bold active:scale-95 transition">↻ โหลดใหม่</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <button data-export="serviceevals" data-format="xlsx" class="export-btn py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold active:scale-95 transition">ดาวน์โหลด (Excel)</button>
+              <button data-export="serviceevals" data-format="csv" class="export-btn py-2.5 rounded-xl bg-emerald-700 text-white text-xs font-bold active:scale-95 transition">ดาวน์โหลด (CSV)</button>
+            </div>
+            <div id="adminSvcList" class="space-y-2"></div>
+          </div>
+        </section>
+
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.25</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -584,6 +634,7 @@
             <button data-tab="search"  class="tab-btn sheet-item">🔍<span>ค้นหา</span></button>
             <button data-tab="resend"  id="sheetBtnResend" class="tab-btn sheet-item">📤<span>รอส่ง</span></button>
             <button data-tab="profile" class="tab-btn sheet-item">👤<span>โปรไฟล์</span></button>
+            <button data-tab="service" id="sheetBtnService" class="tab-btn sheet-item">⭐<span>บริการ</span></button>
             <button data-tab="admin"   id="sheetBtnAdmin" class="tab-btn sheet-item hidden">🛡️<span>แอดมิน</span></button>
           </div>
         </div>
@@ -777,7 +828,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.23.1 (index.html) · ป้ายแต้ม XP ทุกปุ่มดึงค่าจริงจากตั้งค่าแอดมิน (ไม่ hardcode) · แอดมินดูรายละเอียดครบในแผง "รายการส่งข้อมูล" (กดขยาย: ไฟล์แนบ/รูป · ลิงก์ · ข้อเสนอแนะทุกข้อ) + แก้/ลบได้ทุกส่วน (แก้ข้อความ, ลบข้อเสนอแนะ–ไฟล์–ลิงก์ หัก XP คืน) · แอดมินเปิด/ปิดการมองเห็น "อันดับสมาชิก/ผู้ทำคะแนนสูงสุด" ให้ผู้ใช้ · เมนู: บันทึก(หน้าแรก)/บอร์ดปัญหา/ความรู้/ประวัติ/เพิ่มเติม(แดชบอร์ด/Export)
+     KKU HR Exp — Phase 6.25 (index.html) · ป้ายแต้ม XP ทุกปุ่มดึงค่าจริงจากตั้งค่าแอดมิน (ไม่ hardcode) · แอดมินดูรายละเอียดครบในแผง "รายการส่งข้อมูล" (กดขยาย: ไฟล์แนบ/รูป · ลิงก์ · ข้อเสนอแนะทุกข้อ) + แก้/ลบได้ทุกส่วน (แก้ข้อความ, ลบข้อเสนอแนะ–ไฟล์–ลิงก์ หัก XP คืน) · แอดมินเปิด/ปิดการมองเห็น "อันดับสมาชิก/ผู้ทำคะแนนสูงสุด" ให้ผู้ใช้ · เมนู: บันทึก(หน้าแรก)/บอร์ดปัญหา/ความรู้/ประวัติ/เพิ่มเติม(แดชบอร์ด/Export)
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], submitting:false, fileBusy:0, currentTab:"work", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, solEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0", xpCfg:null };
   let subSearchTimer = null;
@@ -788,7 +839,7 @@
     const v = (c[k] != null) ? Number(c[k]) : XP_FALLBACK[k];
     return isNaN(v) ? XP_FALLBACK[k] : v;
   }
-  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", reject:"รายการถูกตีกลับ (รอส่งใหม่)", remove:"รายการถูกลบโดยแอดมิน", restore:"กู้คืนรายการ (คืน XP)", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅" };
+  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", reject:"รายการถูกตีกลับ (รอส่งใหม่)", remove:"รายการถูกลบโดยแอดมิน", restore:"กู้คืนรายการ (คืน XP)", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅", service_eval:"ประเมินการบริการหน้างาน", service_eval_void:"ยกเลิกผลประเมินบริการ (หัก XP คืน)" };
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -1564,6 +1615,7 @@
     if (tab === "history") loadHistory();
     if (tab === "resend") loadResend();
     if (tab === "profile") loadProfile();
+    if (tab === "service") loadService();
     if (tab === "admin") { switchAdminSub("overview"); loadAdmin(); }
   }
 
@@ -1573,6 +1625,152 @@
       b.classList.toggle("active", b.dataset.asub === name));
     document.querySelectorAll("#tab-admin .admin-sub").forEach(s =>
       s.classList.toggle("hidden", s.dataset.sub !== name));
+    if (name === "service") loadAdminServiceEvals();
+  }
+
+  /* ---------- บริการ: QR ประเมินหน้างาน (Phase 6.25) ---------- */
+  function svcEvalUrl_(token) {
+    try { return new URL("evaluate.html?t=" + encodeURIComponent(token), location.href).href; }
+    catch (e) { return "evaluate.html?t=" + encodeURIComponent(token); }
+  }
+  async function loadService() {
+    const qr = $("svcQrImg"), link = $("svcLink"), list = $("svcEvalList");
+    if (link) link.textContent = "กำลังโหลด...";
+    try {
+      const d = await apiGet({ action: "serviceToken", idToken: state.idToken });
+      if (!d || d.status !== "ok" || !d.token) throw new Error((d && d.message) || "ไม่สามารถสร้าง QR ได้");
+      state.serviceToken = d.token;
+      const url = svcEvalUrl_(d.token);
+      state.serviceUrl = url;
+      if (link) link.textContent = url;
+      if (qr) {
+        try {
+          const q = qrcode(0, "M");
+          q.addData(url);
+          q.make();
+          qr.src = q.createDataURL(6, 8);
+        } catch (e) { qr.alt = "QR error"; }
+      }
+    } catch (err) {
+      if (link) link.textContent = "เกิดข้อผิดพลาด: " + err.message;
+    }
+    loadMyServiceEvals();
+  }
+  async function loadMyServiceEvals() {
+    const list = $("svcEvalList"), cnt = $("svcEvalCount");
+    if (!list) return;
+    list.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">กำลังโหลด...</p>`;
+    try {
+      const d = await apiGet({ action: "myServiceEvals", idToken: state.idToken, email: state.user && state.user.email });
+      const items = (d && d.items) || [];
+      if (cnt) cnt.textContent = items.length ? items.length + " รายการ" : "";
+      list.innerHTML = items.length ? items.map(renderServiceEvalCard_).join("")
+        : `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีการประเมิน</p>`;
+    } catch (err) {
+      list.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+    }
+  }
+  function starsHtml_(n, max) {
+    n = Number(n) || 0; max = Number(max) || 5;
+    let s = "";
+    for (let i = 1; i <= max; i++) s += i <= n ? "⭐" : "☆";
+    return s;
+  }
+  function renderServiceEvalCard_(r) {
+    return `
+      <div class="rounded-xl border border-slate-100 p-3">
+        <div class="flex justify-between items-start gap-2">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-slate-800 break-words">${esc(r.title)}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">${esc(r.time)}${r.location ? " · " + esc(r.location) : ""}</p>
+          </div>
+          <span class="shrink-0 text-[11px] font-bold text-amber-600">+${Number(r.xp) || 0} XP</span>
+        </div>
+        <div class="mt-1.5 text-[11px] text-slate-600">
+          <div>แก้ไขได้รวดเร็ว: <span class="text-amber-500">${starsHtml_(r.fast, 5)}</span></div>
+          <div>ช่วยไม่ได้ แจ้งส่วนอื่น: <span class="text-amber-500">${starsHtml_(r.unable, 2)}</span></div>
+          <div class="text-slate-400 mt-0.5">รวม ${Number(r.stars) || 0} ดาว</div>
+        </div>
+        ${r.comment ? `<p class="text-[11px] text-slate-500 mt-1 whitespace-pre-wrap">${esc(r.comment)}</p>` : ""}
+      </div>`;
+  }
+  async function loadAdminServiceEvals() {
+    const list = $("adminSvcList"), cnt = $("adminSvcCount");
+    if (!list) return;
+    list.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">กำลังโหลด...</p>`;
+    try {
+      const d = await apiGet({ action: "adminServiceEvals", idToken: state.idToken });
+      const items = (d && d.items) || [];
+      state.adminSvcEvals = items;
+      renderAdminServiceEvals();
+    } catch (err) {
+      list.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+    }
+  }
+  function renderAdminServiceEvals() {
+    const list = $("adminSvcList"), cnt = $("adminSvcCount"), sum = $("adminSvcSummary");
+    if (!list) return;
+    const q = (($("adminSvcSearch") && $("adminSvcSearch").value) || "").trim().toLowerCase();
+    const all = state.adminSvcEvals || [];
+    const active = all.filter(r => (r.status || "Active") !== "Void");
+    const avg = active.length ? (active.reduce((a, r) => a + (Number(r.stars) || 0), 0) / active.length) : 0;
+    if (sum) {
+      sum.innerHTML = `
+        <div class="rounded-xl bg-slate-50 p-2 text-center"><div class="text-[10px] text-slate-400">ทั้งหมด</div><div class="text-sm font-bold text-slate-700">${active.length}</div></div>
+        <div class="rounded-xl bg-amber-50 p-2 text-center"><div class="text-[10px] text-amber-500">ดาวเฉลี่ย</div><div class="text-sm font-bold text-amber-600">${avg.toFixed(1)}</div></div>
+        <div class="rounded-xl bg-red-50 p-2 text-center"><div class="text-[10px] text-red-400">ยกเลิก</div><div class="text-sm font-bold text-red-500">${all.length - active.length}</div></div>`;
+    }
+    let items = all;
+    if (q) items = items.filter(r =>
+      (r.officer || "").toLowerCase().includes(q) ||
+      (r.officerName || "").toLowerCase().includes(q) ||
+      (r.title || "").toLowerCase().includes(q) ||
+      (r.location || "").toLowerCase().includes(q));
+    if (cnt) cnt.textContent = items.length ? items.length + " รายการ" : "";
+    list.innerHTML = items.length ? items.map(r => {
+      const voided = (r.status || "Active") === "Void";
+      return `
+      <div class="rounded-xl border ${voided ? "border-red-100 bg-red-50/40" : "border-slate-100"} p-3">
+        <div class="flex justify-between items-start gap-2">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold ${voided ? "text-slate-400 line-through" : "text-slate-800"} break-words">${esc(r.title)}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">${esc(r.time)}${r.location ? " · " + esc(r.location) : ""}</p>
+          </div>
+          <span class="shrink-0 text-[11px] font-bold ${voided ? "text-slate-400" : "text-amber-600"}">${Number(r.stars) || 0} ดาว</span>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">👤 ${esc(r.officerName || r.officer)} <span class="text-slate-400">(${esc(r.officer)})</span></p>
+        <div class="mt-1 text-[11px] text-slate-600">
+          <div>แก้ไขได้รวดเร็ว: <span class="text-amber-500">${starsHtml_(r.fast, 5)}</span></div>
+          <div>ช่วยไม่ได้ แจ้งส่วนอื่น: <span class="text-amber-500">${starsHtml_(r.unable, 2)}</span></div>
+          ${r.requester ? `<div class="text-slate-400 mt-0.5">ผู้ประเมิน: ${esc(r.requester)}</div>` : ""}
+        </div>
+        ${r.comment ? `<p class="text-[11px] text-slate-500 mt-1 whitespace-pre-wrap">${esc(r.comment)}</p>` : ""}
+        ${voided
+          ? `<p class="text-[11px] text-red-500 mt-2">❌ ยกเลิกแล้ว${r.voidReason ? " · " + esc(r.voidReason) : ""}</p>`
+          : `<button class="svc-void mt-2 text-[11px] px-3 py-1.5 rounded-lg bg-red-600 text-white font-bold active:scale-95 transition" data-id="${esc(r.id)}">🗑️ ยกเลิก + หัก XP คืน</button>`}
+      </div>`;
+    }).join("")
+      : `<p class="text-sm text-slate-400 text-center py-4">ไม่พบรายการ</p>`;
+  }
+  async function voidServiceEval(id) {
+    if (!id) return;
+    const reason = prompt("เหตุผลในการยกเลิกผลประเมินนี้ (จะหัก XP คืนเจ้าหน้าที่):", "");
+    if (reason === null) return;
+    if (!reason.trim()) { showToast("กรุณาระบุเหตุผล", "warn"); return; }
+    const ok = await postAction({ action: "voidServiceEval", idToken: state.idToken, email: state.user.email, evalId: id, reason: reason.trim() }, "✅ ส่งคำขอยกเลิกแล้ว กำลังอัปเดต...");
+    if (ok) { await new Promise(r => setTimeout(r, 800)); loadAdminServiceEvals(); }
+  }
+  async function copyServiceLink() {
+    if (!state.serviceUrl) { showToast("ยังไม่มีลิงก์ กรุณารอสักครู่", "warn"); return; }
+    try { await navigator.clipboard.writeText(state.serviceUrl); showToast("✅ คัดลอกลิงก์แล้ว"); }
+    catch (e) { showToast("คัดลอกไม่สำเร็จ", "error"); }
+  }
+  async function shareServiceLink() {
+    if (!state.serviceUrl) { showToast("ยังไม่มีลิงก์ กรุณารอสักครู่", "warn"); return; }
+    if (navigator.share) {
+      try { await navigator.share({ title: "ประเมินการบริการ", text: "กรุณาประเมินการบริการหน้างาน", url: state.serviceUrl }); }
+      catch (e) { /* cancelled */ }
+    } else copyServiceLink();
   }
 
   function renderModeButtons() {
@@ -3514,7 +3712,7 @@
       const data = await apiGet({ action:"exportData", type, idToken:state.idToken });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       if (!data.rows.length) { showToast("ไม่มีข้อมูลให้ Export", "warn"); return; }
-      const label = type === "issues" ? "Issues" : "Work_Logs";
+      const label = type === "issues" ? "Issues" : (type === "serviceevals" ? "Service_Evals" : "Work_Logs");
       const stamp = new Date().toISOString().slice(0, 10);
       if (format === "csv") exportCsv(data.rows, `${label}_${stamp}.csv`);
       else exportXlsx(data.rows, `${label}_${stamp}.xlsx`);
@@ -3619,6 +3817,14 @@
     $("expCsv").addEventListener("click", (e) => runBusy(e.currentTarget, () => myExport("csv")));
     $("expXlsx").addEventListener("click", (e) => runBusy(e.currentTarget, () => myExport("xlsx")));
     document.querySelectorAll(".export-btn").forEach(b => b.addEventListener("click", () => runBusy(b, () => doExport(b.dataset.export, b.dataset.format))));
+    if ($("svcCopy")) $("svcCopy").addEventListener("click", copyServiceLink);
+    if ($("svcShare")) $("svcShare").addEventListener("click", shareServiceLink);
+    if ($("adminSvcRefresh")) $("adminSvcRefresh").addEventListener("click", (e) => runBusy(e.currentTarget, loadAdminServiceEvals));
+    if ($("adminSvcSearch")) $("adminSvcSearch").addEventListener("input", () => { clearTimeout(state._svcSearchTimer); state._svcSearchTimer = setTimeout(renderAdminServiceEvals, 300); });
+    if ($("adminSvcList")) $("adminSvcList").addEventListener("click", (e) => {
+      const b = e.target.closest(".svc-void");
+      if (b) voidServiceEval(b.dataset.id);
+    });
     $("linkAddRow").addEventListener("click", addLinkRow);
     $("linkCancel").addEventListener("click", () => { $("linkModal").classList.add("hidden"); state.linkCtx = null; });
     $("linkSave").addEventListener("click", (e) => runBusy(e.currentTarget, saveLinks));
