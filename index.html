@@ -157,7 +157,7 @@
       GOOGLE_CLIENT_ID : "582239705819-d8bbiel4qtlhmf25evv98edcp7ffgi43.apps.googleusercontent.com",
       APPS_SCRIPT_URL  : "https://script.google.com/macros/s/AKfycbwJDnlvsrBO4SvZmPOoytZRoqHy67Ef1QGg_345eTkx9NUZuLvbPXQ2KUBQNqygpWXP/exec",
       ALLOWED_DOMAIN   : "kku.ac.th",
-      FRONT_PHASE      : "6.25"
+      FRONT_PHASE      : "6.26"
     };
   </script>
 
@@ -180,7 +180,7 @@
       <p class="mt-6 text-[11px] text-slate-400 leading-relaxed">อนุญาตเฉพาะบัญชีอีเมล <span class="font-semibold text-red-700">@kku.ac.th</span> เท่านั้น</p>
       <p id="loginError" class="hidden mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3"></p>
     </div>
-    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.25</p>
+    <p class="mt-6 text-[11px] text-slate-400">© KKU Audiovisual — Phase 6.26</p>
   </section>
 
   <!-- ================= APP ================= -->
@@ -409,6 +409,7 @@
               <h3 class="hrx-card-title">📋 ประวัติการประเมินของฉัน</h3>
               <span id="svcEvalCount" class="text-[11px] text-slate-400"></span>
             </div>
+            <div id="svcSummary" class="grid grid-cols-3 gap-2 mt-2"></div>
             <div id="svcEvalList" class="space-y-2 mt-2"></div>
           </div>
         </div>
@@ -422,6 +423,7 @@
           <button class="asub-btn" data-asub="settings">⚙️ ตั้งค่า</button>
           <button class="asub-btn" data-asub="audit">🕘 ประวัติ</button>
           <button class="asub-btn" data-asub="service">⭐ ประเมินบริการ</button>
+          <button class="asub-btn" data-asub="report">📈 รายงานประเมิน</button>
           <button class="asub-btn" data-asub="misc">📢 อื่นๆ</button>
         </div>
 
@@ -577,7 +579,7 @@
           </div>
         </section>
 
-        <!-- ===== หมวด: ประเมินบริการ (Phase 6.25) ===== -->
+        <!-- ===== หมวด: ประเมินบริการ (Phase 6.26) ===== -->
         <section class="admin-sub hidden" data-sub="service">
           <div class="bg-white rounded-2xl shadow-sm p-4">
             <div class="flex justify-between items-center gap-2">
@@ -598,7 +600,30 @@
           </div>
         </section>
 
-        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.25</p>
+        <!-- ===== หมวด: รายงานการประเมิน (Phase 6.26) ===== -->
+        <section class="admin-sub hidden" data-sub="report">
+          <div class="bg-white rounded-2xl shadow-sm p-4">
+            <div class="flex justify-between items-center gap-2">
+              <h3 class="text-sm font-bold text-slate-700">📈 รายงานการประเมินบริการ</h3>
+              <span id="adminReportCount" class="text-[11px] text-slate-400"></span>
+            </div>
+            <p class="text-[11px] text-slate-400 mb-2">สรุปคะแนนเฉลี่ยต่อเจ้าหน้าที่ · แตะชื่อเพื่อดูรายการประเมินของคนนั้น</p>
+            <div id="adminReportSummary" class="grid grid-cols-2 gap-2 mb-3"></div>
+            <div class="flex gap-2 mb-2">
+              <input id="adminReportSearch" placeholder="🔍 ค้นหา เจ้าหน้าที่..." class="flex-1 min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+              <button id="adminReportRefresh" class="shrink-0 px-3 rounded-xl bg-slate-700 text-white text-xs font-bold active:scale-95 transition">↻ โหลดใหม่</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <button data-export="serviceReport" data-format="xlsx" class="export-btn py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold active:scale-95 transition">สรุป (Excel)</button>
+              <button data-export="serviceReport" data-format="csv" class="export-btn py-2.5 rounded-xl bg-indigo-700 text-white text-xs font-bold active:scale-95 transition">สรุป (CSV)</button>
+              <button data-export="serviceevals" data-format="xlsx" class="export-btn py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold active:scale-95 transition">รายการดิบ (Excel)</button>
+              <button data-export="serviceevals" data-format="csv" class="export-btn py-2.5 rounded-xl bg-emerald-700 text-white text-xs font-bold active:scale-95 transition">รายการดิบ (CSV)</button>
+            </div>
+            <div id="adminReportList" class="space-y-2"></div>
+          </div>
+        </section>
+
+        <p class="text-center text-[11px] text-slate-400 py-4">🛡️ Admin Panel · Phase 6.26</p>
       </div>
 
       <div class="max-w-lg mx-auto px-4 pt-2 pb-4 text-center">
@@ -811,6 +836,20 @@
     </div>
   </div>
 
+  <!-- ================= Modal: โปรไฟล์เจ้าหน้าที่ (admin) — Phase 6.26 ================= -->
+  <div id="officerModal" class="hidden fixed inset-0 z-[88] bg-black/50 flex items-end sm:items-center justify-center sm:p-5">
+    <div class="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden pop max-h-[90vh] flex flex-col">
+      <div class="p-4 text-white bg-gradient-to-r from-red-700 to-red-800 flex items-center justify-between gap-2 shrink-0">
+        <div class="min-w-0">
+          <h2 id="officerModalTitle" class="text-base font-bold truncate">โปรไฟล์เจ้าหน้าที่</h2>
+          <p id="officerModalSub" class="text-[11px] text-white/80 truncate"></p>
+        </div>
+        <button id="officerModalClose" class="shrink-0 w-9 h-9 rounded-full bg-white/15 text-white text-lg active:scale-95 transition">✕</button>
+      </div>
+      <div id="officerModalBody" class="p-4 overflow-y-auto"></div>
+    </div>
+  </div>
+
   <!-- ================= Toast ================= -->
   <div id="toast" class="hidden fixed bottom-6 inset-x-0 z-[80] flex justify-center px-4">    <div id="toastBox" class="max-w-sm w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl text-center"></div>
   </div>
@@ -828,7 +867,7 @@
 
   <script>
   /* ============================================================
-     KKU HR Exp — Phase 6.25 (index.html) · ป้ายแต้ม XP ทุกปุ่มดึงค่าจริงจากตั้งค่าแอดมิน (ไม่ hardcode) · แอดมินดูรายละเอียดครบในแผง "รายการส่งข้อมูล" (กดขยาย: ไฟล์แนบ/รูป · ลิงก์ · ข้อเสนอแนะทุกข้อ) + แก้/ลบได้ทุกส่วน (แก้ข้อความ, ลบข้อเสนอแนะ–ไฟล์–ลิงก์ หัก XP คืน) · แอดมินเปิด/ปิดการมองเห็น "อันดับสมาชิก/ผู้ทำคะแนนสูงสุด" ให้ผู้ใช้ · เมนู: บันทึก(หน้าแรก)/บอร์ดปัญหา/ความรู้/ประวัติ/เพิ่มเติม(แดชบอร์ด/Export)
+     KKU HR Exp — Phase 6.26 (index.html) · ป้ายแต้ม XP ทุกปุ่มดึงค่าจริงจากตั้งค่าแอดมิน (ไม่ hardcode) · แอดมินดูรายละเอียดครบในแผง "รายการส่งข้อมูล" (กดขยาย: ไฟล์แนบ/รูป · ลิงก์ · ข้อเสนอแนะทุกข้อ) + แก้/ลบได้ทุกส่วน (แก้ข้อความ, ลบข้อเสนอแนะ–ไฟล์–ลิงก์ หัก XP คืน) · แอดมินเปิด/ปิดการมองเห็น "อันดับสมาชิก/ผู้ทำคะแนนสูงสุด" ให้ผู้ใช้ · เมนู: บันทึก(หน้าแรก)/บอร์ดปัญหา/ความรู้/ประวัติ/เพิ่มเติม(แดชบอร์ด/Export)
      ============================================================ */
   const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], submitting:false, fileBusy:0, currentTab:"work", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, solEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], sound: localStorage.getItem("hrx_sound") !== "0", xpCfg:null };
   let subSearchTimer = null;
@@ -839,7 +878,7 @@
     const v = (c[k] != null) ? Number(c[k]) : XP_FALLBACK[k];
     return isNaN(v) ? XP_FALLBACK[k] : v;
   }
-  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", reject:"รายการถูกตีกลับ (รอส่งใหม่)", remove:"รายการถูกลบโดยแอดมิน", restore:"กู้คืนรายการ (คืน XP)", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅", service_eval:"ประเมินการบริการหน้างาน", service_eval_void:"ยกเลิกผลประเมินบริการ (หัก XP คืน)" };
+  const REASON_LABEL = { work_log:"บันทึกงาน", issue:"แจ้งปัญหา", solution:"เสนอวิธีแก้ปัญหา", resolve_issue:"ยืนยันแก้ไขสำเร็จ", like_received:"ได้รับ Like", bonus:"XP พิเศษจากแอดมิน", void:"รายการถูกยกเลิกโดยแอดมิน", reject:"รายการถูกตีกลับ (รอส่งใหม่)", remove:"รายการถูกลบโดยแอดมิน", restore:"กู้คืนรายการ (คืน XP)", streak:"โบนัสสตรีค 🔥", achievement:"ปลดล็อกความสำเร็จ 🏅", service_eval:"ประเมินการบริการหน้างาน", service_eval_void:"ยกเลิกผลประเมินบริการ (หัก XP คืน)", service_eval_restore:"กู้คืนผลประเมินบริการ (คืน XP)" };
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -1621,14 +1660,16 @@
 
   /* ---------- Admin sub-tabs ---------- */
   function switchAdminSub(name) {
+    state.adminSub = name;
     document.querySelectorAll("#adminSubNav .asub-btn").forEach(b =>
       b.classList.toggle("active", b.dataset.asub === name));
     document.querySelectorAll("#tab-admin .admin-sub").forEach(s =>
       s.classList.toggle("hidden", s.dataset.sub !== name));
     if (name === "service") loadAdminServiceEvals();
+    if (name === "report") loadAdminServiceReport();
   }
 
-  /* ---------- บริการ: QR ประเมินหน้างาน (Phase 6.25) ---------- */
+  /* ---------- บริการ: QR ประเมินหน้างาน (Phase 6.26) ---------- */
   function svcEvalUrl_(token) {
     try { return new URL("evaluate.html?t=" + encodeURIComponent(token), location.href).href; }
     catch (e) { return "evaluate.html?t=" + encodeURIComponent(token); }
@@ -1657,12 +1698,21 @@
     loadMyServiceEvals();
   }
   async function loadMyServiceEvals() {
-    const list = $("svcEvalList"), cnt = $("svcEvalCount");
+    const list = $("svcEvalList"), cnt = $("svcEvalCount"), sum = $("svcSummary");
     if (!list) return;
     list.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">กำลังโหลด...</p>`;
     try {
       const d = await apiGet({ action: "myServiceEvals", idToken: state.idToken, email: state.user && state.user.email });
       const items = (d && d.items) || [];
+      const active = items.filter(r => (r.status || "Active") !== "Void");
+      const avg = active.length ? active.reduce((a, r) => a + (Number(r.stars) || 0), 0) / active.length : 0;
+      const xp = active.reduce((a, r) => a + (Number(r.xp) || 0), 0);
+      if (sum) {
+        sum.innerHTML = `
+          <div class="rounded-xl bg-slate-50 p-2 text-center"><div class="text-[10px] text-slate-400">ประเมิน</div><div class="text-sm font-bold text-slate-700">${active.length}</div></div>
+          <div class="rounded-xl bg-amber-50 p-2 text-center"><div class="text-[10px] text-amber-500">ดาวเฉลี่ย</div><div class="text-sm font-bold text-amber-600">${avg.toFixed(1)}</div></div>
+          <div class="rounded-xl bg-red-50 p-2 text-center"><div class="text-[10px] text-red-400">XP ที่ได้</div><div class="text-sm font-bold text-red-600">+${xp}</div></div>`;
+      }
       if (cnt) cnt.textContent = items.length ? items.length + " รายการ" : "";
       list.innerHTML = items.length ? items.map(renderServiceEvalCard_).join("")
         : `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีการประเมิน</p>`;
@@ -1677,14 +1727,15 @@
     return s;
   }
   function renderServiceEvalCard_(r) {
+    const voided = (r.status || "Active") === "Void";
     return `
-      <div class="rounded-xl border border-slate-100 p-3">
+      <div class="rounded-xl border ${voided ? "border-red-100 bg-red-50/40" : "border-slate-100"} p-3">
         <div class="flex justify-between items-start gap-2">
           <div class="min-w-0">
-            <p class="text-sm font-semibold text-slate-800 break-words">${esc(r.title)}</p>
+            <p class="text-sm font-semibold ${voided ? "text-slate-400 line-through" : "text-slate-800"} break-words">${esc(r.title)}</p>
             <p class="text-[11px] text-slate-400 mt-0.5">${esc(r.time)}${r.location ? " · " + esc(r.location) : ""}</p>
           </div>
-          <span class="shrink-0 text-[11px] font-bold text-amber-600">+${Number(r.xp) || 0} XP</span>
+          <span class="shrink-0 text-[11px] font-bold ${voided ? "text-slate-400" : "text-amber-600"}">${voided ? "0 XP" : "+" + (Number(r.xp) || 0) + " XP"}</span>
         </div>
         <div class="mt-1.5 text-[11px] text-slate-600">
           <div>แก้ไขได้รวดเร็ว: <span class="text-amber-500">${starsHtml_(r.fast, 5)}</span></div>
@@ -1692,6 +1743,7 @@
           <div class="text-slate-400 mt-0.5">รวม ${Number(r.stars) || 0} ดาว</div>
         </div>
         ${r.comment ? `<p class="text-[11px] text-slate-500 mt-1 whitespace-pre-wrap">${esc(r.comment)}</p>` : ""}
+        ${voided ? `<p class="text-[11px] text-red-500 mt-1">❌ ถูกยกเลิกโดยแอดมิน</p>` : ""}
       </div>`;
   }
   async function loadAdminServiceEvals() {
@@ -1738,7 +1790,7 @@
           </div>
           <span class="shrink-0 text-[11px] font-bold ${voided ? "text-slate-400" : "text-amber-600"}">${Number(r.stars) || 0} ดาว</span>
         </div>
-        <p class="text-[11px] text-slate-500 mt-1">👤 ${esc(r.officerName || r.officer)} <span class="text-slate-400">(${esc(r.officer)})</span></p>
+        <p class="text-[11px] text-slate-500 mt-1">👤 <button class="svc-officer font-semibold text-red-700 active:scale-95" data-email="${esc(r.officer)}">${esc(r.officerName || r.officer)}</button> <span class="text-slate-400">(${esc(r.officer)})</span></p>
         <div class="mt-1 text-[11px] text-slate-600">
           <div>แก้ไขได้รวดเร็ว: <span class="text-amber-500">${starsHtml_(r.fast, 5)}</span></div>
           <div>ช่วยไม่ได้ แจ้งส่วนอื่น: <span class="text-amber-500">${starsHtml_(r.unable, 2)}</span></div>
@@ -1746,7 +1798,10 @@
         </div>
         ${r.comment ? `<p class="text-[11px] text-slate-500 mt-1 whitespace-pre-wrap">${esc(r.comment)}</p>` : ""}
         ${voided
-          ? `<p class="text-[11px] text-red-500 mt-2">❌ ยกเลิกแล้ว${r.voidReason ? " · " + esc(r.voidReason) : ""}</p>`
+          ? `<div class="flex items-center gap-2 mt-2">
+               <span class="text-[11px] text-red-500">❌ ยกเลิกแล้ว${r.voidReason ? " · " + esc(r.voidReason) : ""}</span>
+               <button class="svc-restore text-[11px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold active:scale-95 transition" data-id="${esc(r.id)}">♻️ กู้คืน + คืน XP</button>
+             </div>`
           : `<button class="svc-void mt-2 text-[11px] px-3 py-1.5 rounded-lg bg-red-600 text-white font-bold active:scale-95 transition" data-id="${esc(r.id)}">🗑️ ยกเลิก + หัก XP คืน</button>`}
       </div>`;
     }).join("")
@@ -1758,7 +1813,123 @@
     if (reason === null) return;
     if (!reason.trim()) { showToast("กรุณาระบุเหตุผล", "warn"); return; }
     const ok = await postAction({ action: "voidServiceEval", idToken: state.idToken, email: state.user.email, evalId: id, reason: reason.trim() }, "✅ ส่งคำขอยกเลิกแล้ว กำลังอัปเดต...");
-    if (ok) { await new Promise(r => setTimeout(r, 800)); loadAdminServiceEvals(); }
+    if (ok) await refreshServiceViews();
+  }
+  async function restoreServiceEval(id) {
+    if (!id) return;
+    const reason = prompt("เหตุผลในการกู้คืนผลประเมินนี้ (จะคืน XP ให้เจ้าหน้าที่):", "กู้คืนตามคำขอ");
+    if (reason === null) return;
+    const ok = await postAction({ action: "restoreServiceEval", idToken: state.idToken, email: state.user.email, evalId: id, reason: reason.trim() }, "✅ ส่งคำขอกู้คืนแล้ว กำลังอัปเดต...");
+    if (ok) await refreshServiceViews();
+  }
+  async function refreshServiceViews() {
+    await new Promise(r => setTimeout(r, 800));
+    const sub = state.adminSub || "";
+    if (sub === "report") await loadAdminServiceReport();
+    else await loadAdminServiceEvals();
+    const om = $("officerModal");
+    if (om && !om.classList.contains("hidden") && state.officerEmail) openOfficerProfile(state.officerEmail, true);
+  }
+
+  /* ---------- รายงานการประเมิน (Phase 6.26) ---------- */
+  function serviceOfficerAgg_(items) {
+    const by = {};
+    (items || []).forEach(r => {
+      const key = String(r.officer || "");
+      if (!key) return;
+      if (!by[key]) by[key] = { email: key, name: r.officerName || key, count: 0, stars: 0, xp: 0, voidCount: 0, last: "" };
+      const o = by[key];
+      if ((r.status || "Active") === "Void") o.voidCount++;
+      else {
+        o.count++; o.stars += Number(r.stars) || 0; o.xp += Number(r.xp) || 0;
+        if (String(r.time || "") > o.last) o.last = String(r.time || "");
+      }
+    });
+    return Object.values(by).sort((a, b) => (b.count ? b.stars / b.count : 0) - (a.count ? a.stars / a.count : 0) || b.count - a.count);
+  }
+  async function loadAdminServiceReport() {
+    const list = $("adminReportList");
+    if (!list) return;
+    list.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">กำลังโหลด...</p>`;
+    try {
+      const d = await apiGet({ action: "adminServiceEvals", idToken: state.idToken });
+      state.adminSvcEvals = (d && d.items) || [];
+      renderAdminServiceReport();
+    } catch (err) {
+      list.innerHTML = `<p class="text-sm text-red-500 text-center py-4">โหลดไม่สำเร็จ: ${esc(err.message)}</p>`;
+    }
+  }
+  function renderAdminServiceReport() {
+    const list = $("adminReportList"), cnt = $("adminReportCount"), sum = $("adminReportSummary");
+    if (!list) return;
+    const all = state.adminSvcEvals || [];
+    const agg = serviceOfficerAgg_(all);
+    const active = all.filter(r => (r.status || "Active") !== "Void");
+    const avg = active.length ? active.reduce((a, r) => a + (Number(r.stars) || 0), 0) / active.length : 0;
+    if (sum) {
+      sum.innerHTML = `
+        <div class="rounded-xl bg-slate-50 p-2.5 text-center"><div class="text-[10px] text-slate-400">ประเมินทั้งหมด</div><div class="text-lg font-bold text-slate-700">${active.length}</div></div>
+        <div class="rounded-xl bg-amber-50 p-2.5 text-center"><div class="text-[10px] text-amber-500">ดาวเฉลี่ยรวม</div><div class="text-lg font-bold text-amber-600">${avg.toFixed(1)}</div></div>
+        <div class="rounded-xl bg-indigo-50 p-2.5 text-center"><div class="text-[10px] text-indigo-400">เจ้าหน้าที่ที่มีผลประเมิน</div><div class="text-lg font-bold text-indigo-600">${agg.length}</div></div>
+        <div class="rounded-xl bg-red-50 p-2.5 text-center"><div class="text-[10px] text-red-400">ถูกยกเลิก</div><div class="text-lg font-bold text-red-500">${all.length - active.length}</div></div>`;
+    }
+    const q = (($("adminReportSearch") && $("adminReportSearch").value) || "").trim().toLowerCase();
+    let rows = agg;
+    if (q) rows = rows.filter(o => (o.name || "").toLowerCase().includes(q) || (o.email || "").toLowerCase().includes(q));
+    if (cnt) cnt.textContent = rows.length ? rows.length + " คน" : "";
+    list.innerHTML = rows.length ? rows.map(o => {
+      const a = o.count ? (o.stars / o.count) : 0;
+      return `
+      <button class="svc-officer w-full text-left rounded-xl border border-slate-100 p-3 active:scale-[.99] transition" data-email="${esc(o.email)}">
+        <div class="flex justify-between items-center gap-2">
+          <span class="text-sm font-semibold text-slate-800 truncate">👤 ${esc(o.name)}</span>
+          <span class="text-[11px] font-bold text-amber-600 shrink-0">${a.toFixed(1)} ดาว</span>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-1">${o.count} ประเมิน · ดาวรวม ${o.stars} · +${o.xp} XP${o.voidCount ? ` · <span class="text-red-500">ยกเลิก ${o.voidCount}</span>` : ""}</div>
+        <div class="text-[10px] text-slate-400 mt-0.5 truncate">${esc(o.email)}${o.last ? " · ล่าสุด " + esc(o.last) : ""}</div>
+      </button>`;
+    }).join("")
+      : `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีข้อมูล</p>`;
+  }
+
+  /* ---------- Modal โปรไฟล์เจ้าหน้าที่ ---------- */
+  function openOfficerProfile(email, keepModal) {
+    if (!email) return;
+    state.officerEmail = email;
+    const om = $("officerModal");
+    if (om) om.classList.remove("hidden");
+    const items = (state.adminSvcEvals || []).filter(r => String(r.officer) === String(email));
+    const agg = serviceOfficerAgg_(items)[0] || { name: email, count: 0, stars: 0, xp: 0, voidCount: 0 };
+    if ($("officerModalTitle")) $("officerModalTitle").textContent = "👤 " + (agg.name || email);
+    if ($("officerModalSub")) $("officerModalSub").textContent = `${agg.count} ประเมิน · ดาวเฉลี่ย ${agg.count ? (agg.stars / agg.count).toFixed(1) : 0} · +${agg.xp} XP${agg.voidCount ? " · ยกเลิก " + agg.voidCount : ""}`;
+    const body = $("officerModalBody");
+    if (!body) return;
+    const sorted = items.slice().sort((a, b) => String(b.time || "") < String(a.time || "") ? -1 : 1);
+    body.innerHTML = sorted.length ? sorted.map(r => {
+      const voided = (r.status || "Active") === "Void";
+      return `
+      <div class="rounded-xl border ${voided ? "border-red-100 bg-red-50/40" : "border-slate-100"} p-3 mb-2">
+        <div class="flex justify-between items-start gap-2">
+          <p class="text-sm font-semibold ${voided ? "text-slate-400 line-through" : "text-slate-800"} break-words">${esc(r.title)}</p>
+          <span class="shrink-0 text-[11px] font-bold ${voided ? "text-slate-400" : "text-amber-600"}">${Number(r.stars) || 0} ดาว</span>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-0.5">${esc(r.time)}${r.location ? " · " + esc(r.location) : ""}</p>
+        <p class="text-[11px] text-slate-500 mt-1">แก้ไขเร็ว ${starsHtml_(r.fast, 5)} · ส่วนอื่น ${starsHtml_(r.unable, 2)}</p>
+        ${r.comment ? `<p class="text-[11px] text-slate-500 mt-1 whitespace-pre-wrap">${esc(r.comment)}</p>` : ""}
+        ${voided
+          ? `<div class="flex items-center gap-2 mt-2">
+               <span class="text-[11px] text-red-500">❌ ยกเลิกแล้ว${r.voidReason ? " · " + esc(r.voidReason) : ""}</span>
+               <button class="svc-restore text-[11px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold active:scale-95 transition" data-id="${esc(r.id)}">♻️ กู้คืน + คืน XP</button>
+             </div>`
+          : `<button class="svc-void mt-2 text-[11px] px-3 py-1.5 rounded-lg bg-red-600 text-white font-bold active:scale-95 transition" data-id="${esc(r.id)}">🗑️ ยกเลิก + หัก XP คืน</button>`}
+      </div>`;
+    }).join("")
+      : `<p class="text-sm text-slate-400 text-center py-6">ยังไม่มีการประเมิน</p>`;
+  }
+  function closeOfficerProfile() {
+    const om = $("officerModal");
+    if (om) om.classList.add("hidden");
+    state.officerEmail = null;
   }
   async function copyServiceLink() {
     if (!state.serviceUrl) { showToast("ยังไม่มีลิงก์ กรุณารอสักครู่", "warn"); return; }
@@ -3712,7 +3883,7 @@
       const data = await apiGet({ action:"exportData", type, idToken:state.idToken });
       if (!data || data.status !== "ok") throw new Error((data && data.message) || "error");
       if (!data.rows.length) { showToast("ไม่มีข้อมูลให้ Export", "warn"); return; }
-      const label = type === "issues" ? "Issues" : (type === "serviceevals" ? "Service_Evals" : "Work_Logs");
+      const label = type === "issues" ? "Issues" : (type === "serviceevals" ? "Service_Evals" : (type === "serviceReport" ? "Service_Report" : "Work_Logs"));
       const stamp = new Date().toISOString().slice(0, 10);
       if (format === "csv") exportCsv(data.rows, `${label}_${stamp}.csv`);
       else exportXlsx(data.rows, `${label}_${stamp}.xlsx`);
@@ -3822,8 +3993,20 @@
     if ($("adminSvcRefresh")) $("adminSvcRefresh").addEventListener("click", (e) => runBusy(e.currentTarget, loadAdminServiceEvals));
     if ($("adminSvcSearch")) $("adminSvcSearch").addEventListener("input", () => { clearTimeout(state._svcSearchTimer); state._svcSearchTimer = setTimeout(renderAdminServiceEvals, 300); });
     if ($("adminSvcList")) $("adminSvcList").addEventListener("click", (e) => {
-      const b = e.target.closest(".svc-void");
-      if (b) voidServiceEval(b.dataset.id);
+      const w = e.target.closest(".svc-void"); if (w) return voidServiceEval(w.dataset.id);
+      const r = e.target.closest(".svc-restore"); if (r) return restoreServiceEval(r.dataset.id);
+      const o = e.target.closest(".svc-officer"); if (o) return openOfficerProfile(o.dataset.email);
+    });
+    if ($("adminReportRefresh")) $("adminReportRefresh").addEventListener("click", (e) => runBusy(e.currentTarget, loadAdminServiceReport));
+    if ($("adminReportSearch")) $("adminReportSearch").addEventListener("input", () => { clearTimeout(state._repSearchTimer); state._repSearchTimer = setTimeout(renderAdminServiceReport, 300); });
+    if ($("adminReportList")) $("adminReportList").addEventListener("click", (e) => {
+      const o = e.target.closest(".svc-officer"); if (o) openOfficerProfile(o.dataset.email);
+    });
+    if ($("officerModalClose")) $("officerModalClose").addEventListener("click", closeOfficerProfile);
+    if ($("officerModal")) $("officerModal").addEventListener("click", (e) => {
+      if (e.target.id === "officerModal") return closeOfficerProfile();
+      const w = e.target.closest(".svc-void"); if (w) return voidServiceEval(w.dataset.id);
+      const r = e.target.closest(".svc-restore"); if (r) return restoreServiceEval(r.dataset.id);
     });
     $("linkAddRow").addEventListener("click", addLinkRow);
     $("linkCancel").addEventListener("click", () => { $("linkModal").classList.add("hidden"); state.linkCtx = null; });

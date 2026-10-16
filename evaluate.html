@@ -42,6 +42,7 @@
     .btn[disabled] { opacity: .6; }
     .center { text-align: center; }
     .hidden { display: none !important; }
+    .hp-wrap { position: absolute; left: -9999px; top: -9999px; height: 0; overflow: hidden; }
     .muted { color: #64748b; font-size: .85rem; }
     .success { font-size: 3rem; }
     .err { color: #b91c1c; font-weight: 700; }
@@ -98,6 +99,15 @@
         <textarea id="comment" placeholder="ข้อเสนอแนะหรือคำชม" maxlength="1000"></textarea>
       </div>
 
+      <!-- honeypot: ซ่อนจากคน แต่บอทมักจะเติม → ใช้จับสแปม (Phase 6.26) -->
+      <div class="hp-wrap" aria-hidden="true">
+        <input id="hp" type="text" name="website" tabindex="-1" autocomplete="off" />
+      </div>
+
+      <div id="formErr" class="card hidden" style="border-color:#fecaca">
+        <p class="err" id="formErrMsg"></p>
+      </div>
+
       <button type="submit" id="submitBtn" class="btn">📤 ส่งแบบประเมิน</button>
     </form>
 
@@ -107,7 +117,7 @@
       <p class="muted" id="doneStars"></p>
     </div>
 
-    <div class="foot">KKU HR Exp · Phase 6.24</div>
+    <div class="foot">KKU HR Exp · Phase 6.26</div>
   </div>
 
   <script>
@@ -167,21 +177,56 @@
       }
     }
 
+    function showFormError(msg) {
+      const box = $("formErr");
+      if (!msg) { box.classList.add("hidden"); return; }
+      $("formErrMsg").textContent = msg;
+      box.classList.remove("hidden");
+      box.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    // ตรวจข้อความต้องสงสัยฝั่งหน้าเว็บ (server จะตรวจซ้ำอีกชั้น — Phase 6.26)
+    function detectSpamText(text) {
+      const s = String(text || "").toLowerCase();
+      if (/(https?:\/\/|www\.|t\.me\/|line\.me\/|bit\.ly\/|\.com|\.net|\.org|\.io|\.xyz)/.test(s)) return "ไม่อนุญาตให้ใส่ลิงก์ในแบบประเมิน";
+      const bad = ["ควย", "สัส", "เหี้ย", "เย็ด", "เอาเยด", "หน้าหี",
+        "fuck", "fucking", "shit", "bitch", "asshole", "bastard", "motherfucker"];
+      for (const w of bad) if (s.includes(w)) return "ข้อความมีคำไม่เหมาะสม กรุณาแก้ไขก่อนส่ง";
+      if (/(.)\1{9,}/.test(s)) return "ข้อความมีอักขระซ้ำมากเกินไป กรุณาแก้ไขก่อนส่ง";
+      return null;
+    }
+    function isDuplicateLocal(officer, title) {
+      try {
+        const key = "hrx_svc_last";
+        const val = JSON.parse(localStorage.getItem(key) || "null");
+        const norm = (x) => String(x || "").toLowerCase().replace(/\s+/g, " ").trim();
+        if (val && val.officer === officer && norm(val.title) === norm(title) && (Date.now() - (val.ts || 0)) < 30 * 60000) return true;
+        localStorage.setItem(key, JSON.stringify({ officer: officer, title: title, ts: Date.now() }));
+      } catch (e) { /* ignore */ }
+      return false;
+    }
+
     $("evalForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const title = $("title").value.trim();
-      if (!title) { alert("กรุณากรอกชื่อเรื่องที่ขอใช้บริการ"); $("title").focus(); return; }
+      if (!title) { showFormError("กรุณากรอกชื่อเรื่องที่ขอใช้บริการ"); $("title").focus(); return; }
+      const locationV = $("location").value.trim();
+      const commentV = $("comment").value.trim();
+      const spam = detectSpamText(title + " " + locationV + " " + commentV);
+      if (spam) { showFormError(spam); return; }
+      if (isDuplicateLocal(token, title)) { showFormError("ส่งซ้ำไปแล้ว กรุณารอสักครู่"); return; }
+      showFormError(null);
       const btn = $("submitBtn");
       btn.disabled = true; btn.textContent = "กำลังส่ง...";
       const payload = {
         action: "submitEvaluation",
         token: token,
         title: title,
-        location: $("location").value.trim(),
+        location: locationV,
         submitterEmail: $("email").value.trim(),
         ratingFast: ratingFast,
         ratingUnable: ratingUnable,
-        comment: $("comment").value.trim()
+        comment: commentV,
+        hp: $("hp").value
       };
       try {
         await fetch(CONFIG.APPS_SCRIPT_URL, {

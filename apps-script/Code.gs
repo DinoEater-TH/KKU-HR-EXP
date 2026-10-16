@@ -267,7 +267,7 @@ var HEADERS = {
   NOTIF_ACKS:    ["Ack_ID", "Notif_ID", "User_Email", "Ack_At"],
   USER_ACHIEVEMENTS: ["UA_ID", "Email", "Ach_ID", "Unlocked_At"],
   AUDIT_LOG:     ["Audit_ID", "Timestamp", "Actor_Email", "Action", "Target_Type", "Target_ID", "Reason", "Meta"],
-  SERVICE_EVALS: ["Eval_ID", "Timestamp", "Request_Title", "Location", "Requester_Email", "Rating_Fast", "Rating_Unable", "Stars_Total", "Comment", "Officer_Email", "Officer_Name", "XP_Awarded", "Status", "Void_Reason", "Voided_By", "Voided_At"],
+  SERVICE_EVALS: ["Eval_ID", "Timestamp", "Request_Title", "Location", "Requester_Email", "Rating_Fast", "Rating_Unable", "Stars_Total", "Comment", "Officer_Email", "Officer_Name", "XP_Awarded", "Status", "Void_Reason", "Voided_By", "Voided_At", "Restored_At", "Restored_By"],
   SERVICE_TOKENS:["Token", "Officer_Email", "Officer_Name", "Created_At"]
 };
 
@@ -288,7 +288,7 @@ function doGet(e) {
   try {
     switch (p.action) {
       case "ping":
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.25", time: nowStr_() }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.26", time: nowStr_() }, cb);
       case "pendingIssues":
         return output_(pendingIssues_(p.idToken), cb);
       case "myHistory":
@@ -341,7 +341,7 @@ function doGet(e) {
         return ContentService.createTextOutput(exportSheetAsCsv_(p.sheet || SHEETS.WORK_LOGS))
           .setMimeType(ContentService.MimeType.CSV);
       default:
-        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.25" }, cb);
+        return output_({ status: "ok", message: "KKU HR Exp API Phase 6.26" }, cb);
     }
   } catch (err) {
     return output_({ status: "error", message: String(err) }, cb);
@@ -363,7 +363,7 @@ function doPost(e) {
 
     // Public actions (no login required)
     if (data.action === "submitEvaluation") {
-      return handleSubmitEvaluation_(data.token, data.title, data.location, data.submitterEmail, data.ratingFast, data.ratingUnable, data.comment);
+      return handleSubmitEvaluation_(data.token, data.title, data.location, data.submitterEmail, data.ratingFast, data.ratingUnable, data.comment, data.hp);
     }
 
     var verifiedEmail = null;
@@ -416,6 +416,8 @@ function doPost(e) {
         return handleAdminRestore_(email, data.kind, data.recordId || data.id, data.reason || "");
       case "voidServiceEval":
         return handleVoidServiceEval_(email, data.evalId || data.id, data.reason || "");
+      case "restoreServiceEval":
+        return handleRestoreServiceEval_(email, data.evalId || data.id, data.reason || "");
       case "adminEditSolution":
         return handleAdminEditSolution_(email, data.solutionId, data.solution || data.text || "");
       case "adminRemoveFile":
@@ -1693,6 +1695,39 @@ function exportData_(idToken, type) {
     return { status: "ok", type: "serviceevals", count: srows.length, rows: srows };
   }
 
+  if (type === "serviceReport") {
+    var all = readObjects_(getSheet_(SHEETS.SERVICE_EVALS, HEADERS.SERVICE_EVALS), HEADERS.SERVICE_EVALS);
+    var byOfficer = {};
+    all.forEach(function (r) {
+      var key = String(r.Officer_Email || "");
+      if (!key) return;
+      if (!byOfficer[key]) byOfficer[key] = { email: key, name: names[key] || String(r.Officer_Name || ""), count: 0, stars: 0, xp: 0, voidCount: 0, last: "" };
+      var o = byOfficer[key];
+      if (String(r.Status || "Active") === "Void") { o.voidCount++; }
+      else {
+        o.count++;
+        o.stars += Number(r.Stars_Total || 0);
+        o.xp += Number(r.XP_Awarded || 0);
+        if (String(r.Timestamp || "") > o.last) o.last = String(r.Timestamp || "");
+      }
+    });
+    var rrows = Object.keys(byOfficer).map(function (k) {
+      var o = byOfficer[k];
+      return {
+        "เจ้าหน้าที่": o.name || o.email,
+        "อีเมล": o.email,
+        "จำนวนประเมิน": o.count,
+        "ดาวรวม": o.stars,
+        "ดาวเฉลี่ย": o.count ? Math.round((o.stars / o.count) * 100) / 100 : 0,
+        "XP ที่ได้": o.xp,
+        "จำนวนที่ยกเลิก": o.voidCount,
+        "ประเมินล่าสุด": o.last
+      };
+    });
+    rrows.sort(function (a, b) { return b["ดาวเฉลี่ย"] - a["ดาวเฉลี่ย"] || b["จำนวนประเมิน"] - a["จำนวนประเมิน"]; });
+    return { status: "ok", type: "serviceReport", count: rrows.length, rows: rrows };
+  }
+
   if (type === "issues") {
     var rows = readObjects_(getSheet_(SHEETS.ISSUES, HEADERS.ISSUES), HEADERS.ISSUES).map(function (r) {
       return {
@@ -2893,7 +2928,7 @@ function serviceEvalInfo_(token) {
   return { status: "error", message: "ลิงก์ไม่ถูกต้องหรือหมดอายุ" };
 }
 
-function handleSubmitEvaluation_(token, title, location, requesterEmail, ratingFast, ratingUnable, comment) {
+function handleSubmitEvaluation_(token, title, location, requesterEmail, ratingFast, ratingUnable, comment, hp) {
   if (!token) return json_({ status: "error", message: "ไม่พบรหัสประเมิน" });
   var t = String(title || "").trim();
   if (!t) return json_({ status: "error", message: "ต้องกรอกชื่อเรื่องที่ขอใช้บริการ" });
@@ -2908,6 +2943,14 @@ function handleSubmitEvaluation_(token, title, location, requesterEmail, ratingF
     }
   }
   if (!officerEmail) return json_({ status: "error", message: "ลิงก์ไม่ถูกต้องหรือหมดอายุ" });
+
+  // กันสแปม (Phase 6.26): honeypot + ตรวจคำหยาบ/ลิงก์ + กันส่งซ้ำ — บล็อกทันที (ไม่บันทึก/ไม่ให้ XP)
+  if (String(hp || "").trim()) return json_({ status: "ok", spam: true });
+  var spamMsg = detectServiceSpam_(t + " " + String(location || "") + " " + String(comment || ""));
+  if (spamMsg) return json_({ status: "error", message: spamMsg });
+  if (isDuplicateServiceEval_(officerEmail, t, 30)) {
+    return json_({ status: "error", message: "มีการประเมินหัวข้อนี้ซ้ำภายใน 30 นาที กรุณารอสักครู่" });
+  }
 
   var fast = Math.max(0, Math.min(5, Number(ratingFast) || 0));
   var unable = Math.max(0, Math.min(2, Number(ratingUnable) || 0));
@@ -2926,6 +2969,46 @@ function handleSubmitEvaluation_(token, title, location, requesterEmail, ratingF
   if (stars > 0) awardXp_(officerEmail, stars, "service_eval", evalId, "");
   evaluateAchievements_(officerEmail);
   return json_({ status: "ok", stars: stars, xp: stars });
+}
+
+/* ตรวจข้อความต้องสงสัยในแบบประเมิน (Phase 6.26)
+ *   คืนข้อความแจ้งเตือนถ้าพบ (บล็อกทันที) หรือ null ถ้าปกติ
+ *   ตรวจ: ลิงก์/URL · คำหยาบ (ไทย+อังกฤษ) · ตัวอักษรซ้ำผิดปกติ */
+function detectServiceSpam_(text) {
+  var s = String(text || "").toLowerCase();
+  // 1) ลิงก์ / โดเมน
+  if (/(https?:\/\/|www\.|t\.me\/|line\.me\/|bit\.ly\/|\.com|\.net|\.org|\.io|\.xyz)/.test(s)) {
+    return "ไม่อนุญาตให้ใส่ลิงก์หรือที่อยู่ในแบบประเมิน";
+  }
+  // 2) คำหยาบ (รายการพื้นฐาน — เน้นคำชัดเจนเพื่อลด false positive)
+  var bad = ["\u0e04\u0e27\u0e22", "\u0e2a\u0e31\u0e2a", "\u0e40\u0e2b\u0e35\u0e49\u0e22", "\u0e40\u0e22\u0e47\u0e14", "\u0e40\u0e2d\u0e32\u0e40\u0e22\u0e14", "\u0e2b\u0e19\u0e49\u0e32\u0e2b\u0e35",
+    "fuck", "fucking", "shit", "bitch", "asshole", "bastard", "motherfucker"];
+  for (var i = 0; i < bad.length; i++) {
+    if (s.indexOf(bad[i]) !== -1) return "ข้อความมีคำไม่เหมาะสม กรุณาแก้ไขก่อนส่ง";
+  }
+  // 3) ตัวอักษร/อักขระซ้ำผิดปกติ (สแปมยิงรัว) เช่น "aaaaa" หรือ "!!!!!!"
+  if (/(.)\1{9,}/.test(s)) return "ข้อความมีอักขระซ้ำมากเกินไป กรุณาแก้ไขก่อนส่ง";
+  return null;
+}
+
+/* กันส่งซ้ำ: เจ้าหน้าที่คนเดิม + หัวข้อเดียวกัน (ปรับช่องว่าง/ตัวพิมพ์ให้เทียบเท่า)
+ *   ภายใน windowMin นาทีล่าสุด → ถือว่าซ้ำ */
+function isDuplicateServiceEval_(officerEmail, title, windowMin) {
+  try {
+    var norm = function (x) { return String(x || "").toLowerCase().replace(/\s+/g, " ").trim(); };
+    var target = norm(title);
+    if (!target) return false;
+    var cutoff = Utilities.formatDate(new Date(Date.now() - (windowMin || 30) * 60000), TIMEZONE, "yyyy-MM-dd HH:mm:ss");
+    var objs = readObjects_(getSheet_(SHEETS.SERVICE_EVALS, HEADERS.SERVICE_EVALS), HEADERS.SERVICE_EVALS);
+    for (var i = objs.length - 1; i >= 0; i--) {
+      var r = objs[i];
+      if (String(r.Officer_Email) !== String(officerEmail)) continue;
+      if (String(r.Timestamp) < cutoff) continue;
+      if (String(r.Status || "Active") === "Void") continue;
+      if (norm(r.Request_Title) === target) return true;
+    }
+  } catch (e) { return false; }
+  return false;
 }
 
 function myServiceEvals_(idToken, emailParam) {
@@ -3018,4 +3101,51 @@ function handleVoidServiceEval_(adminEmail, evalId, reason) {
 
   logAudit_(adminEmail, "service_eval_void", "service_eval", evalId, reason, { officer: officerEmail, reversedXp: reversed });
   return { status: "ok", id: evalId, reversedXp: reversed, message: "ยกเลิกผลประเมินแล้ว" };
+}
+
+/* แอดมิน "กู้คืน" ผลประเมินที่ถูกยกเลิก + คืน XP ให้เจ้าหน้าที่ (Phase 6.26)
+ *   - ใช้ได้เฉพาะรายการที่ Status="Void"
+ *   - ตั้ง Status="Active" + เก็บ Restored_At/Restored_By
+ *   - คืน XP = XP_Awarded ของรายการนั้น แล้วปรับ Total_XP/Level */
+function handleRestoreServiceEval_(adminEmail, evalId, reason) {
+  if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
+  if (!evalId) throw new Error("ไม่พบรหัสผลประเมิน");
+
+  var esh = getSheet_(SHEETS.SERVICE_EVALS, HEADERS.SERVICE_EVALS);
+  var row = findRowByHeader_(esh, "Eval_ID", evalId);
+  if (row === -1) throw new Error("ไม่พบผลประเมินนี้");
+
+  var map = headerMap_(esh);
+  var cur = String(esh.getRange(row, map["Status"]).getValue() || "Active");
+  if (cur !== "Void") throw new Error("กู้คืนได้เฉพาะรายการที่ถูกยกเลิกเท่านั้น");
+
+  var officerEmail = String(esh.getRange(row, map["Officer_Email"]).getValue() || "");
+  var amount = Number(esh.getRange(row, map["XP_Awarded"]).getValue() || 0);
+  var ts = nowStr_();
+
+  esh.getRange(row, map["Status"]).setValue("Active");
+  if (map["Restored_At"]) esh.getRange(row, map["Restored_At"]).setValue(ts);
+  if (map["Restored_By"]) esh.getRange(row, map["Restored_By"]).setValue(adminEmail);
+
+  var restored = 0;
+  if (amount > 0 && officerEmail) {
+    appendByHeaders_(getSheet_(SHEETS.XP_HISTORY, HEADERS.XP_HISTORY), HEADERS.XP_HISTORY, {
+      XP_ID: "XP-" + Utilities.formatDate(new Date(), TIMEZONE, "yyyyMMdd-HHmmss") + "-" + rand3_(),
+      Timestamp: ts, User_Email: officerEmail, Amount: amount, Reason: "service_eval_restore",
+      Ref_ID: evalId, Client_Ref: ("service_eval_restore: " + String(reason || "")).slice(0, 100)
+    });
+    var ush = getSheet_(SHEETS.USERS, HEADERS.USERS);
+    var umap = headerMap_(ush);
+    var urow = findRowByHeader_(ush, "Email", officerEmail);
+    if (urow !== -1) {
+      var total = Number(ush.getRange(urow, umap["Total_XP"]).getValue() || 0) + amount;
+      if (total < 0) total = 0;
+      ush.getRange(urow, umap["Total_XP"]).setValue(total);
+      ush.getRange(urow, umap["Level"]).setValue(levelFor_(total).level);
+    }
+    restored = amount;
+  }
+
+  logAudit_(adminEmail, "service_eval_restore", "service_eval", evalId, String(reason || ""), { officer: officerEmail, restoredXp: restored });
+  return { status: "ok", id: evalId, restoredXp: restored, message: "กู้คืนผลประเมินแล้ว" };
 }
