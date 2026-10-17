@@ -941,7 +941,7 @@
   /* ============================================================
      KKU HR Exp — Phase 6.27 (index.html) · PHASE 3: ภารกิจ (Quests) + เหรียญ (Coins) + ร้านค้า (Shop) — แอดมินสร้างภารกิจ (จำนวนคน/ระดับ/รหัส/จุดเช็คอิน/ทำซ้ำได้/เหรียญรางวัล), ผู้ใช้เข้าร่วม-เช็คอิน-กรอกรหัส รับเหรียญ, มีประวัติการเข้าร่วม; ร้านค้าแลกของรางวัล (ราคา/จำกัดต่อคน/ช่วงระดับ/ภารกิจที่ต้องผ่าน) · ต่อจาก Phase 6.23 (แอดมินดูรายละเอียดครบในแผงรายการส่งข้อมูล + เปิด/ปิดการมองเห็นอันดับ) · + XP ป้ายจริงจากแอดมิน (6.23.1) · ประเมินบริการ QR (6.24-6.25) · รายงาน+ป้องกันสแปม (6.26)
      ============================================================ */
-  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], submitting:false, fileBusy:0, currentTab:"work", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, solEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], quests:[], questHist:[], questTab:"active", adminQuests:[], shopItems:[], adminShop:[], redeems:[], sound: localStorage.getItem("hrx_sound") !== "0", xpCfg:null };
+  const state = { user:null, idToken:null, isAdmin:false, mode:"auto", attachments:[], submitting:false, fileBusy:0, currentTab:"work", pendingNotifs:[], linkCtx:null, voidCtx:null, editCtx:null, adminSubs:[], adminUsers:[], userRecords:[], userRecordEmail:null, rejectedItems:{}, resendCtx:null, adminEditCtx:null, solEditCtx:null, dashData:null, profileData:null, boardItems:{}, kbItems:{}, kbList:[], historyItems:{}, histList:[], quests:[], questHist:[], questTab:"active", adminQuests:[], shopItems:[], adminShop:[], redeems:[], xpRules:[], sound: localStorage.getItem("hrx_sound") !== "0", xpCfg:null };
   let subSearchTimer = null;
   let userSearchTimer = null;
   const XP_FALLBACK = { WORK_LOG: 10, ISSUE: 15, SOLUTION: 25, RESOLVE: 50, LIKE_RECEIVED: 5 };
@@ -2890,6 +2890,7 @@
       $("adminNotifRecent").innerHTML = data.notifications.slice(0, 5)
         .map(n => `<p class="text-[11px] text-slate-400 truncate">📌 ${esc(n.message)} · ${esc(n.time)}</p>`).join("");
 
+      state.xpRules = data.rules || [];
       renderRules(data.rules || []);
     renderXpCfg(data.xpConfig, data.xpLabels, data.xpDefaults);
     renderStreakCfg(data.streakConfig, data.streakDefaults, data.streakDays);
@@ -4202,7 +4203,7 @@
       const r = [];
       if (q.needsCode) r.push("🔑 ต้องกรอกรหัส");
       if (q.needsCheckin) r.push("📍 ต้องเช็คอิน");
-      if (q.minLevel > 1) r.push("Lv." + q.minLevel + "+");
+      if (q.minLevel > 1) r.push("🎖 " + (levelName_(q.minLevel) || ("Lv." + q.minLevel)) + "+");
       if (q.prereqQuestId) r.push("🔗 ต้องผ่านภารกิจก่อน");
       return r.length ? r.join(" · ") : "เข้าร่วมได้เลย";
     }
@@ -4380,7 +4381,7 @@
               <div class="flex flex-wrap gap-1.5 mt-2">
                 <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">📦 ${esc(stockTxt)}</span>
                 <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">👤 ${esc(limitTxt)}</span>
-                ${it.minLevel > 0 ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">Lv.${it.minLevel}${it.maxLevel > 0 ? "-" + it.maxLevel : "+"}</span>` : ""}
+                ${it.minLevel > 0 ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${esc(levelName_(it.minLevel))}${it.maxLevel > 0 ? " – " + esc(levelName_(it.maxLevel)) : "+"}</span>` : ""}
                 ${it.prereqQuestId ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-600">🔗 ต้องผ่านภารกิจ</span>` : ""}
               </div>
             </div>
@@ -4412,6 +4413,7 @@
         const d = await apiGet({ action:"adminQuests", idToken:state.idToken });
         if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
         state.adminQuests = d.quests || [];
+        state.xpRules = d.rules || state.xpRules || [];
         if (!state.adminQuests.length) { wrap.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีภารกิจ — กด "＋ สร้างภารกิจ"</p>`; return; }
         wrap.innerHTML = state.adminQuests.map(questAdminCardHtml).join("");
       } catch (err) {
@@ -4457,7 +4459,7 @@
             <label class="text-[11px] text-slate-500">จำนวนสูงสุด<input data-f="maxParticipants" type="number" min="0" value="${Number(q.maxParticipants || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
           </div>
           <div class="grid grid-cols-2 gap-2">
-            <label class="text-[11px] text-slate-500">ระดับขั้นต่ำ (Lv.)<input data-f="minLevel" type="number" min="1" value="${Number(q.minLevel || 1)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+            <label class="text-[11px] text-slate-500">ระดับขั้นต่ำ<select data-f="minLevel" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">${levelOptionList_(q.minLevel, "", 0)}</select></label>
             <label class="text-[11px] text-slate-500">เหรียญรางวัล 🪙<input data-f="coins" type="number" min="0" value="${Number(q.coins || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
           </div>
           <label class="text-[11px] text-slate-500 block">ต้องผ่านภารกิจก่อน (ถ้ามี)<select data-f="prereqQuestId" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"><option value="">— ไม่ต้อง —</option>${opts}</select></label>
@@ -4542,6 +4544,7 @@
         if (!d || d.status !== "ok") throw new Error((d && d.message) || "error");
         state.adminShop = d.items || [];
         state.adminRedeems = d.redeems || [];
+        state.xpRules = d.rules || state.xpRules || [];
         wrap.innerHTML = state.adminShop.length ? state.adminShop.map(shopAdminCardHtml).join("") : `<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีของรางวัล — กด "＋ เพิ่มของรางวัล"</p>`;
         renderAdminRedeems();
       } catch (err) {
@@ -4555,7 +4558,7 @@
           <span class="text-xl">${esc(it.icon || "🎁")}</span>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1.5 flex-wrap">${activeBadge}<span class="text-sm font-bold text-slate-800">${esc(it.name)}</span></div>
-            <p class="text-[11px] text-slate-400 mt-0.5">🪙 ${fmtCoins(it.cost)} · 📦 คงเหลือ ${it.stock > 0 ? fmtCoins(it.stock) : "ไม่จำกัด"} · 👤 ${it.limitPerUser > 0 ? it.limitPerUser + "/คน" : "ไม่จำกัด"} · แลกแล้ว ${it.redeemCount}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">🪙 ${fmtCoins(it.cost)} · 📦 คงเหลือ ${it.stock > 0 ? fmtCoins(it.stock) : "ไม่จำกัด"} · 👤 ${it.limitPerUser > 0 ? it.limitPerUser + "/คน" : "ไม่จำกัด"} · แลกแล้ว ${it.redeemCount}${it.minLevel > 0 ? " · 🎖 " + esc(levelName_(it.minLevel)) + (it.maxLevel > 0 ? " – " + esc(levelName_(it.maxLevel)) : "+") : ""}</p>
           </div>
         </div>
         <div class="flex gap-1.5 mt-2">
@@ -4564,6 +4567,25 @@
         </div>
         <div class="sedit hidden mt-3 border-t border-dashed border-slate-200 pt-3">${shopAdminFormHtml(it)}</div>
       </div>`;
+    }
+    function levelName_(n) {
+      const lv = Number(n) || 0;
+      if (!lv) return "";
+      const r = (state.xpRules || []).find(x => Number(x.level) === lv);
+      return r ? `L${lv} ${r.title}` : `Lv.${lv}`;
+    }
+    function levelOptionList_(selected, zeroLabel, zeroValue) {
+      const rules = state.xpRules || [];
+      const hasZero = (zeroLabel != null && zeroLabel !== "");
+      const zv = Number(zeroValue || 0);
+      const cur = Number(selected != null && selected !== "" ? selected : (hasZero ? zv : 1));
+      let html = hasZero ? `<option value="${zv}"${cur === zv ? " selected" : ""}>${esc(zeroLabel)}</option>` : "";
+      rules.forEach(r => {
+        const lv = Number(r.level) || 0;
+        if (!lv || (hasZero && lv === zv)) return;
+        html += `<option value="${lv}"${lv === cur ? " selected" : ""}>L${lv} ${esc(r.title)}</option>`;
+      });
+      return html;
     }
     function shopAdminFormHtml(it) {
       it = it || {};
@@ -4581,8 +4603,8 @@
             <label class="text-[11px] text-slate-500">ต่อคน<input data-f="limitPerUser" type="number" min="0" value="${Number(it.limitPerUser || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
           </div>
           <div class="grid grid-cols-2 gap-2">
-            <label class="text-[11px] text-slate-500">ระดับต่ำสุด (0=ไม่จำกัด)<input data-f="minLevel" type="number" min="0" value="${Number(it.minLevel || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
-            <label class="text-[11px] text-slate-500">ระดับสูงสุด (0=ไม่จำกัด)<input data-f="maxLevel" type="number" min="0" value="${Number(it.maxLevel || 0)}" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs" /></label>
+            <label class="text-[11px] text-slate-500">ระดับต่ำสุด<select data-f="minLevel" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">${levelOptionList_(it.minLevel, "ทุกระดับ")}</select></label>
+            <label class="text-[11px] text-slate-500">ระดับสูงสุด<select data-f="maxLevel" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">${levelOptionList_(it.maxLevel, "ไม่จำกัด")}</select></label>
           </div>
           <label class="text-[11px] text-slate-500 block">ต้องผ่านภารกิจก่อนแลก<select data-f="prereqQuestId" class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"><option value="">— ไม่ต้อง —</option>${opts}</select></label>
           <label class="text-[11px] text-slate-500 flex items-center gap-1.5"><input data-f="active" type="checkbox"${it.active !== false ? " checked" : ""} class="w-4 h-4" /> เปิดใช้งาน</label>

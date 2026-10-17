@@ -2824,7 +2824,7 @@ function adminQuests_(idToken) {
       completedCount: qParts.filter(function (p) { return String(p.Status) === "completed"; }).length
     };
   });
-  return { status: "ok", quests: list };
+  return { status: "ok", quests: list, rules: getXpRules_() };
 }
 function adminQuestParticipants_(idToken, questId) {
   if (!idToken) throw new Error("ต้องเข้าสู่ระบบ");
@@ -3036,7 +3036,7 @@ function adminShop_(idToken) {
       status: String(r.Status || ""), cost: Number(r.Cost_Coins || 0) || 0, at: String(r.Redeemed_At || "")
     };
   }).sort(function (a, b) { return a.at < b.at ? 1 : -1; }).slice(0, 100);
-  return { status: "ok", items: list, redeems: recentRedeems };
+  return { status: "ok", items: list, redeems: recentRedeems, rules: getXpRules_() };
 }
 function handleAdminSetRedeemStatus_(adminEmail, redeemId, status) {
   if (!isAdmin_(adminEmail)) throw new Error("เฉพาะแอดมินเท่านั้น");
