@@ -1,0 +1,15 @@
+{
+  "name": "kku-hr-exp",
+  "private": true,
+  "scripts": {
+    "login": "clasp login",
+    "logout": "clasp logout",
+    "push": "clasp push",
+    "open": "clasp open",
+    "versions": "clasp versions",
+    "deploy": "clasp deploy -d \"Auto deploy $(node -e \"console.log(new Date().toISOString().slice(0,10))\")\""
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.2.1"
+  }
+}
