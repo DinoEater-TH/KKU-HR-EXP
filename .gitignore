@@ -2,3 +2,5 @@ node_modules/
 .clasp/
 .DS_Store
 *.log
+
+apps-script/รหัส.js
